@@ -1,0 +1,232 @@
+namespace IobBackupAnalyzer.Core;
+
+/// <summary>
+/// Säule 3: Analysen für verwaiste Datenpunkte.
+///
+/// Beide Analysen liefern ausdrücklich Prüflisten, keine Löschlisten — die Grenzen der
+/// Erkennbarkeit sind in den Kommentaren der jeweiligen Methode dokumentiert.
+/// </summary>
+public static class OrphanAnalyzer
+{
+    /// <summary>
+    /// Namespaces, die keiner Adapter-Instanz zugeordnet sind und deshalb nie als
+    /// Objekt-Leiche gelten können (Analyse A).
+    /// </summary>
+    private static readonly string[] SystemNamespaces =
+    {
+        "system.", "_design", "enum.", "alias.", "0_userdata.", "script.js."
+    };
+
+    /// <summary>
+    /// Analyse A: Objekte, deren Adapter-Instanz nicht mehr existiert.
+    /// </summary>
+    public static List<OrphanObject> FindOrphanObjects(BackupData data)
+    {
+        var known = new HashSet<string>(
+            data.Instances.Select(i => i.Namespace), StringComparer.OrdinalIgnoreCase);
+
+        var result = new List<OrphanObject>();
+
+        foreach (var o in data.Objects)
+        {
+            if (IsSystemNamespace(o.Id)) continue;
+
+            // Namespace ist <adapter>.<instanz> — die ersten beiden Segmente.
+            var first = o.Id.IndexOf('.');
+            if (first <= 0) continue;
+            var second = o.Id.IndexOf('.', first + 1);
+            if (second < 0) continue;
+
+            // Nur numerische Instanznummern gelten als Adapter-Namespace; damit fallen
+            // Objekte wie "mqtt.foo.bar" (kein Instanzmuster) nicht fälschlich an.
+            var instancePart = o.Id[(first + 1)..second];
+            if (!int.TryParse(instancePart, out _)) continue;
+
+            var ns = o.Id[..second];
+            if (known.Contains(ns)) continue;
+
+            result.Add(new OrphanObject
+            {
+                Id = o.Id,
+                Type = o.Type,
+                Name = o.Name,
+                MissingInstance = ns
+            });
+        }
+
+        return result
+            .OrderBy(o => o.MissingInstance, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(o => o.Id, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static bool IsSystemNamespace(string id)
+    {
+        foreach (var ns in SystemNamespaces)
+            if (id.StartsWith(ns, StringComparison.OrdinalIgnoreCase)) return true;
+        return false;
+    }
+
+    /// <summary>
+    /// Installierte Adapter ohne eigene Instanz — eine Bestandsaufnahme, keine Löschliste.
+    ///
+    /// Grundmenge: echte Adapter-Objekte <c>system.adapter.&lt;name&gt;</c> (type=adapter,
+    /// genau drei ID-Segmente). Die host-gebundenen <c>system.host.&lt;host&gt;.adapter.*</c>
+    /// tragen dieses Präfix nicht und fallen von selbst heraus. Ein Adapter gilt als „ohne
+    /// eigene Instanz", wenn zu seinem Namen keine Instanz
+    /// (system.adapter.&lt;name&gt;.&lt;nr&gt;) existiert.
+    ///
+    /// Wichtig: instanzlos heißt nicht ungenutzt. Socket-Backends wie ws/socketio werden von
+    /// admin/web genutzt, ohne eine eigene Instanz zu haben; reine Abhängigkeiten ebenso. Ein
+    /// belastbares Backup-Merkmal, das „gebraucht" von „übrig" trennt, existiert nicht — alle
+    /// tragen common.mode=daemon. Die Einordnung bleibt daher dem Nutzer überlassen.
+    /// </summary>
+    public static List<AdapterWithoutInstance> FindAdaptersWithoutInstance(BackupData data)
+    {
+        var withInstance = new HashSet<string>(
+            data.Instances.Select(i => i.Adapter), StringComparer.OrdinalIgnoreCase);
+
+        var result = new List<AdapterWithoutInstance>();
+
+        foreach (var o in data.Objects)
+        {
+            if (o.Type != "adapter") continue;
+            if (!o.Id.StartsWith("system.adapter.", StringComparison.Ordinal)) continue;
+
+            var name = o.Id["system.adapter.".Length..];
+            // Adapternamen sind einsegmentig; alles mit weiterem Punkt wäre kein Adapter-Objekt.
+            if (name.Length == 0 || name.Contains('.')) continue;
+            if (withInstance.Contains(name)) continue;
+
+            result.Add(new AdapterWithoutInstance { Adapter = name, Version = o.Version ?? "" });
+        }
+
+        return result.OrderBy(a => a.Adapter, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    /// <summary>
+    /// Analyse B: User-Datenpunkte, die nirgends verwendet zu werden scheinen.
+    ///
+    /// Grundmenge: type=state unter 0_userdata.0.* und javascript.&lt;X&gt;.*.
+    /// Vier Prüfungen je Kandidat: Vorkommen in Skripten, Vorkommen in VIS-Views,
+    /// Alias-Ziel, aktives Logging (common.custom).
+    ///
+    /// Zusätzlich wird der Zeitstempel der letzten Wertänderung aus states.jsonl
+    /// mitgeführt. Er ersetzt keine der vier Prüfungen, ordnet die Treffer aber ein:
+    /// Ein Datenpunkt, der sich vorgestern noch geändert hat, wird von irgendetwas
+    /// beschrieben — auch wenn weder Skript noch VIS ihn erwähnen.
+    ///
+    /// Bekannte Grenzen: IDs, die ein Skript zur Laufzeit aus Teilen zusammensetzt,
+    /// werden nur über die Präfix-Prüfung erfasst; Nutzung durch externe Systeme
+    /// (MQTT-Clients, Grafana, App-Widgets) ist im Backup grundsätzlich nicht sichtbar.
+    /// </summary>
+    public static List<UnusedDatapoint> FindUnusedDatapoints(BackupData data,
+                                                             CancellationToken ct = default)
+    {
+        // Ein einziger Suchtext über alle Skripte: 1 Substring-Suche statt N.
+        var scriptText = string.Join("\n", data.Scripts.Select(s => s.SearchableCode));
+        var visText = string.Join("\n", data.VisViews.Select(v => v.Content));
+
+        // Alle Alias-Ziele einmal einsammeln. Case-sensitiv, weil ioBroker-IDs es sind —
+        // in gewachsenen Anlagen gibt es ID-Paare, die sich nur in der Schreibweise
+        // unterscheiden (…Temperatur vs …temperatur).
+        var aliasTargets = new HashSet<string>(
+            data.Objects.Where(o => !string.IsNullOrEmpty(o.AliasTarget)).Select(o => o.AliasTarget!),
+            StringComparer.Ordinal);
+
+        // Alle von Charts referenzierten Datenpunkte einmal einsammeln. Ein Datenpunkt, der
+        // in einer Chart-Linie steht, wird angezeigt und ist damit kein Verwaisten-Kandidat —
+        // die Quell-Instanz (history/influxdb/sql) spielt dabei keine Rolle. Case-sensitiv,
+        // wie alle ID-Vergleiche in diesem Werkzeug.
+        var chartRefs = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var o in data.Objects)
+            if (o.ChartRefs is not null)
+                foreach (var r in o.ChartRefs)
+                    chartRefs.Add(r);
+
+        var result = new List<UnusedDatapoint>();
+
+        // Bezugspunkt für das Alter ist der Backup-Zeitpunkt, nicht „heute" — sonst würde
+        // ein altes Backup alle Datenpunkte künstlich als tot erscheinen lassen.
+        var reference = data.CreatedAt ?? DateTime.Now;
+
+        foreach (var o in data.Objects)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            if (o.Type != "state") continue;
+            if (!IsUserDatapoint(o.Id)) continue;
+
+            var hasState = data.States.TryGetValue(o.Id, out var st);
+            var lastChange = hasState ? st!.LastChange : null;
+
+            result.Add(new UnusedDatapoint
+            {
+                Id = o.Id,
+                Name = o.Name,
+                InScripts = FindIn(scriptText, o.Id),
+                InVis = visText.Length == 0 ? FindKind.Nicht : FindIn(visText, o.Id),
+                AliasTarget = aliasTargets.Contains(o.Id),
+                LoggingActive = o.HasCustom,
+                InChart = chartRefs.Contains(o.Id),
+                HasState = hasState,
+                LastChange = lastChange,
+                AgeDays = lastChange is null ? null : (int)(reference - lastChange.Value).TotalDays
+            });
+        }
+
+        return result.OrderBy(r => r.Id, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    /// <summary>
+    /// Verwaltungsobjekte, die der javascript-Adapter selbst anlegt. Sie sind keine
+    /// Nutzer-Datenpunkte und wären als Löschkandidaten schlicht falsch.
+    /// </summary>
+    private static readonly string[] JavascriptInternals =
+    {
+        ".scriptEnabled.", ".scriptProblem.", ".debug.", ".info.",
+        ".memHeap", ".memRss", ".uptime", ".cpu", ".eventLoopLag"
+    };
+
+    private static bool IsUserDatapoint(string id)
+    {
+        if (id.StartsWith("0_userdata.0.", StringComparison.OrdinalIgnoreCase)) return true;
+
+        // javascript.<X>.* — aber nicht die Verwaltungsobjekte des Adapters selbst.
+        if (!id.StartsWith("javascript.", StringComparison.OrdinalIgnoreCase)) return false;
+
+        foreach (var marker in JavascriptInternals)
+            if (id.Contains(marker, StringComparison.OrdinalIgnoreCase)) return false;
+
+        if (id.EndsWith(".alive", StringComparison.OrdinalIgnoreCase)) return false;
+        if (id.EndsWith(".connected", StringComparison.OrdinalIgnoreCase)) return false;
+
+        return true;
+    }
+
+    /// <summary>
+    /// Sucht die ID im Text. Wird die volle ID nicht gefunden, wird geprüft, ob wenigstens
+    /// der Elternpfad vorkommt — dann setzt ein Skript die ID möglicherweise dynamisch
+    /// zusammen und der Datenpunkt ist kein sicherer Löschkandidat.
+    ///
+    /// Case-sensitiv (Ordinal), weil ioBroker-IDs es sind. Ein case-insensitiver Vergleich
+    /// würde genau die Tippfehler-Dubletten verschleiern, die dieses Werkzeug aufdecken soll.
+    /// </summary>
+    private static FindKind FindIn(string haystack, string id)
+    {
+        if (haystack.Contains(id, StringComparison.Ordinal))
+            return FindKind.Exakt;
+
+        var lastDot = id.LastIndexOf('.');
+        if (lastDot > 0)
+        {
+            var parent = id[..lastDot];
+            // Sehr kurze Präfixe (z. B. "0_userdata.0") träfen praktisch immer zu und
+            // wären als Signal wertlos.
+            if (parent.Length > 14 && haystack.Contains(parent, StringComparison.Ordinal))
+                return FindKind.NurPraefix;
+        }
+
+        return FindKind.Nicht;
+    }
+}

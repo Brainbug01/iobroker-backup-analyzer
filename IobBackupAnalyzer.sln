@@ -1,0 +1,48 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{A01B16E9-CB9F-4F79-9CF2-FEC71385B857}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IobBackupAnalyzer.Core", "src\IobBackupAnalyzer.Core\IobBackupAnalyzer.Core.csproj", "{DBFC9ADD-F1FC-4754-B3E4-458FFEDD715C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IobBackupAnalyzer.App", "src\IobBackupAnalyzer.App\IobBackupAnalyzer.App.csproj", "{C11C1025-852E-4C90-A8CE-15B800722D1F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IobBackupAnalyzer.Verify", "src\IobBackupAnalyzer.Verify\IobBackupAnalyzer.Verify.csproj", "{AE8953E3-10A4-49A0-8382-92D1777683E6}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IobBackupAnalyzer.Avalonia", "src\IobBackupAnalyzer.Avalonia\IobBackupAnalyzer.Avalonia.csproj", "{35E9C024-74C1-4ED0-99CB-052216799179}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{DBFC9ADD-F1FC-4754-B3E4-458FFEDD715C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DBFC9ADD-F1FC-4754-B3E4-458FFEDD715C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DBFC9ADD-F1FC-4754-B3E4-458FFEDD715C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DBFC9ADD-F1FC-4754-B3E4-458FFEDD715C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C11C1025-852E-4C90-A8CE-15B800722D1F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C11C1025-852E-4C90-A8CE-15B800722D1F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C11C1025-852E-4C90-A8CE-15B800722D1F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C11C1025-852E-4C90-A8CE-15B800722D1F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AE8953E3-10A4-49A0-8382-92D1777683E6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AE8953E3-10A4-49A0-8382-92D1777683E6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AE8953E3-10A4-49A0-8382-92D1777683E6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AE8953E3-10A4-49A0-8382-92D1777683E6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{35E9C024-74C1-4ED0-99CB-052216799179}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{35E9C024-74C1-4ED0-99CB-052216799179}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{35E9C024-74C1-4ED0-99CB-052216799179}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{35E9C024-74C1-4ED0-99CB-052216799179}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{DBFC9ADD-F1FC-4754-B3E4-458FFEDD715C} = {A01B16E9-CB9F-4F79-9CF2-FEC71385B857}
+		{C11C1025-852E-4C90-A8CE-15B800722D1F} = {A01B16E9-CB9F-4F79-9CF2-FEC71385B857}
+		{AE8953E3-10A4-49A0-8382-92D1777683E6} = {A01B16E9-CB9F-4F79-9CF2-FEC71385B857}
+		{35E9C024-74C1-4ED0-99CB-052216799179} = {A01B16E9-CB9F-4F79-9CF2-FEC71385B857}
+	EndGlobalSection
+EndGlobal

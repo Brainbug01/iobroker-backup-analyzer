@@ -1,0 +1,101 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="IobBackupAnalyzer.Avalonia.Views.OverviewView">
+
+  <Grid Margin="8" RowDefinitions="Auto,*,Auto">
+
+    <!-- ================= Kopf: Kennzahlen und Filter ================= -->
+    <StackPanel Grid.Row="0" Spacing="6" Margin="0,0,0,8">
+      <TextBlock Name="Header" FontSize="15" FontWeight="SemiBold"
+                 TextTrimming="CharacterEllipsis" />
+      <TextBlock Name="Metrics" />
+
+      <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto" Margin="0,4,0,0">
+        <TextBlock Grid.Column="0" Text="Filter:" VerticalAlignment="Center" Margin="0,0,8,0" />
+        <TextBox Name="Filter" Grid.Column="1" Width="320" Watermark="Adaptername …" />
+        <TextBlock Name="Count" Grid.Column="2" VerticalAlignment="Center"
+                   Margin="14,0,0,0" Opacity="0.75" />
+        <Button Name="Csv" Grid.Column="4" Content="Als CSV exportieren" />
+      </Grid>
+    </StackPanel>
+
+    <!-- ================= Instanztabelle ================= -->
+    <Grid Grid.Row="1">
+      <DataGrid Name="Instances"
+                IsReadOnly="True"
+                GridLinesVisibility="All"
+                CanUserSortColumns="True"
+                CanUserResizeColumns="True"
+                AutoGenerateColumns="False">
+        <DataGrid.Styles>
+          <!--
+            Deaktivierte Instanzen werden gedämpft dargestellt - wie in der Windows-App.
+            Die Klasse setzt der Code-Behind beim Aufbau der Zeile (LoadingRow).
+          -->
+          <Style Selector="DataGridRow.deaktiviert">
+            <Setter Property="Opacity" Value="0.55" />
+          </Style>
+          <!--
+            Zahlenspalten rechtsbündig, wie in der WinForms-Fassung: untereinander
+            stehende Ziffern lassen sich vergleichen, linksbündige nicht.
+          -->
+          <Style Selector="DataGridCell.zahl TextBlock">
+            <Setter Property="HorizontalAlignment" Value="Right" />
+          </Style>
+        </DataGrid.Styles>
+        <DataGrid.Columns>
+          <!--
+            Der Adaptername wächst mit dem Fenster (*), damit rechts keine leere Fläche
+            bleibt; die übrigen Spalten behalten ihre feste, am Inhalt bemessene Breite.
+          -->
+          <DataGridTextColumn Header="Adapter"  Binding="{Binding Adapter}"
+                              Width="220" />
+          <DataGridTextColumn Header="Instanz"  Binding="{Binding Instance}"
+                              Width="90" CellStyleClasses="zahl" />
+          <DataGridTextColumn Header="Version"  Binding="{Binding Version}"  Width="110" />
+          <!-- Angezeigt wird der Text, sortiert wird nach dem Wahrheitswert. -->
+          <DataGridTextColumn Header="Aktiviert" Binding="{Binding EnabledText}"
+                              SortMemberPath="Enabled" Width="95" />
+          <DataGridTextColumn Header="Objekte"
+                              Binding="{Binding ObjectCount, StringFormat={}{0:N0}}"
+                              SortMemberPath="ObjectCount" Width="110"
+                              CellStyleClasses="zahl" />
+        </DataGrid.Columns>
+      </DataGrid>
+
+      <!--
+        Statt eines Overlays wird die Tabelle ausgeblendet und dieser Text eingeblendet.
+        Das erspart die Frage, welche Hintergrundfarbe im hellen bzw. dunklen Thema
+        deckend wäre - ein halbtransparentes Overlay würde die Tabelle durchscheinen lassen.
+      -->
+      <TextBlock Name="PlaceholderText" TextAlignment="Center" TextWrapping="Wrap"
+                 HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.75"
+                 Text="Kein Backup geladen." />
+    </Grid>
+
+    <!-- ================= Unten: Adapter ohne eigene Instanz ================= -->
+    <Grid Name="NoInstanceSection" Grid.Row="2" RowDefinitions="Auto,Auto,Auto"
+          Margin="0,10,0,0" Height="210">
+      <TextBlock Name="NoInstanceHeader" Grid.Row="0" FontWeight="SemiBold"
+                 Text="Installierte Adapter ohne eigene Instanz" />
+
+      <Grid Grid.Row="1" ColumnDefinitions="*,Auto" Margin="0,4,0,4">
+        <TextBlock Name="NoInstanceHint" Grid.Column="0" TextWrapping="Wrap"
+                   Opacity="0.75" Margin="0,0,10,0" />
+        <Button Name="NoInstanceCsv" Grid.Column="1" Content="Als CSV exportieren"
+                VerticalAlignment="Top" />
+      </Grid>
+
+      <DataGrid Name="NoInstance" Grid.Row="2" Height="110"
+                IsReadOnly="True" GridLinesVisibility="All"
+                CanUserSortColumns="True" AutoGenerateColumns="False">
+        <DataGrid.Columns>
+          <DataGridTextColumn Header="Adapter" Binding="{Binding Adapter}"
+                              Width="260" />
+          <DataGridTextColumn Header="Version" Binding="{Binding Version}" Width="140" />
+        </DataGrid.Columns>
+      </DataGrid>
+    </Grid>
+
+  </Grid>
+</UserControl>

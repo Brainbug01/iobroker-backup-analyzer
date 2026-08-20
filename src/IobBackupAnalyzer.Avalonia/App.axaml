@@ -1,0 +1,72 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="IobBackupAnalyzer.Avalonia.App"
+             RequestedThemeVariant="Default">
+
+  <!-- Default folgt dem Systemthema: hell oder dunkel, wie der Nutzer es eingestellt hat. -->
+  <Application.Styles>
+    <FluentTheme />
+    <!-- Das DataGrid bringt sein Theme in einer eigenen Ressourcendatei mit. -->
+    <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml" />
+
+    <!--
+      Waagerechter Rollbalken für alle Tabellen, an einem Ort statt in jeder Ansicht.
+
+      Ohne ihn schneidet das DataGrid alles ab, was rechts nicht mehr hineinpasst - die
+      hinteren Spalten sind dann nicht bloß schmal, sondern gar nicht erreichbar. Gemeldet
+      vom macOS-Nutzer, nachgestellt unter Windows: Bei den VIS-Datenpunkten fehlten
+      "Widget-Typen" und "Views" vollständig, und auch Umschalt+Mausrad rollte nicht.
+
+      AllowAutoHide=False, weil ein Balken, der erst beim Rollen erscheint, genau dann
+      unsichtbar ist, wenn man ihn sucht - und der Balken ist hier der einzige Hinweis
+      darauf, dass rechts überhaupt noch etwas steht.
+
+      Senkrecht "Visible" statt "Auto": Sonst verschwindet der Balken, sobald ein Filter
+      die Liste kurz genug macht, und die Spalten springen bei jedem Tastendruck im
+      Filterfeld um seine Breite hin und her. Waagerecht bleibt es bei "Auto" - dort gibt
+      es nichts zu springen, und ein dauerhafter Balken unter einer schmalen Tabelle wäre
+      nur Ballast.
+    -->
+    <Style Selector="DataGrid">
+      <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Auto" />
+      <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Visible" />
+      <Setter Property="ScrollViewer.AllowAutoHide" Value="False" />
+    </Style>
+
+    <!--
+      Kraeftigere Rollbalken. Der Fluent-Standard ist ein duenner Strich, der sich erst
+      beim Zeigen darauf verbreitert - zum Greifen mit der Maus zu wenig, besonders am
+      waagerechten Balken, den man oft ueber die ganze Breite ziehen muss.
+
+      Der Selektor zielt direkt auf ScrollBar und nicht auf "DataGrid /template/ ScrollBar":
+      Die Balken stecken im Template des ScrollViewers, nicht unmittelbar im DataGrid -
+      der Umweg ueber /template/ des DataGrids trifft sie nicht (nachgemessen: blieb ohne
+      jede Wirkung).
+    -->
+    <Style Selector="ScrollBar:horizontal">
+      <Setter Property="Height" Value="16" />
+      <Setter Property="MinHeight" Value="16" />
+    </Style>
+
+    <!--
+      KEIN Rand am Zeilenbereich (PART_RowsPresenter) - dreimal geprueft, dreimal verworfen.
+
+      Der waagerechte Rollbalken wird ueber den Inhalt gelegt, nicht daneben; die unterste
+      Zeile bleibt dadurch halb verdeckt. Ein Rand unter dem Zeilenbereich behebt genau das
+      - und laesst zugleich den Balken selbst verschwinden. Beim dritten Versuch isoliert
+      nachgemessen, ohne jeden anderen Style: letzte Zeile vollstaendig sichtbar, Balken
+      weg. Die Vermutung, es liege am Zusammenspiel mit einem Balken-Style im
+      DataGrid-Template, war damit widerlegt.
+
+      Ohne Balken sind die hinteren Spalten gar nicht mehr erreichbar - das waere der
+      schlechtere Tausch. Wer die unterste Zeile lesen will, rollt eine Zeile weiter oder
+      passt die Spaltenbreiten an (Rechtsklick auf den Spaltenkopf). Sauber loesen liesse
+      sich das nur mit einem eigenen DataGrid-Template.
+    -->
+    <Style Selector="ScrollBar:vertical">
+      <Setter Property="Width" Value="16" />
+      <Setter Property="MinWidth" Value="16" />
+    </Style>
+  </Application.Styles>
+
+</Application>

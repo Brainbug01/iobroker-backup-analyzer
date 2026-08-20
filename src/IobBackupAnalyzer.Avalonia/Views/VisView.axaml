@@ -1,0 +1,103 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="IobBackupAnalyzer.Avalonia.Views.VisView">
+
+  <Grid Margin="8" RowDefinitions="Auto,*">
+
+    <StackPanel Grid.Row="0" Spacing="6" Margin="0,0,0,8">
+      <TextBlock Name="Summary" TextWrapping="Wrap" />
+
+      <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*,Auto" Margin="0,4,0,0">
+        <TextBlock Grid.Column="0" Text="Filter:" VerticalAlignment="Center" Margin="0,0,8,0" />
+        <TextBox Name="Filter" Grid.Column="1" Width="280" Watermark="Datenpunkt-ID oder View …" />
+        <ComboBox Name="Scope" Grid.Column="2" Width="250" Margin="10,0,0,0" />
+        <TextBlock Name="Count" Grid.Column="3" VerticalAlignment="Center"
+                   Margin="14,0,0,0" Opacity="0.75" />
+        <Button Name="Csv" Grid.Column="5" Content="Als CSV exportieren" />
+      </Grid>
+    </StackPanel>
+
+    <Grid Grid.Row="1">
+      <!-- Datenpunkte oben, Fundstellen des gewählten Datenpunkts unten. -->
+      <Grid Name="Split" RowDefinitions="3*,Auto,Auto,2*">
+
+        <DataGrid Name="Points" Grid.Row="0" IsReadOnly="True" GridLinesVisibility="All"
+                  CanUserSortColumns="True" CanUserResizeColumns="True"
+                  AutoGenerateColumns="False">
+          <DataGrid.Styles>
+            <!--
+              Fehlender Datenpunkt = totes Widget. Ein Alias, dessen Ziel fehlt, ist
+              genauso kaputt - nur eine Ebene tiefer.
+            -->
+            <Style Selector="DataGridRow.kaputt TextBlock">
+              <Setter Property="Foreground" Value="#D9534F" />
+            </Style>
+            <Style Selector="DataGridCell.zahl TextBlock">
+              <Setter Property="HorizontalAlignment" Value="Right" />
+            </Style>
+          </DataGrid.Styles>
+          <DataGrid.Columns>
+            <DataGridTextColumn Header="Datenpunkt-ID" Binding="{Binding Id}" Width="360" />
+            <!--
+              Feste Breite statt "*": Eine Sternspalte schrumpft, bis alles in den Rahmen
+              passt - das DataGrid meldet dann nie eine Überbreite und blendet den
+              waagerechten Rollbalken aus. Die hinteren Spalten sind damit gar nicht mehr
+              erreichbar. Die Breiten entsprechen der Windows-Fassung, damit beide
+              Oberflächen gleich aussehen.
+            -->
+            <DataGridTextColumn Header="Name"    Binding="{Binding Name}"     Width="170" />
+            <DataGridTextColumn Header="VIS 1"   Binding="{Binding Vis1Text}"
+                                SortMemberPath="InVis1" Width="65" />
+            <DataGridTextColumn Header="VIS 2"   Binding="{Binding Vis2Text}"
+                                SortMemberPath="InVis2" Width="65" />
+            <DataGridTextColumn Header="Widgets" Binding="{Binding WidgetCount, StringFormat={}{0:N0}}"
+                                SortMemberPath="WidgetCount" Width="85" CellStyleClasses="zahl" />
+            <DataGridTextColumn Header="Vorhanden" Binding="{Binding ExistsText}"
+                                SortMemberPath="ExistsInBackup" Width="95" />
+            <!-- Bei Aliassen ist die ID allein nichtssagend — erst das Ziel zeigt das echte Gerät. -->
+            <DataGridTextColumn Header="Alias → Ziel" Binding="{Binding AliasTargetText}" Width="280" />
+            <DataGridTextColumn Header="Widget-Typen" Binding="{Binding WidgetsText}" Width="190" />
+            <!--
+              Bewusst breiter als in der Windows-Fassung (240): Hier stehen Aufzählungen
+              der Form "VIS 1: Projekt/View, Projekt/View | VIS 2: Projekt/View", die
+              schnell lang werden. Die letzte Spalte hat rechts nichts mehr, unter das
+              sie ausweichen könnte — was hier nicht hineinpasst, ist gar nicht lesbar.
+            -->
+            <DataGridTextColumn Header="Views"   Binding="{Binding ViewsText}"  Width="620" />
+          </DataGrid.Columns>
+        </DataGrid>
+
+        <GridSplitter Grid.Row="1" Height="6" HorizontalAlignment="Stretch"
+                      ResizeDirection="Rows" Background="Transparent" />
+
+        <TextBlock Name="UsageHeader" Grid.Row="2" FontWeight="SemiBold"
+                   TextWrapping="Wrap" Margin="0,2,0,4" />
+
+        <DataGrid Name="Usages" Grid.Row="3" IsReadOnly="True" GridLinesVisibility="All"
+                  CanUserSortColumns="True" CanUserResizeColumns="True"
+                  AutoGenerateColumns="False">
+          <DataGrid.Columns>
+            <DataGridTextColumn Header="VIS"        Binding="{Binding VersionText}"  Width="70" />
+            <!--
+              Eine Installation kann mehrere VIS-Projekte haben — beobachtet sind schon
+              drei. Ohne diese Spalte wäre nicht erkennbar, in welchem eine View liegt.
+            -->
+            <DataGridTextColumn Header="Projekt"    Binding="{Binding Project}"      Width="120" />
+            <DataGridTextColumn Header="View"       Binding="{Binding View}"         Width="220" />
+            <DataGridTextColumn Header="Widget"     Binding="{Binding WidgetLabel}"  Width="150" />
+            <DataGridTextColumn Header="Widget-Typ" Binding="{Binding Template}"     Width="220" />
+            <DataGridTextColumn Header="Widget-Set" Binding="{Binding WidgetSet}"    Width="140" />
+            <DataGridTextColumn Header="Feld"       Binding="{Binding Field}"        Width="200" />
+            <!-- Zeigt, ob das Widget den Wert liest oder ein Zustandsattribut. -->
+            <DataGridTextColumn Header="Zugriff"    Binding="{Binding AttributeText}" Width="80" />
+          </DataGrid.Columns>
+        </DataGrid>
+      </Grid>
+
+      <TextBlock Name="PlaceholderText" TextAlignment="Center" TextWrapping="Wrap"
+                 HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.75"
+                 Text="Kein Backup geladen." />
+    </Grid>
+
+  </Grid>
+</UserControl>

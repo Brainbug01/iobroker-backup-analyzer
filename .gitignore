@@ -1,0 +1,23 @@
+# Echte Backups und daraus extrahierte Daten — NIEMALS committen
+# (enthalten komplette Objektdaten, Zugangsdaten, MQTT-Credentials)
+*.tar.gz
+*.tgz
+backup.json
+script.json
+objects.jsonl
+states.jsonl
+testdaten/
+testdaten
+error.log
+
+# Aus Backups extrahierte Skript-Exporte
+export/
+2026-*-scripts.zip
+
+# Build-Artefakte
+bin/
+obj/
+publish/
+dist/
+*.user
+.vs/

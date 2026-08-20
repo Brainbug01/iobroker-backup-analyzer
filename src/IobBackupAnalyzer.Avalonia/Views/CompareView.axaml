@@ -1,0 +1,233 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="IobBackupAnalyzer.Avalonia.Views.CompareView"
+             DragDrop.AllowDrop="True">
+
+  <UserControl.Styles>
+    <!-- Einstufung der Zeilen, einheitlich über alle Untertabs. -->
+    <Style Selector="DataGridRow.gedaempft">
+      <Setter Property="Opacity" Value="0.55" />
+    </Style>
+    <Style Selector="DataGridRow.positiv TextBlock">
+      <Setter Property="Foreground" Value="#2FA36B" />
+    </Style>
+    <Style Selector="DataGridRow.warnung TextBlock">
+      <Setter Property="Foreground" Value="#D98A00" />
+    </Style>
+    <Style Selector="DataGridRow.problem TextBlock">
+      <Setter Property="Foreground" Value="#D9534F" />
+    </Style>
+    <Style Selector="DataGridCell.zahl TextBlock">
+      <Setter Property="HorizontalAlignment" Value="Right" />
+    </Style>
+  </UserControl.Styles>
+
+  <Grid Margin="8" RowDefinitions="Auto,*">
+
+    <!-- ================= Kopf: zweites Backup wählen ================= -->
+    <StackPanel Grid.Row="0" Spacing="6" Margin="0,0,0,8">
+      <TextBlock Name="LoadedInfo" Text="Kein Backup geladen." TextTrimming="CharacterEllipsis" />
+
+      <StackPanel Orientation="Horizontal" Spacing="10">
+        <Button Name="Pick" Content="Zweites Backup wählen …" Height="30" />
+        <Border Width="300" Height="30" BorderThickness="1" BorderBrush="Gray"
+                Opacity="0.75" CornerRadius="3">
+          <TextBlock Text="… oder zweites Backup hier hineinziehen"
+                     HorizontalAlignment="Center" VerticalAlignment="Center" />
+        </Border>
+        <Button Name="ResetButton" Content="Zweites Backup entfernen" Height="30" IsEnabled="False" />
+        <ProgressBar Name="Progress" Width="160" Height="30" IsIndeterminate="True" IsVisible="False" />
+      </StackPanel>
+
+      <TextBlock Name="Summary" TextWrapping="Wrap" Opacity="0.85" />
+      <TextBlock Name="SystemInfo" TextTrimming="CharacterEllipsis" />
+    </StackPanel>
+
+    <!-- ================= Ergebnis ================= -->
+    <Grid Grid.Row="1">
+      <TabControl Name="Sub" IsVisible="False">
+        <TabControl.Styles>
+          <Style Selector="TabItem">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="MinHeight" Value="32" />
+            <Setter Property="Padding" Value="10,3" />
+          </Style>
+        </TabControl.Styles>
+
+        <!-- === Kennzahlen === -->
+        <TabItem Header="Kennzahlen">
+          <Grid RowDefinitions="Auto,*" Margin="0,6,0,0">
+            <Button Name="CsvMetrics" Grid.Row="0" Content="Als CSV exportieren"
+                    HorizontalAlignment="Right" Margin="0,0,0,6" />
+            <DataGrid Name="Metrics" Grid.Row="1" IsReadOnly="True" GridLinesVisibility="All"
+                      CanUserSortColumns="True" AutoGenerateColumns="False">
+              <DataGrid.Columns>
+                <DataGridTextColumn Header="Kennzahl" Binding="{Binding Label}" Width="240" />
+                <DataGridTextColumn Header="Vorher"  Binding="{Binding Before, StringFormat={}{0:N0}}"
+                                    Width="140" CellStyleClasses="zahl" />
+                <DataGridTextColumn Header="Nachher" Binding="{Binding After, StringFormat={}{0:N0}}"
+                                    Width="140" CellStyleClasses="zahl" />
+                <DataGridTextColumn Header="Differenz" Binding="{Binding DeltaText}"
+                                    SortMemberPath="Delta" Width="140" CellStyleClasses="zahl" />
+              </DataGrid.Columns>
+            </DataGrid>
+          </Grid>
+        </TabItem>
+
+        <!-- === Adapter-Instanzen === -->
+        <TabItem Header="Adapter-Instanzen">
+          <Grid RowDefinitions="Auto,*" Margin="0,6,0,0">
+            <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,6">
+              <CheckBox Name="OnlyChangedInstances" Grid.Column="0"
+                        Content="Nur Änderungen anzeigen" IsChecked="True" />
+              <Button Name="CsvInstances" Grid.Column="2" Content="Als CSV exportieren" />
+            </Grid>
+            <DataGrid Name="Instances" Grid.Row="1" IsReadOnly="True" GridLinesVisibility="All"
+                      CanUserSortColumns="True" CanUserResizeColumns="True" AutoGenerateColumns="False">
+              <DataGrid.Columns>
+                <DataGridTextColumn Header="Instanz"   Binding="{Binding Namespace}"   Width="220" />
+                <DataGridTextColumn Header="Änderung"  Binding="{Binding KindText}"    Width="110" />
+                <DataGridTextColumn Header="Version"   Binding="{Binding VersionText}" Width="200" />
+                <DataGridTextColumn Header="Aktiviert" Binding="{Binding EnabledDisplay}" Width="150" />
+                <DataGridTextColumn Header="Details"   Binding="{Binding Detail}" Width="320" />
+              </DataGrid.Columns>
+            </DataGrid>
+          </Grid>
+        </TabItem>
+
+        <!-- === Skripte samt Zeilenvergleich === -->
+        <TabItem Header="Skripte">
+          <Grid RowDefinitions="Auto,*" Margin="0,6,0,0">
+            <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,Auto,*,Auto" Margin="0,0,0,6">
+              <CheckBox Name="OnlyChangedScripts" Grid.Column="0"
+                        Content="Nur Änderungen anzeigen" IsChecked="True" />
+              <CheckBox Name="OnlyChangedLines" Grid.Column="1" Margin="16,0,0,0"
+                        Content="Im Vergleich nur geänderte Stellen zeigen" IsChecked="True" />
+              <TextBlock Name="DiffInfo" Grid.Column="3" VerticalAlignment="Center"
+                         Margin="16,0,0,0" Opacity="0.75" TextTrimming="CharacterEllipsis" />
+              <Button Name="CsvScripts" Grid.Column="4" Content="Als CSV exportieren" />
+            </Grid>
+
+            <Grid Grid.Row="1" RowDefinitions="2*,Auto,3*">
+              <DataGrid Name="Scripts" Grid.Row="0" IsReadOnly="True" GridLinesVisibility="All"
+                        CanUserSortColumns="True" CanUserResizeColumns="True" AutoGenerateColumns="False">
+                <DataGrid.Columns>
+                  <DataGridTextColumn Header="Skript"   Binding="{Binding DisplayPath}" Width="340" />
+                  <DataGridTextColumn Header="Typ"      Binding="{Binding EngineText}"  Width="130" />
+                  <DataGridTextColumn Header="Änderung" Binding="{Binding KindText}"    Width="110" />
+                  <DataGridTextColumn Header="Details"  Binding="{Binding Detail}"      Width="240" />
+                </DataGrid.Columns>
+              </DataGrid>
+
+              <GridSplitter Grid.Row="1" Height="6" HorizontalAlignment="Stretch"
+                            ResizeDirection="Rows" Background="Transparent" />
+
+              <!--
+                Der Zeilenvergleich als Tabelle statt als formatierter Fließtext: So bleiben
+                Zeilennummern in eigenen Spalten stehen und die Auswahl ist kopierbar.
+              -->
+              <DataGrid Name="Diff" Grid.Row="2" IsReadOnly="True" GridLinesVisibility="None"
+                        HeadersVisibility="None" CanUserSortColumns="False"
+                        AutoGenerateColumns="False" FontFamily="Consolas,Menlo,monospace">
+                <DataGrid.Styles>
+                  <Style Selector="DataGridRow.hinzugefuegt">
+                    <Setter Property="Background" Value="#E2F8E2" />
+                  </Style>
+                  <Style Selector="DataGridRow.hinzugefuegt TextBlock">
+                    <Setter Property="Foreground" Value="#005A00" />
+                  </Style>
+                  <Style Selector="DataGridRow.entfernt">
+                    <Setter Property="Background" Value="#FFE7E7" />
+                  </Style>
+                  <Style Selector="DataGridRow.entfernt TextBlock">
+                    <Setter Property="Foreground" Value="#820000" />
+                  </Style>
+                  <Style Selector="DataGridRow.luecke">
+                    <Setter Property="Opacity" Value="0.5" />
+                  </Style>
+                </DataGrid.Styles>
+                <DataGrid.Columns>
+                  <DataGridTextColumn Binding="{Binding Old}"    Width="60" CellStyleClasses="zahl" />
+                  <DataGridTextColumn Binding="{Binding New}"    Width="60" CellStyleClasses="zahl" />
+                  <DataGridTextColumn Binding="{Binding Marker}" Width="30" />
+                  <DataGridTextColumn Binding="{Binding Text}"   Width="900" />
+                </DataGrid.Columns>
+              </DataGrid>
+            </Grid>
+          </Grid>
+        </TabItem>
+
+        <!-- === Objekte === -->
+        <TabItem Header="Objekte">
+          <Grid RowDefinitions="Auto,*" Margin="0,6,0,0">
+            <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,6">
+              <TextBlock Grid.Column="0" VerticalAlignment="Center" Opacity="0.75"
+                         Text="Namensraum auswählen, um die betroffenen Objekt-IDs zu sehen." />
+              <Button Name="CsvObjects" Grid.Column="2" Content="Als CSV exportieren" />
+            </Grid>
+
+            <Grid Grid.Row="1" ColumnDefinitions="420,6,*">
+              <DataGrid Name="Namespaces" Grid.Column="0" IsReadOnly="True" GridLinesVisibility="All"
+                        CanUserSortColumns="True" AutoGenerateColumns="False">
+                <DataGrid.Columns>
+                  <DataGridTextColumn Header="Namensraum" Binding="{Binding Namespace}" Width="200" />
+                  <DataGridTextColumn Header="Neu"      Binding="{Binding Added, StringFormat={}{0:N0}}"
+                                      Width="70" CellStyleClasses="zahl" />
+                  <DataGridTextColumn Header="Entfernt" Binding="{Binding Removed, StringFormat={}{0:N0}}"
+                                      Width="85" CellStyleClasses="zahl" />
+                  <DataGridTextColumn Header="Saldo"    Binding="{Binding DeltaText}"
+                                      SortMemberPath="Delta" Width="75" CellStyleClasses="zahl" />
+                </DataGrid.Columns>
+              </DataGrid>
+
+              <GridSplitter Grid.Column="1" Width="6" ResizeDirection="Columns" Background="Transparent" />
+
+              <DataGrid Name="ObjectIds" Grid.Column="2" IsReadOnly="True" GridLinesVisibility="All"
+                        CanUserSortColumns="True" AutoGenerateColumns="False">
+                <DataGrid.Styles>
+                  <Style Selector="DataGridRow.positiv TextBlock">
+                    <Setter Property="Foreground" Value="#2FA36B" />
+                  </Style>
+                  <Style Selector="DataGridRow.problem TextBlock">
+                    <Setter Property="Foreground" Value="#D9534F" />
+                  </Style>
+                </DataGrid.Styles>
+                <DataGrid.Columns>
+                  <DataGridTextColumn Header="Änderung"  Binding="{Binding Change}" Width="100" />
+                  <DataGridTextColumn Header="Objekt-ID" Binding="{Binding Id}" Width="600" />
+                </DataGrid.Columns>
+              </DataGrid>
+            </Grid>
+          </Grid>
+        </TabItem>
+
+        <!-- === VIS-Views === -->
+        <TabItem Header="VIS-Views">
+          <Grid RowDefinitions="Auto,*" Margin="0,6,0,0">
+            <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,6">
+              <CheckBox Name="OnlyChangedViews" Grid.Column="0"
+                        Content="Nur Änderungen anzeigen" IsChecked="True" />
+              <Button Name="CsvViews" Grid.Column="2" Content="Als CSV exportieren" />
+            </Grid>
+            <DataGrid Name="Views" Grid.Row="1" IsReadOnly="True" GridLinesVisibility="All"
+                      CanUserSortColumns="True" CanUserResizeColumns="True" AutoGenerateColumns="False">
+              <DataGrid.Columns>
+                <DataGridTextColumn Header="VIS"      Binding="{Binding VersionText}" Width="80" />
+                <DataGridTextColumn Header="View"     Binding="{Binding View}"        Width="260" />
+                <DataGridTextColumn Header="Änderung" Binding="{Binding KindText}"    Width="110" />
+                <DataGridTextColumn Header="Widgets"  Binding="{Binding WidgetsDisplay}"
+                                    Width="130" CellStyleClasses="zahl" />
+                <DataGridTextColumn Header="Details"  Binding="{Binding Detail}" Width="340" />
+              </DataGrid.Columns>
+            </DataGrid>
+          </Grid>
+        </TabItem>
+      </TabControl>
+
+      <TextBlock Name="PlaceholderText" TextAlignment="Center" TextWrapping="Wrap"
+                 HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.75"
+                 Text="Kein Backup geladen." />
+    </Grid>
+
+  </Grid>
+</UserControl>

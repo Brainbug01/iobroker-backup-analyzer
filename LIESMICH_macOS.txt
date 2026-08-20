@@ -1,0 +1,168 @@
+====================================================================
+  ioBroker Backup Analyzer — Installation unter macOS
+====================================================================
+
+Dieses Programm liest ein ioBroker-Backup und zeigt an, was darin
+steckt: Adapter, Skripte, VIS-Datenpunkte, Aliasse, Logging und
+verwaiste Datenpunkte.
+
+WICHTIG VORAB — das Programm ist harmlos:
+Es verbindet sich NICHT mit deinem ioBroker, es verändert nichts und
+es sendet nichts ins Internet. Es öffnet eine Backup-Datei und liest
+sie. Mehr nicht.
+
+
+--------------------------------------------------------------------
+  SCHRITT 1 — Das richtige Paket wählen
+--------------------------------------------------------------------
+
+Es gibt zwei Fassungen. Wenn du nicht weißt, welchen Mac du hast:
+Apfel-Menü oben links > "Über diesen Mac".
+
+  Chip "Apple M1/M2/M3/M4..."  ->  ..._macOS-AppleSilicon.tar.gz
+  Prozessor "Intel ..."        ->  ..._macOS-Intel.tar.gz
+
+Oder im Terminal:  uname -m
+  arm64   -> AppleSilicon
+  x86_64  -> Intel
+
+
+--------------------------------------------------------------------
+  SCHRITT 2 — Entpacken
+--------------------------------------------------------------------
+
+Die .tar.gz-Datei doppelklicken. Es entsteht ein Ordner, darin:
+
+  ioBroker Backup Analyzer.app
+  LIESMICH_macOS.txt   (diese Anleitung)
+  LICENSE
+
+Die App in einen normalen Ordner legen, zum Beispiel "Programme"
+oder "Downloads".
+
+NICHT in iCloud Drive ablegen (also nicht in "Dokumente" oder
+"Schreibtisch", wenn iCloud diese Ordner synchronisiert). iCloud lagert
+Dateien aus, und dann fehlen dem Programm Teile von sich selbst.
+
+
+--------------------------------------------------------------------
+  SCHRITT 3 — Einmalig freischalten (das ist der wichtige Teil)
+--------------------------------------------------------------------
+
+Ein Doppelklick funktioniert jetzt noch NICHT. Das Programm ist nicht
+von Apple signiert — dafür bräuchte es ein kostenpflichtiges
+Entwicklerkonto. macOS blockiert es deshalb.
+
+Auf Macs mit Apple-Chip beendet das System das Programm sofort und
+kommentarlos. Im Terminal steht dann nur:
+
+  zsh: killed
+
+Das ist KEIN Absturz und kein Virus, sondern die Sicherheitssperre.
+Sie lässt sich mit zwei Befehlen dauerhaft aufheben — kostenlos und
+ohne Entwicklerkonto. Ein dritter kommt nur hinzu, falls eine ältere
+Fassung "Launch failed" meldet (siehe WENN ETWAS NICHT KLAPPT).
+
+So geht's:
+
+  1. Terminal öffnen
+     (Spotlight mit cmd+Leertaste, "Terminal" eintippen, Enter)
+
+  2. Diesen Text eintippen, MIT Leerzeichen am Ende,
+     aber noch NICHT Enter drücken:
+
+       xattr -cr
+
+  3. Jetzt die App "ioBroker Backup Analyzer.app" aus dem Finder
+     mit der Maus in das Terminal-Fenster ziehen und loslassen.
+     Der Pfad erscheint automatisch. Jetzt Enter drücken.
+
+  4. Das Gleiche noch einmal mit diesem Befehl — wieder tippen,
+     Leerzeichen am Ende, App hineinziehen, dann Enter:
+
+       codesign --force --deep --sign -
+
+  5. Fertig. Die App per Doppelklick im Finder starten.
+
+Wenn die Befehle nichts ausgeben, hat alles geklappt. Das ist unter
+macOS normal: keine Meldung = Erfolg.
+
+WARUM ZIEHEN STATT TIPPEN?
+Der Programmname enthält Leerzeichen. Tippt man ihn ohne
+Anführungszeichen ab, sucht das Terminal nach drei getrennten Dateien
+namens "ioBroker", "Backup" und "Analyzer.app" und meldet, es finde
+sie nicht. Das Hineinziehen setzt den Pfad automatisch richtig.
+
+WAS MACHEN DIE BEFEHLE?
+  xattr -cr    entfernt die Markierung "aus dem Internet geladen".
+  codesign     versieht das Programm mit einer Signatur deines
+               eigenen Macs. Das Programm wird dabei nicht verändert,
+               es bekommt nur einen Stempel, den macOS akzeptiert.
+
+
+--------------------------------------------------------------------
+  SCHRITT 4 — Backup öffnen
+--------------------------------------------------------------------
+
+Oben links "Backup öffnen ..." anklicken oder eine Backup-Datei
+einfach ins Fenster ziehen.
+
+Passende Dateien sind die von Backitup erzeugten Archive:
+
+  iobroker_2026_08_11-09_00_10_backupiobroker.tar.gz
+
+Auch reine Skript-Backups (javascripts_*.tar.gz) lassen sich öffnen;
+dann ist nur der Tab "Skripte" gefüllt.
+
+
+--------------------------------------------------------------------
+  WENN ETWAS NICHT KLAPPT
+--------------------------------------------------------------------
+
+"zsh: killed"
+  Schritt 3 wurde nicht oder nicht vollständig ausgeführt.
+  Beide Befehle noch einmal durchführen.
+
+"Launch failed" / "error=111" / "Launchd job spawn failed"
+  Der eigentlichen Programmdatei fehlt das Ausführbar-Recht. Das
+  betrifft Pakete älterer Fassungen. Diesen Befehl VOR den beiden
+  aus Schritt 3 ausführen — wieder tippen, Leerzeichen am Ende,
+  App hineinziehen, dann Enter:
+
+    chmod +x
+
+  Achtung: Nach dem Hineinziehen steht dort der Pfad der App. Ergänze
+  am Ende noch, ohne Leerzeichen davor:
+
+    /Contents/MacOS/ioBroker-Backup-Analyzer
+
+  Der Befehl muss also auf die Datei IM Programm zeigen, nicht auf das
+  Programm selbst — sonst bekommt nur die Hülle das Recht, nicht der
+  Inhalt. Danach Schritt 3 komplett wiederholen (die Signatur muss nach
+  dem chmod neu gesetzt werden).
+
+"No such file or directory" / "not found"
+  Der Pfad stimmt nicht. Nicht abtippen — die App ins Terminal
+  ziehen (siehe Schritt 3).
+  Falls die App unauffindbar ist, im Terminal suchen mit:
+    find ~ -maxdepth 6 -name "ioBroker Backup Analyzer.app" 2>/dev/null
+
+"bad CPU type in executable"
+  Das falsche Paket. Siehe Schritt 1 (Apple Silicon vs. Intel).
+
+Das Fenster bleibt leer
+  Es ist noch kein Backup geladen — siehe Schritt 4.
+
+
+--------------------------------------------------------------------
+  HINWEISE
+--------------------------------------------------------------------
+
+Die Signatur aus Schritt 3 gilt nur auf dem Mac, auf dem sie erstellt
+wurde. Wer die App weitergibt, muss die Schritte dort wiederholen.
+
+Nach einem Update des Programms müssen die Befehle aus Schritt 3
+erneut ausgeführt werden — die Signatur gehört zur jeweiligen Fassung.
+
+Lizenz: MIT (siehe beiliegende Datei LICENSE). Das Programm ist
+kostenlos und darf weitergegeben werden.

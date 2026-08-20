@@ -1,0 +1,62 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="IobBackupAnalyzer.Avalonia.Views.BackupCheckView">
+
+  <Grid Margin="8" RowDefinitions="Auto,*,Auto">
+
+    <StackPanel Grid.Row="0" Spacing="6" Margin="0,0,0,8">
+      <TextBlock Name="Verdict" FontSize="17" FontWeight="Bold"
+                 TextTrimming="CharacterEllipsis" />
+      <TextBlock Name="Summary" Opacity="0.75" TextWrapping="Wrap" />
+
+      <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,4,0,0">
+        <CheckBox Name="OnlyProblems" Grid.Column="0" Content="Nur Probleme anzeigen" />
+        <Button Name="Csv" Grid.Column="2" Content="Als CSV exportieren" />
+      </Grid>
+    </StackPanel>
+
+    <Grid Grid.Row="1">
+      <DataGrid Name="Rows" IsReadOnly="True" GridLinesVisibility="All"
+                CanUserSortColumns="True" CanUserResizeColumns="True"
+                AutoGenerateColumns="False">
+        <DataGrid.Styles>
+          <!--
+            Beschädigte Dateien rot, reine Hinweise gedämpft - wie in der Windows-App.
+            Die Klassen setzt der Code-Behind beim Aufbau der Zeile.
+          -->
+          <Style Selector="DataGridRow.problem TextBlock">
+            <Setter Property="Foreground" Value="#D9534F" />
+          </Style>
+          <Style Selector="DataGridRow.info">
+            <Setter Property="Opacity" Value="0.6" />
+          </Style>
+        </DataGrid.Styles>
+        <DataGrid.Columns>
+          <DataGridTextColumn Header="Datei"    Binding="{Binding File}"   Width="380" />
+          <DataGridTextColumn Header="Art"      Binding="{Binding Kind}"   Width="90" />
+          <DataGridTextColumn Header="Ergebnis" Binding="{Binding Result}" Width="120" />
+          <DataGridTextColumn Header="Details"  Binding="{Binding Detail}" Width="760" />
+        </DataGrid.Columns>
+      </DataGrid>
+
+      <TextBlock Name="PlaceholderText" TextAlignment="Center" TextWrapping="Wrap"
+                 HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.75"
+                 Text="Kein Backup geladen." />
+    </Grid>
+
+    <!--
+      Handlungsanweisung unter der Tabelle - nur sichtbar, wenn es etwas zu tun gibt.
+      Als auswählbares Textfeld, weil man die Befehle darin in die Shell übernehmen will.
+      Feste Farben: Der Hinweis muss in hellem wie dunklem Thema gleich deutlich bleiben.
+    -->
+    <Border Name="RepairHintBox" Grid.Row="2" IsVisible="False" Margin="0,8,0,0"
+            Background="#FFF9DB" BorderBrush="#E0CE8A" BorderThickness="1"
+            CornerRadius="3" MaxHeight="300">
+      <ScrollViewer>
+        <SelectableTextBlock Name="RepairHint" Margin="10,8" Foreground="#5A3C00"
+                             FontFamily="Consolas,Menlo,monospace" TextWrapping="Wrap" />
+      </ScrollViewer>
+    </Border>
+
+  </Grid>
+</UserControl>

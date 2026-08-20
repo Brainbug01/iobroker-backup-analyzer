@@ -1,0 +1,82 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\IobBackupAnalyzer.Core\IobBackupAnalyzer.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      Ein Symbol, drei Plattformen - und bewusst nur EINE Quelldatei: die app.ico der
+      Windows-Fassung. Als AvaloniaResource landet sie im Programm (Fenster- und
+      Taskleistensymbol), als ApplicationIcon in der Windows-EXE, und build.ps1 rechnet
+      daraus die .icns fuer das macOS-Bundle aus. Eine zweite Kopie hier waere ein
+      zweiter Pflegeort, der beim naechsten Symbolwechsel garantiert vergessen wird.
+    -->
+    <AvaloniaResource Include="..\IobBackupAnalyzer.App\app.ico" Link="Assets\app.ico" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <AssemblyName>ioBroker-Backup-Analyzer</AssemblyName>
+    <RootNamespace>IobBackupAnalyzer.Avalonia</RootNamespace>
+    <Product>ioBroker Backup Analyzer</Product>
+    <AssemblyTitle>ioBroker Backup Analyzer</AssemblyTitle>
+    <Company>ioBroker Backup Analyzer</Company>
+    <!--
+      Einziger Pflegeort für die Versionsnummer — siehe gleichlautende Begründung in
+      IobBackupAnalyzer.App.csproj. FileVersion/AssemblyVersion leitet .NET daraus ab.
+      build.ps1 liest genau dieses <Version> für die Info.plist des macOS-Bundles.
+    -->
+    <Version>1.19.1</Version>
+    <Copyright>Copyright (c) 2026 ioBroker Backup Analyzer — MIT-Lizenz</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <NeutralLanguage>de-DE</NeutralLanguage>
+
+    <!--
+      OutputType=WinExe unterdrueckt unter Windows das Konsolenfenster und ist unter
+      macOS/Linux bedeutungslos - dort entscheidet das .app-Bundle bzw. der Starter.
+      Die Runtime-Kennung (win-x64/osx-arm64/osx-x64/linux-x64) wird bewusst NICHT hier
+      festgenagelt, sondern beim Publish uebergeben: ein Projekt, vier Zielplattformen.
+    -->
+    <DebugType>none</DebugType>
+    <SatelliteResourceLanguages>de;en</SatelliteResourceLanguages>
+
+    <!-- Symbol der Windows-EXE; macOS und Linux holen es sich anders (siehe ItemGroup). -->
+    <ApplicationIcon>..\IobBackupAnalyzer.App\app.ico</ApplicationIcon>
+
+    <!--
+      Single-File waere auch hier moeglich, wird aber bewusst nicht voreingestellt:
+      Unter Windows blockiert Smart App Control Single-File-Builds haeufig (siehe
+      README.md), unter macOS ist ohnehin ein .app-Bundle noetig.
+    -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      Bewusst 11.3.19 statt 11.3.20: Die Avalonia.Win32.dll aus 11.3.20 wird von Smart
+      App Control blockiert (0x800711C7). Alle Avalonia-Pakete sind unsigniert, und SAC
+      urteilt pro Datei-Hash - getroffen hat es genau diese eine Datei. Das ist kein
+      reines Build-Problem: Auf Rechnern mit aktivem SAC startet die plattform-
+      uebergreifende Fassung damit gar nicht. Mit 11.3.19 laufen Selbsttest und
+      publiziertes Paket nachweislich durch.
+
+      Vor einem Anheben auf 11.3.20 oder neuer: Paket bauen und einmal starten. Bricht
+      der Selbsttest mit 0x800711C7 ab, ist die neue Fassung genauso betroffen.
+    -->
+    <PackageReference Include="Avalonia" Version="11.3.19" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.19" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.19" />
+    <PackageReference Include="Avalonia.Controls.DataGrid" Version="11.3.13" />
+    <!--
+      Inter wird mitgeliefert, damit die App auf allen drei Plattformen gleich aussieht.
+      Ohne eigene Schrift haengt das Schriftbild davon ab, was auf dem System installiert
+      ist - unter Linux ist das nicht verlaesslich.
+    -->
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.19" />
+  </ItemGroup>
+
+</Project>

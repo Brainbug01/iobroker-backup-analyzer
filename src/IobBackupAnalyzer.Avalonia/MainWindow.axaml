@@ -1,0 +1,162 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="clr-namespace:IobBackupAnalyzer.Avalonia.Views"
+        x:Class="IobBackupAnalyzer.Avalonia.MainWindow"
+        Width="1100" Height="720" MinWidth="900" MinHeight="600"
+        WindowStartupLocation="CenterScreen"
+        DragDrop.AllowDrop="True">
+
+  <!--
+    Gedämpfte Texte werden bewusst über Opacity gesetzt, nicht über Theme-Farbressourcen:
+    Opacity funktioniert in hellem wie dunklem Thema und auf allen drei Plattformen gleich,
+    ohne von Ressourcennamen abzuhängen, die sich zwischen Avalonia-Themes unterscheiden.
+  -->
+
+  <DockPanel>
+
+    <!-- ================= Kopfbereich: Dateiauswahl ================= -->
+    <Border DockPanel.Dock="Top" Padding="10,10,10,6">
+      <StackPanel Spacing="6">
+        <Grid ColumnDefinitions="Auto,*,Auto">
+          <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10">
+            <Button Name="BtnOpen" Content="Backup öffnen …" Width="150" Height="34" />
+            <Border Name="DropZone" Width="300" Height="34"
+                    BorderThickness="1" BorderBrush="Gray" Opacity="0.75" CornerRadius="3">
+              <TextBlock Text="… oder Datei hier hineinziehen"
+                         HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+            <Button Name="BtnRecent" Content="Zuletzt geöffnet" Height="34" IsEnabled="False" />
+            <ProgressBar Name="Progress" Width="200" Height="34"
+                         IsIndeterminate="True" IsVisible="False" />
+          </StackPanel>
+
+          <!-- Rechtsbündig: Darstellung umschalten, gemerkt über Programmstarts hinweg. -->
+          <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+            <TextBlock Text="Darstellung:" VerticalAlignment="Center" Opacity="0.75" />
+            <ComboBox Name="ThemeSelect" Width="130" VerticalAlignment="Center" />
+          </StackPanel>
+        </Grid>
+
+        <TextBlock Name="LblFile" Text="Keine Datei geladen."
+                   TextTrimming="CharacterEllipsis" Opacity="0.75" />
+      </StackPanel>
+    </Border>
+
+    <!-- ================= Statusleiste ================= -->
+    <Border DockPanel.Dock="Bottom" Padding="10,4"
+            BorderThickness="0,1,0,0" BorderBrush="Gray">
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Name="LblStatus" Grid.Column="0" Text="Bereit." Opacity="0.75" />
+        <TextBlock Name="LblVersion" Grid.Column="1" Opacity="0.75" />
+      </Grid>
+    </Border>
+
+    <!-- ================= Tabs ================= -->
+    <TabControl Name="Tabs" Margin="6,0,6,0">
+      <!--
+        Eigene Farbe statt einer Ressource aus dem Fluent-Theme: Deren Schlüssel sind
+        Implementierungsdetail. Ein Schlüssel, den es nicht (mehr) gibt, liefert keinen
+        Fehler, sondern eine leere Farbe - die Reiter waren damit schlicht unsichtbar.
+        Hier stehen beide Varianten ausgeschrieben, damit die Leiste im hellen wie im
+        dunklen Thema lesbar bleibt.
+      -->
+      <TabControl.Resources>
+        <ResourceDictionary>
+          <ResourceDictionary.ThemeDictionaries>
+            <ResourceDictionary x:Key="Light">
+              <SolidColorBrush x:Key="TabHeaderText" Color="#1B1B1B" />
+            </ResourceDictionary>
+            <ResourceDictionary x:Key="Dark">
+              <SolidColorBrush x:Key="TabHeaderText" Color="#F2F2F2" />
+            </ResourceDictionary>
+          </ResourceDictionary.ThemeDictionaries>
+        </ResourceDictionary>
+      </TabControl.Resources>
+
+      <TabControl.Styles>
+        <!--
+          Das Fluent-Standardmaß für Reiter ist auf wenige, große Reiter ausgelegt.
+          Hier sind es neun - kompakter gesetzt bleibt mehr Höhe für die Tabelle,
+          und die Leiste entspricht eher der Windows-Fassung.
+        -->
+        <Style Selector="TabItem">
+          <Setter Property="FontSize" Value="14" />
+          <Setter Property="MinHeight" Value="36" />
+          <Setter Property="Padding" Value="10,4" />
+        </Style>
+
+        <!--
+          Fluent zeichnet nicht ausgewählte Reiter in einem gedämpften Grau. Das ist für
+          drei große Reiter gedacht; bei neun kleinen wirkt die ganze Leiste dadurch
+          ausgegraut - neben der kräftigen Schrift darunter sieht sie aus, als wären die
+          Reiter deaktiviert. Hier bekommen deshalb alle Reiter die normale Textfarbe;
+          welcher aktiv ist, zeigt weiterhin der Unterstrich darunter.
+
+          TabHeaderText kommt aus den ThemeDictionaries oben und stimmt damit in beiden
+          Themen.
+
+          Gesetzt wird im Template und nicht über TabItem.Foreground: Das Fluent-Theme
+          färbt den ContentPresenter des Reiters direkt, und dieser Setter sticht die
+          geerbte Foreground-Eigenschaft. Nachgemessen mit Testfarben - über Foreground
+          blieb die Leiste unverändert grau. Der Zustand (ausgewählt, Maus darüber) muss
+          nicht einzeln aufgeführt werden: Diese Regel greift für alle, weil Styles des
+          Controls nach denen des Themes ausgewertet werden.
+        -->
+        <Style Selector="TabItem /template/ ContentPresenter#PART_ContentPresenter">
+          <Setter Property="TextBlock.Foreground" Value="{DynamicResource TabHeaderText}" />
+        </Style>
+      </TabControl.Styles>
+
+      <TabItem Header="Übersicht">
+        <views:OverviewView Name="Overview" />
+      </TabItem>
+
+      <!--
+        Seit v1.17.0 sind alle Tabs der Windows-Fassung portiert; die Reihenfolge ist
+        dieselbe, damit eine Anleitung für beide Fassungen gilt.
+      -->
+      <TabItem Header="Backup-Prüfung">
+        <views:BackupCheckView Name="BackupCheck" />
+      </TabItem>
+
+      <TabItem Header="Skripte" Name="TabScripts">
+        <views:ScriptsView Name="Scripts" />
+      </TabItem>
+      <TabItem Header="Verwendung">
+        <views:UsageView Name="Usage" />
+      </TabItem>
+      <TabItem Header="VIS-Datenpunkte">
+        <views:VisView Name="Vis" />
+      </TabItem>
+      <TabItem Header="Verwaiste Datenpunkte">
+        <views:OrphansView Name="Orphans" />
+      </TabItem>
+
+      <TabItem Header="Logging">
+        <views:LoggingView Name="Logging" />
+      </TabItem>
+
+      <TabItem Header="Aliasse">
+        <views:AliasView Name="Aliases" />
+      </TabItem>
+
+      <TabItem Header="Dateien">
+        <views:FilesView Name="Files" />
+      </TabItem>
+
+      <TabItem Header="Vergleich">
+        <views:CompareView Name="Compare" />
+      </TabItem>
+      <TabItem Header="Hilfe">
+        <views:HelpView />
+      </TabItem>
+
+      <!-- Inhalt setzt der Code-Behind: dieselbe Ansicht wie die Hilfe, nur mit den
+           Absätzen des Änderungsverlaufs. -->
+      <TabItem Header="Änderungen">
+        <ContentControl Name="ChangelogHost" />
+      </TabItem>
+    </TabControl>
+
+  </DockPanel>
+</Window>

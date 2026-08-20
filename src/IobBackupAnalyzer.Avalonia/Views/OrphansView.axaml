@@ -1,0 +1,154 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="IobBackupAnalyzer.Avalonia.Views.OrphansView">
+
+  <UserControl.Styles>
+    <!--
+      Der Warnhinweis über jeder Analyse: „Prüfliste, keine Löschliste". Bewusst in
+      gedecktem Gelb mit dunkler Schrift - feste Farben, weil der Hinweis in hellem wie
+      dunklem Thema gleich deutlich bleiben muss.
+    -->
+    <Style Selector="Border.warnung">
+      <Setter Property="Background" Value="#FFF9DB" />
+      <Setter Property="BorderBrush" Value="#E0CE8A" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="3" />
+      <Setter Property="Padding" Value="8,5" />
+      <Setter Property="Margin" Value="0,0,0,8" />
+    </Style>
+    <Style Selector="Border.warnung TextBlock">
+      <Setter Property="Foreground" Value="#5A3C00" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <!-- Einstufung der Zeilen, einheitlich über alle drei Analysen. -->
+    <Style Selector="DataGridRow.gedaempft">
+      <Setter Property="Opacity" Value="0.55" />
+    </Style>
+    <Style Selector="DataGridRow.warnung TextBlock">
+      <Setter Property="Foreground" Value="#D98A00" />
+    </Style>
+    <Style Selector="DataGridRow.problem TextBlock">
+      <Setter Property="Foreground" Value="#D9534F" />
+    </Style>
+  </UserControl.Styles>
+
+  <Grid Margin="8">
+    <TabControl Name="Sub">
+      <TabControl.Styles>
+        <Style Selector="TabItem">
+          <Setter Property="FontSize" Value="13" />
+          <Setter Property="MinHeight" Value="32" />
+          <Setter Property="Padding" Value="10,3" />
+        </Style>
+      </TabControl.Styles>
+
+      <!-- ================= Analyse A ================= -->
+      <TabItem Header="A — Objekt-Leichen">
+        <Grid RowDefinitions="Auto,Auto,*" Margin="0,6,0,0">
+          <Border Grid.Row="0" Classes="warnung">
+            <TextBlock Name="WarnA" />
+          </Border>
+
+          <Grid Grid.Row="1" ColumnDefinitions="Auto,Auto,Auto,*,Auto" Margin="0,0,0,6">
+            <TextBlock Grid.Column="0" Text="Filter:" VerticalAlignment="Center" Margin="0,0,8,0" />
+            <TextBox Name="FilterA" Grid.Column="1" Width="300" Watermark="Objekt-ID oder Instanz …" />
+            <TextBlock Name="CountA" Grid.Column="2" VerticalAlignment="Center"
+                       Margin="14,0,0,0" Opacity="0.75" />
+            <Button Name="CsvA" Grid.Column="4" Content="Als CSV exportieren" />
+          </Grid>
+
+          <DataGrid Name="ListA" Grid.Row="2" IsReadOnly="True" GridLinesVisibility="All"
+                    CanUserSortColumns="True" CanUserResizeColumns="True" AutoGenerateColumns="False">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="Fehlende Instanz" Binding="{Binding MissingInstance}" Width="200" />
+              <DataGridTextColumn Header="Objekt-ID" Binding="{Binding Id}" Width="460" />
+              <DataGridTextColumn Header="Typ"  Binding="{Binding Type}" Width="100" />
+              <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="240" />
+            </DataGrid.Columns>
+          </DataGrid>
+        </Grid>
+      </TabItem>
+
+      <!-- ================= Analyse B ================= -->
+      <TabItem Header="B — Unbenutzte User-Datenpunkte">
+        <Grid RowDefinitions="Auto,Auto,*" Margin="0,6,0,0">
+          <Border Grid.Row="0" Classes="warnung">
+            <TextBlock Name="WarnB" />
+          </Border>
+
+          <Grid Grid.Row="1" ColumnDefinitions="Auto,Auto,Auto,Auto,*,Auto" Margin="0,0,0,6">
+            <TextBlock Grid.Column="0" Text="Filter:" VerticalAlignment="Center" Margin="0,0,8,0" />
+            <TextBox Name="FilterB" Grid.Column="1" Width="300" Watermark="Datenpunkt-ID …" />
+            <CheckBox Name="ShowAllB" Grid.Column="2" Margin="14,0,0,0" VerticalAlignment="Center" />
+            <TextBlock Name="CountB" Grid.Column="3" VerticalAlignment="Center"
+                       Margin="14,0,0,0" Opacity="0.75" />
+            <Button Name="CsvB" Grid.Column="5" Content="Als CSV exportieren" />
+          </Grid>
+
+          <DataGrid Name="ListB" Grid.Row="2" IsReadOnly="True" GridLinesVisibility="All"
+                    CanUserSortColumns="True" CanUserResizeColumns="True" AutoGenerateColumns="False">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="Datenpunkt-ID" Binding="{Binding Id}" Width="380" />
+              <DataGridTextColumn Header="Name"        Binding="{Binding Name}"          Width="170" />
+              <DataGridTextColumn Header="In Skripten" Binding="{Binding InScriptsText}" Width="100" />
+              <DataGridTextColumn Header="In VIS"      Binding="{Binding InVisText}"     Width="85" />
+              <DataGridTextColumn Header="Alias-Ziel"  Binding="{Binding AliasText}"     Width="90" />
+              <DataGridTextColumn Header="Logging"     Binding="{Binding LoggingText}"   Width="80" />
+              <DataGridTextColumn Header="In Chart"    Binding="{Binding InChartText}"   Width="80" />
+              <DataGridTextColumn Header="Zuletzt geändert" Binding="{Binding LastChangeText}"
+                                  SortMemberPath="LastChange" Width="180" />
+              <DataGridTextColumn Header="Bewertung"   Binding="{Binding Verdict}"       Width="170" />
+            </DataGrid.Columns>
+          </DataGrid>
+        </Grid>
+      </TabItem>
+
+      <!-- ================= Analyse C ================= -->
+      <TabItem Name="TabC" Header="C — States">
+        <Grid RowDefinitions="Auto,Auto,Auto,*" Margin="0,6,0,0">
+          <Border Grid.Row="0" Classes="warnung">
+            <TextBlock Name="WarnC" />
+          </Border>
+
+          <Grid Grid.Row="1" ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto,Auto" Margin="0,0,0,6">
+            <TextBlock Grid.Column="0" Text="Sicht:" VerticalAlignment="Center" Margin="0,0,8,0" />
+            <ComboBox Name="ViewC" Grid.Column="1" Width="300" />
+            <TextBlock Grid.Column="2" Text="Filter:" VerticalAlignment="Center" Margin="14,0,8,0" />
+            <TextBox Name="FilterC" Grid.Column="3" Width="180" Watermark="Datenpunkt-ID …" />
+            <TextBlock Name="CountC" Grid.Column="4" VerticalAlignment="Center"
+                       Margin="14,0,0,0" Opacity="0.75" />
+            <Button Name="CleanupC" Grid.Column="6" Content="Aufräum-Skript erzeugen …"
+                    Margin="0,0,8,0" />
+            <Button Name="CsvC" Grid.Column="7" Content="Als CSV exportieren" />
+          </Grid>
+
+          <TextBlock Name="StatsC" Grid.Row="2" Opacity="0.75" TextWrapping="Wrap" Margin="0,0,0,6" />
+
+          <DataGrid Name="ListC" Grid.Row="3" IsReadOnly="True" GridLinesVisibility="All"
+                    CanUserSortColumns="True" CanUserResizeColumns="True" AutoGenerateColumns="False">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="Datenpunkt-ID" Binding="{Binding Id}" Width="420" />
+              <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="180" />
+              <DataGridTextColumn Header="Zuletzt geändert" Binding="{Binding LastChangeText}"
+                                  SortMemberPath="LastChange" Width="190" />
+              <!--
+                Aus common.write: unterscheidet reine Lieferanten (Sensoren) von
+                schreibbaren Datenpunkten — Rückfrage aus der Praxis zur Sicht
+                „Objekte ohne Wert".
+              -->
+              <DataGridTextColumn Header="Schreibbar" Binding="{Binding WritableText}" Width="100" />
+              <DataGridTextColumn Header="Quelle"    Binding="{Binding From}"        Width="170" />
+              <DataGridTextColumn Header="Qualität"  Binding="{Binding QualityText}" Width="180" />
+              <DataGridTextColumn Header="Quittiert" Binding="{Binding AckText}"     Width="90" />
+            </DataGrid.Columns>
+          </DataGrid>
+        </Grid>
+      </TabItem>
+    </TabControl>
+
+    <TextBlock Name="PlaceholderText" TextAlignment="Center" TextWrapping="Wrap"
+               HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.75"
+               Text="Kein Backup geladen." />
+  </Grid>
+</UserControl>

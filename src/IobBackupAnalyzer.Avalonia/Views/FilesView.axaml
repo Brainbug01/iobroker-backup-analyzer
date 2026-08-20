@@ -1,0 +1,40 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="IobBackupAnalyzer.Avalonia.Views.FilesView">
+
+  <Grid Margin="8" RowDefinitions="Auto,*">
+
+    <StackPanel Grid.Row="0" Spacing="6" Margin="0,0,0,8">
+      <TextBlock Name="Summary" TextWrapping="Wrap" />
+
+      <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*,Auto,Auto,Auto" Margin="0,4,0,0">
+        <TextBlock Grid.Column="0" Text="Filter:" VerticalAlignment="Center" Margin="0,0,8,0" />
+        <TextBox Name="Filter" Grid.Column="1" Width="280" Watermark="Dateiname oder Pfad …" />
+        <ComboBox Name="Namespaces" Grid.Column="2" Width="220" Margin="10,0,0,0" />
+        <TextBlock Name="Count" Grid.Column="3" VerticalAlignment="Center"
+                   Margin="14,0,0,0" Opacity="0.75" />
+        <Button Name="Csv"            Grid.Column="5" Content="Liste als CSV"           Margin="0,0,8,0" />
+        <Button Name="ExportSelected" Grid.Column="6" Content="Ausgewählte exportieren" Margin="0,0,8,0" />
+        <Button Name="ExportAll"      Grid.Column="7" Content="Alle exportieren" />
+      </Grid>
+    </StackPanel>
+
+    <Grid Grid.Row="1">
+      <DataGrid Name="Rows" IsReadOnly="True" GridLinesVisibility="All"
+                CanUserSortColumns="True" CanUserResizeColumns="True"
+                SelectionMode="Extended" AutoGenerateColumns="False">
+        <DataGrid.Columns>
+          <DataGridTextColumn Header="Namensraum" Binding="{Binding Namespace}" Width="170" />
+          <DataGridTextColumn Header="Pfad"       Binding="{Binding Path}"      Width="560" />
+          <DataGridTextColumn Header="Größe"      Binding="{Binding SizeText}"  Width="100" />
+          <DataGridTextColumn Header="Typ"        Binding="{Binding KindText}"  Width="110" />
+        </DataGrid.Columns>
+      </DataGrid>
+
+      <TextBlock Name="PlaceholderText" TextAlignment="Center" TextWrapping="Wrap"
+                 HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.75"
+                 Text="Kein Backup geladen." />
+    </Grid>
+
+  </Grid>
+</UserControl>

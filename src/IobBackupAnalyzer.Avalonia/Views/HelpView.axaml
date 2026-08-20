@@ -1,0 +1,11 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="IobBackupAnalyzer.Avalonia.Views.HelpView">
+
+  <ScrollViewer Padding="16,10">
+    <!-- Die Absätze kommen aus HelpContent; die Formatierung setzt der Code-Behind. -->
+    <!-- Nicht "Content" nennen: Avalonia erzeugt daraus ein Feld, das ContentControl.Content verdecken würde. -->
+    <StackPanel Name="HelpBlocks" MaxWidth="900" HorizontalAlignment="Left" Spacing="0" />
+  </ScrollViewer>
+
+</UserControl>

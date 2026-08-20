@@ -1,0 +1,57 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\IobBackupAnalyzer.Core\IobBackupAnalyzer.Core.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <AssemblyName>ioBroker-Backup-Analyzer</AssemblyName>
+    <RootNamespace>IobBackupAnalyzer.App</RootNamespace>
+    <Product>ioBroker Backup Analyzer</Product>
+    <AssemblyTitle>ioBroker Backup Analyzer</AssemblyTitle>
+    <Company>ioBroker Backup Analyzer</Company>
+    <!--
+      Einziger Pflegeort für die Versionsnummer. FileVersion und AssemblyVersion werden
+      von .NET daraus abgeleitet und stehen deshalb bewusst NICHT extra hier: Als eigene
+      Eigenschaften wurden sie beim Anheben von <Version> übersehen, die EXE meldete
+      danach zwei verschiedene Stände (Produkt 1.8.1, Datei 1.8.0). AppInfo.Version liest
+      die AssemblyVersion — die Titelleiste zeigte also die alte Nummer.
+    -->
+    <Version>1.19.1</Version>
+    <Copyright>Copyright (c) 2026 ioBroker Backup Analyzer — MIT-Lizenz</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <NeutralLanguage>de-DE</NeutralLanguage>
+
+    <!-- Ein echtes Icon laesst die EXE fuer Virenscanner-Heuristik legitimer wirken. -->
+    <ApplicationIcon>app.ico</ApplicationIcon>
+
+    <!-- Portable EXE: alles in einer Datei, ohne installiertes .NET lauffaehig -->
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+
+    <!--
+      EnableCompressionInSingleFile MUSS false bleiben.
+
+      Mit Kompression wird die EXE zu einem selbstentpackenden Bundle - genau das
+      Muster, das Windows Smart App Control als verdaechtig einstuft. Gemessen auf
+      Auf dem Entwicklungssystem: komprimiert 3 von 3 Startversuchen blockiert
+      ("Eine Anwendungssteuerungsrichtlinie hat diese Datei blockiert"),
+      unkomprimiert 3 von 3 erfolgreich, auch von Desktop und C:\.
+
+      Der Preis sind rund 140 statt 63 MB. Eine EXE, die nicht startet, ist
+      wertlos - die Groesse ist das kleinere Uebel.
+    -->
+    <EnableCompressionInSingleFile>false</EnableCompressionInSingleFile>
+    <SatelliteResourceLanguages>de;en</SatelliteResourceLanguages>
+    <DebugType>none</DebugType>
+  </PropertyGroup>
+
+</Project>
