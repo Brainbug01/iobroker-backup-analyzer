@@ -164,6 +164,13 @@ public static class HelpContent
             "Fundstelle je Widget und View. Aliasse werden auf ihr Ziel aufgelöst. Rot markiert sind " +
             "„tote Widgets\": Datenpunkte, die im Backup nicht mehr existieren, auf die eine View aber " +
             "weiterhin zeigt."),
+        new(HelpBlockKind.Text,
+            "In derselben Kopfleiste steht „Projekt als ZIP (VIS-Import)\": Damit wird ein ganzes " +
+            "VIS-Projekt aus dem Backup als ZIP geschrieben — im Aufbau, den „Tools → Projektimport\" " +
+            "in VIS 1 und VIS 2 erwartet. Das ist der Weg, eine gelöschte Ansicht zurückzuholen, ohne " +
+            "das Backup einzuspielen. Angeboten werden nur Ordner mit einer vis-views.json; reine " +
+            "Bilderordner neben dem Projekt sind keine Projekte und deshalb auch nicht in der ZIP."),
+        new(HelpBlockKind.Text, VisPresenter.ImportHint),
 
         new(HelpBlockKind.Heading, "Tab „Verwaiste Datenpunkte\""),
         new(HelpBlockKind.Text,

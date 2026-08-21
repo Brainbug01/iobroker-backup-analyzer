@@ -415,6 +415,13 @@ public sealed class CleanupScriptDialog : Form
         };
         if (dlg.ShowDialog(this) != DialogResult.OK) return;
 
+        // Ein Skript über ein Backup-Archiv zu schreiben, ist immer ein Versehen.
+        if (ExportPaths.ArchiveWarning(dlg.FileName) is { } warning
+            && MessageBox.Show(this, warning.Replace("\n", "\r\n"), "Sicher?",
+                   MessageBoxButtons.YesNo, MessageBoxIcon.Warning,
+                   MessageBoxDefaultButton.Button2) != DialogResult.Yes)
+            return;
+
         try
         {
             File.WriteAllText(dlg.FileName,

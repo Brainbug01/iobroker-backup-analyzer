@@ -1,10 +1,11 @@
+using System.Diagnostics;
 using IobBackupAnalyzer.Core;
 
 namespace IobBackupAnalyzer.App;
 
 /// <summary>
 /// Auflistung der in VIS verwendeten Datenpunkte, getrennt nach VIS 1 (vis.0) und
-/// VIS 2 (vis-2.0).
+/// VIS 2 (vis-2.0), samt Export eines ganzen VIS-Projekts als ZIP für den Projektimport.
 /// </summary>
 public sealed class VisTab : UserControl
 {
@@ -13,6 +14,10 @@ public sealed class VisTab : UserControl
     private readonly ComboBox _scope = new();
     private readonly Label _count = new();
     private readonly Button _csv = new();
+    private readonly Label _zipIntro = new();
+    private readonly ComboBox _project = new();
+    private readonly CheckBox _assets = new();
+    private readonly Button _zip = new();
     private readonly ListView _list = new();
     private readonly ListView _usages = new();
     private readonly Label _usageHeader = new();
@@ -21,6 +26,7 @@ public sealed class VisTab : UserControl
     private BackupData? _data;
     private List<VisDatapoint> _all = new();
     private List<VisDatapoint> _filtered = new();
+    private List<VisProjectExporter.VisProject> _projects = new();
 
     private int _sortColumn = -1;
     private bool _sortAscending = true;
@@ -34,7 +40,7 @@ public sealed class VisTab : UserControl
     {
         Padding = new Padding(8);
 
-        var head = TabLayout.TopBar(86);
+        var head = TabLayout.TopBar(122);
 
         _summary.Location = new Point(0, 0);
         _summary.Size = new Size(1100, 40);
@@ -65,7 +71,33 @@ public sealed class VisTab : UserControl
         _csv.Anchor = AnchorStyles.Top | AnchorStyles.Right;
         _csv.Click += (_, _) => ExportCsv();
 
-        head.Controls.AddRange(new Control[] { _summary, lbl, _filter, _scope, _count, _csv });
+        // Zweite Zeile: ein ganzes VIS-Projekt als ZIP, wie es der Projektimport erwartet.
+        // Das ist der Weg, eine gelöschte View zurückzuholen, ohne das Backup einzuspielen.
+        _zipIntro.Location = new Point(0, 86);
+        _zipIntro.Size = new Size(330, 20);
+        _zipIntro.ForeColor = SystemColors.GrayText;
+
+        _project.Location = new Point(336, 83);
+        _project.Size = new Size(300, 24);
+        _project.DropDownStyle = ComboBoxStyle.DropDownList;
+        // Die Beschriftung kommt aus dem Presenter-Record, damit beide Oberflächen
+        // dieselbe Zeile zeigen.
+        _project.DisplayMember = nameof(VisProjectExporter.VisProject.Label);
+        _project.SelectedIndexChanged += (_, _) => UpdateZipState();
+
+        _assets.Text = VisPresenter.ZipAssetsLabel;
+        _assets.Location = new Point(646, 85);
+        _assets.Size = new Size(170, 22);
+        _assets.Checked = true;
+
+        _zip.Text = VisPresenter.ZipButtonLabel;
+        _zip.Size = new Size(210, 26);
+        _zip.Location = TabLayout.RightAligned(210, 83);
+        _zip.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+        _zip.Click += (_, _) => ExportZip();
+
+        head.Controls.AddRange(new Control[]
+            { _summary, lbl, _filter, _scope, _count, _csv, _zipIntro, _project, _assets, _zip });
 
         _list.Dock = DockStyle.Fill;
         _list.View = View.Details;
@@ -174,6 +206,7 @@ public sealed class VisTab : UserControl
             _all = new List<VisDatapoint>();
             _list.Items.Clear();
             _summary.Text = "";
+            FillProjects();
             return;
         }
 
@@ -186,6 +219,8 @@ public sealed class VisTab : UserControl
         {
             Cursor = Cursors.Default;
         }
+
+        FillProjects();
 
         _summary.Text = VisPresenter.SummaryText(_all, data).Replace("\n", "\r\n");
 
@@ -276,4 +311,80 @@ public sealed class VisTab : UserControl
         CsvExport.Save(this, "vis-datenpunkte.csv",
             VisPresenter.CsvColumns,
             VisPresenter.CsvRows(_filtered));
+
+    // ------------------------------------------------- Projekt als ZIP für den Import
+
+    /// <summary>Füllt die Projektauswahl aus dem Dateibaum des Backups.</summary>
+    private void FillProjects()
+    {
+        _projects = _data is null
+            ? new List<VisProjectExporter.VisProject>()
+            : VisProjectExporter.FindProjects(_data);
+
+        _project.Items.Clear();
+        _project.Items.AddRange(_projects.Cast<object>().ToArray());
+        if (_projects.Count > 0) _project.SelectedIndex = 0;
+
+        _zipIntro.Text = VisPresenter.ZipIntro(_projects.Count);
+        UpdateZipState();
+    }
+
+    private void UpdateZipState()
+    {
+        var project = _project.SelectedItem as VisProjectExporter.VisProject;
+
+        _project.Enabled = _projects.Count > 0;
+        _zip.Enabled = project is not null;
+        // Ohne Beiwerk gibt es nichts zum Mitnehmen — der Schalter bliebe eine leere Zusage.
+        _assets.Enabled = project is { } p && p.Assets.Count > 0;
+    }
+
+    /// <summary>
+    /// Schreibt das gewählte VIS-Projekt als ZIP, wie sie der Projektimport von VIS
+    /// erwartet: der Inhalt des Projektordners flach in der Wurzel.
+    /// </summary>
+    private void ExportZip()
+    {
+        if (_data is null || _project.SelectedItem is not VisProjectExporter.VisProject project)
+            return;
+
+        using var dlg = new SaveFileDialog
+        {
+            Title = "VIS-Projekt als ZIP speichern",
+            Filter = "ZIP-Datei (*.zip)|*.zip|Alle Dateien (*.*)|*.*",
+            FileName = project.SuggestedFileName(_data.CreatedAt),
+            DefaultExt = "zip",
+            AddExtension = true,
+            OverwritePrompt = true
+        };
+        if (dlg.ShowDialog(this) != DialogResult.OK) return;
+
+        try
+        {
+            Cursor = Cursors.WaitCursor;
+            var result = VisProjectExporter.Export(_data, project, dlg.FileName, _assets.Checked);
+            Cursor = Cursors.Default;
+
+            var msg = VisPresenter.ZipSummary(_data, project, result).Replace("\n", "\r\n");
+            var problems = result.Files == 0 || !result.ViewsIncluded
+                        || result.Errors.Count > 0 || result.Missing.Count > 0;
+
+            MessageBox.Show(this, msg, "VIS-Projekt exportiert", MessageBoxButtons.OK,
+                problems ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
+
+            // Den Ordner öffnen und die ZIP darin markieren — sie soll gleich in den
+            // Projektimport gezogen werden.
+            if (result.Files > 0)
+                Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{result.ZipPath}\"")
+                    { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            Cursor = Cursors.Default;
+            Program.LogError("VIS-Projekt-Export", ex);
+            MessageBox.Show(this, "Der Export ist fehlgeschlagen:\r\n\r\n" + ex.Message
+                + "\r\n\r\nDetails in:\r\n" + Program.ErrorLogPath,
+                "Fehler", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
 }

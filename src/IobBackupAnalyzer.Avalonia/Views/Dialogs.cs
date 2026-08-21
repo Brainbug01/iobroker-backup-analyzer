@@ -47,6 +47,13 @@ internal static class Dialogs
         var path = file?.TryGetLocalPath();
         if (string.IsNullOrEmpty(path)) return;
 
+        // Im Speicherdialog steht man oft im Ordner der Backups; ein Klick auf die falsche
+        // Zeile übernimmt deren Namen. Eine CSV über ein Archiv zu schreiben, ist immer ein
+        // Versehen — und nicht rückgängig zu machen.
+        if (ExportPaths.ArchiveWarning(path) is { } warning
+            && !await ConfirmAsync(owner, "Sicher?", warning))
+            return;
+
         try
         {
             ScriptExporter.WriteCsv(path, headers, rows);

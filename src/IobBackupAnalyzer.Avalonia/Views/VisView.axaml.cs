@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
+using Avalonia.Platform.Storage;
 using IobBackupAnalyzer.Core;
 
 namespace IobBackupAnalyzer.Avalonia.Views;
@@ -16,6 +17,10 @@ public partial class VisView : UserControl
     private readonly ComboBox _scope;
     private readonly TextBlock _count;
     private readonly Button _csv;
+    private readonly TextBlock _zipIntro;
+    private readonly ComboBox _project;
+    private readonly CheckBox _assets;
+    private readonly Button _zip;
     private readonly DataGrid _points;
     private readonly DataGrid _usages;
     private readonly TextBlock _usageHeader;
@@ -25,6 +30,7 @@ public partial class VisView : UserControl
     private BackupData? _data;
     private List<VisDatapoint> _all = new();
     private List<VisDatapoint> _filtered = new();
+    private List<VisProjectExporter.VisProject> _projects = new();
 
     public VisView()
     {
@@ -36,6 +42,10 @@ public partial class VisView : UserControl
         _scope = this.FindControl<ComboBox>("Scope")!;
         _count = this.FindControl<TextBlock>("Count")!;
         _csv = this.FindControl<Button>("Csv")!;
+        _zipIntro = this.FindControl<TextBlock>("ZipIntro")!;
+        _project = this.FindControl<ComboBox>("Project")!;
+        _assets = this.FindControl<CheckBox>("Assets")!;
+        _zip = this.FindControl<Button>("Zip")!;
         _points = this.FindControl<DataGrid>("Points")!;
         _usages = this.FindControl<DataGrid>("Usages")!;
         _usageHeader = this.FindControl<TextBlock>("UsageHeader")!;
@@ -50,6 +60,11 @@ public partial class VisView : UserControl
         _points.SelectionChanged += (_, _) => ShowUsages();
         _csv.Click += async (_, _) => await Dialogs.SaveCsvAsync(this, "vis-datenpunkte.csv",
             VisPresenter.CsvColumns, VisPresenter.CsvRows(_filtered));
+
+        _assets.Content = VisPresenter.ZipAssetsLabel;
+        _zip.Content = VisPresenter.ZipButtonLabel;
+        _project.SelectionChanged += (_, _) => UpdateZipState();
+        _zip.Click += async (_, _) => await ExportZipAsync();
 
         _points.LoadingRow += (_, e) =>
         {
@@ -78,12 +93,14 @@ public partial class VisView : UserControl
                 ? "Kein Backup geladen.\n\nBitte oben eine Datei öffnen oder hineinziehen."
                 : "Für die VIS-Auswertung wird ein Voll-Backup benötigt.\n\n" +
                   "Die geladene Datei enthält nur Skripte.";
+            FillProjects();
             ShowPlaceholder(true);
             return;
         }
 
         _all = VisAnalyzer.Analyze(data);
         _summary.Text = VisPresenter.SummaryText(_all, data);
+        FillProjects();
 
         // Ohne VIS-Views bleibt nur der erklärende Satz in der Zusammenfassung stehen.
         if (data.VisViews.Count == 0)
@@ -127,5 +144,81 @@ public partial class VisView : UserControl
         // der WinForms-Fassung entfällt hier deshalb.
         _usageHeader.Text = VisPresenter.UsageHeader(d, "Strg+C kopiert die Auswahl");
         _usages.ItemsSource = d is null ? null : VisPresenter.SortedUsages(d);
+    }
+
+    // ------------------------------------------------- Projekt als ZIP für den Import
+
+    /// <summary>Füllt die Projektauswahl aus dem Dateibaum des Backups.</summary>
+    private void FillProjects()
+    {
+        _projects = _data is null
+            ? new List<VisProjectExporter.VisProject>()
+            : VisProjectExporter.FindProjects(_data);
+
+        // Die Auswahl zeigt Zeichenketten statt der Records: So ist die Beschriftung in
+        // beiden Oberflächen dieselbe, ohne dass hier eine Datenvorlage nötig wäre.
+        _project.ItemsSource = _projects.Select(p => p.Label).ToList();
+        if (_projects.Count > 0) _project.SelectedIndex = 0;
+
+        _zipIntro.Text = VisPresenter.ZipIntro(_projects.Count);
+        UpdateZipState();
+    }
+
+    /// <summary>Das gewählte Projekt — null, solange nichts (oder nichts Gültiges) ausgewählt ist.</summary>
+    private VisProjectExporter.VisProject? SelectedProject =>
+        _project.SelectedIndex >= 0 && _project.SelectedIndex < _projects.Count
+            ? _projects[_project.SelectedIndex]
+            : null;
+
+    private void UpdateZipState()
+    {
+        var project = SelectedProject;
+
+        _project.IsEnabled = _projects.Count > 0;
+        _zip.IsEnabled = project is not null;
+        // Ohne Beiwerk gibt es nichts zum Mitnehmen — der Schalter bliebe eine leere Zusage.
+        _assets.IsEnabled = project is { } p && p.Assets.Count > 0;
+    }
+
+    /// <summary>
+    /// Schreibt das gewählte VIS-Projekt als ZIP, wie sie der Projektimport von VIS
+    /// erwartet: der Inhalt des Projektordners flach in der Wurzel.
+    /// </summary>
+    private async Task ExportZipAsync()
+    {
+        if (_data is null || SelectedProject is not { } project) return;
+
+        var top = TopLevel.GetTopLevel(this);
+        if (top is null) return;
+
+        var file = await top.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "VIS-Projekt als ZIP speichern",
+            SuggestedFileName = project.SuggestedFileName(_data.CreatedAt),
+            DefaultExtension = "zip",
+            FileTypeChoices = new[]
+            {
+                new FilePickerFileType("ZIP-Datei") { Patterns = new[] { "*.zip" } }
+            }
+        });
+
+        var path = file?.TryGetLocalPath();
+        if (string.IsNullOrEmpty(path)) return;
+
+        try
+        {
+            var assets = _assets.IsChecked == true;
+            var result = await Task.Run(
+                () => VisProjectExporter.Export(_data, project, path, assets));
+
+            await Dialogs.MessageAsync(this, "VIS-Projekt exportiert",
+                VisPresenter.ZipSummary(_data, project, result));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+                                      or NotSupportedException)
+        {
+            await Dialogs.MessageAsync(this, "Fehler",
+                "Der Export ist fehlgeschlagen:\n\n" + ex.Message);
+        }
     }
 }

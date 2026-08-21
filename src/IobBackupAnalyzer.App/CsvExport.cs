@@ -29,6 +29,15 @@ internal static class CsvExport
         };
         if (dlg.ShowDialog(owner) != DialogResult.OK) return;
 
+        // Im Speichern-Dialog steht man oft im Ordner der Backups; ein Klick auf die
+        // falsche Zeile übernimmt deren Namen. Eine CSV über ein Archiv zu schreiben, ist
+        // immer ein Versehen — und nicht rückgängig zu machen.
+        if (ExportPaths.ArchiveWarning(dlg.FileName) is { } warning
+            && MessageBox.Show(owner, warning.Replace("\n", "\r\n"), "Sicher?",
+                   MessageBoxButtons.YesNo, MessageBoxIcon.Warning,
+                   MessageBoxDefaultButton.Button2) != DialogResult.Yes)
+            return;
+
         try
         {
             ScriptExporter.WriteCsv(dlg.FileName, headers, list);

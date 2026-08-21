@@ -9,7 +9,7 @@ Reines Lesewerkzeug: Es schreibt nichts in ein ioBroker-System und löscht nicht
 > Auswertungslogik und sämtliche Texte stammen von Claude (Anthropic), erarbeitet in Claude
 > Code. Jede Auswertung ist gegen echte ioBroker-Backups verifiziert (siehe
 > [STRUKTUR_VERIFIZIERUNG.md](STRUKTUR_VERIFIZIERUNG.md) und den Verifikationslauf mit
-> derzeit 511 Prüfungen). Trotzdem gilt: Die Listen sind Prüflisten — was gelöscht oder
+> derzeit 550 Prüfungen). Trotzdem gilt: Die Listen sind Prüflisten — was gelöscht oder
 > geändert wird, entscheidest du. Der Hinweis steht auch in der App: in der Titelleiste, in
 > der Statusleiste, in der Hilfe und in jeder Datei, die das Werkzeug erzeugt.
 
@@ -49,7 +49,13 @@ mit Blockly-Skripten gleichberechtigt neben JavaScript.
 
 Alle in der Visualisierung verwendeten Datenpunkte, getrennt nach VIS 1 und VIS 2. Unten
 jede einzelne Fundstelle mit View, Widget-ID, Widget-Typ und dem Feld, in dem der
-Datenpunkt steckt.
+Datenpunkt steckt. In derselben Kopfleiste schreibt „Projekt als ZIP (VIS-Import)" ein
+ganzes VIS-Projekt aus dem Backup — im Aufbau, den „Tools → Projektimport" in VIS 1 und
+VIS 2 erwartet. So lässt sich eine gelöschte Ansicht zurückholen, ohne das Backup
+einzuspielen: importieren, die vermisste Ansicht über „Views → Exportieren" herausholen,
+im eigenen Projekt einfügen. Der vorgeschlagene Dateiname ist dabei kein Beiwerk — VIS
+trägt ihn beim Hineinziehen selbst als Projektnamen ein (ohne führendes Datum), und er ist
+deshalb so gewählt, dass er das laufende Projekt nicht treffen kann.
 
 ![VIS-Datenpunkte](docs/bilder/windows/05-vis-datenpunkte.png)
 
@@ -542,7 +548,7 @@ Windows-Fassung nutzt.
 Einzelschritte von Hand:
 
 ```powershell
-dotnet run --project src/IobBackupAnalyzer.Verify     # 511 Prüfungen gegen testdaten/
+dotnet run --project src/IobBackupAnalyzer.Verify     # 550 Prüfungen gegen testdaten/
 dotnet publish src/IobBackupAnalyzer.App -c Release -o dist   # nur die Einzeldatei nach dist/
 dotnet run --project src/IobBackupAnalyzer.Avalonia           # plattformübergreifende Fassung starten
 ```

@@ -210,6 +210,12 @@ public partial class CleanupScriptDialog : Window
         var path = file?.TryGetLocalPath();
         if (string.IsNullOrEmpty(path)) return;
 
+        // Ein Skript über ein Backup-Archiv zu schreiben, ist immer ein Versehen — und
+        // unter Linux und macOS ist die Datei weg, bevor die Sperre greifen könnte.
+        if (ExportPaths.ArchiveWarning(path) is { } warning
+            && !await Dialogs.ConfirmAsync(this, "Sicher?", warning))
+            return;
+
         try
         {
             await File.WriteAllTextAsync(path,

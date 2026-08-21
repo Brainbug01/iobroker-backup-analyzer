@@ -1924,6 +1924,333 @@ Directory.Delete(fileDir, true);
 Directory.Delete(teilDir, true);
 
 
+// ---------------------------------------------------- VIS-Projekt als ZIP (Projektimport)
+
+Console.WriteLine();
+Console.WriteLine("=== VIS-Projekt als ZIP fuer den Projektimport ===");
+
+var visProjekte = VisProjectExporter.FindProjects(fullData);
+Console.WriteLine("  Projekte: " + string.Join(", ",
+    visProjekte.Select(p => $"{p.VersionText}/{p.Name} ({p.Files.Count})")));
+
+Check("VIS-Projekte im Dateibaum gefunden", visProjekte.Count > 0);
+Check("Beide VIS-Versionen unter den Projekten",
+      visProjekte.Any(p => p.Version == VisVersion.Vis1)
+      && visProjekte.Any(p => p.Version == VisVersion.Vis2));
+Check("Jedes angebotene Projekt hat eine vis-views.json",
+      visProjekte.All(p => p.Views is not null),
+      string.Join(", ", visProjekte.Where(p => p.Views is null).Select(p => p.Name)));
+
+// Nicht jeder Ordner unter vis.0 ist ein Projekt: Ordner ohne vis-views.json sind
+// Bilderablagen und duerfen nicht zur Auswahl stehen - eine ZIP daraus nimmt der
+// Projektimport nicht an.
+var visOrdner = fullData.Files
+    .Where(f => f.Namespace.Equals("vis.0", StringComparison.OrdinalIgnoreCase)
+             || f.Namespace.Equals("vis-2.0", StringComparison.OrdinalIgnoreCase))
+    .Where(f => f.Path.Contains('/'))
+    .Select(f => (f.Namespace, Ordner: f.Path[..f.Path.IndexOf('/')]))
+    .Distinct()
+    .ToList();
+
+var ordnerMitViews = fullData.Files
+    .Where(f => f.Name.Equals(VisProjectExporter.ViewsFileName, StringComparison.OrdinalIgnoreCase))
+    .Where(f => f.Path.Contains('/'))
+    .Select(f => (f.Namespace, Ordner: f.Path[..f.Path.IndexOf('/')]))
+    .Distinct()
+    .ToList();
+
+Console.WriteLine($"  Ordner unter vis.0/vis-2.0: {visOrdner.Count}, davon mit vis-views.json: " +
+                  $"{ordnerMitViews.Count}");
+CheckEq("Angeboten werden genau die Ordner mit vis-views.json",
+        visProjekte.Count, ordnerMitViews.Count);
+Check("Ordner ohne vis-views.json bleiben aussen vor",
+      visProjekte.All(p => ordnerMitViews.Contains((p.Namespace, p.Name))));
+
+// Und was uebrig bleibt, benennt SiblingFolders - damit im Hinweistext steht, was der
+// ZIP fehlt, wenn sie auf eine fremde Anlage wandert.
+if (visProjekte.FirstOrDefault() is { } erstesProjekt)
+{
+    var nachbarn = VisProjectExporter.SiblingFolders(fullData, erstesProjekt);
+    var erwartet = visOrdner
+        .Where(o => o.Namespace.Equals(erstesProjekt.Namespace, StringComparison.OrdinalIgnoreCase))
+        .Select(o => o.Ordner)
+        .Where(o => !ordnerMitViews.Contains((erstesProjekt.Namespace, o)))
+        .Distinct()
+        .ToList();
+    CheckEq($"Nachbarordner in {erstesProjekt.Namespace} benannt", nachbarn.Count, erwartet.Count);
+}
+
+// Dateien direkt im Namensraum (vis-2.0/vis-common-user.css) gehoeren keinem Projekt.
+var loseVisDateien = fullData.Files.Count(f =>
+    f.Namespace.StartsWith("vis", StringComparison.OrdinalIgnoreCase) && !f.Path.Contains('/'));
+Check("Namensraumweite Dateien landen in keiner Projekt-ZIP",
+      visProjekte.All(p => p.Files.All(f => f.Path.Contains('/'))),
+      $"{loseVisDateien} namensraumweite Datei(en) im Backup");
+
+var zipDir = Path.Combine(Path.GetTempPath(), "iob_vis_zip");
+if (Directory.Exists(zipDir)) Directory.Delete(zipDir, true);
+Directory.CreateDirectory(zipDir);
+
+if (visProjekte.FirstOrDefault(p => p.Version == VisVersion.Vis1 && p.Views is not null) is { } v1Projekt)
+{
+    var zipVoll = Path.Combine(zipDir, v1Projekt.SuggestedFileName(fullData.CreatedAt));
+    var ergebnis = VisProjectExporter.Export(fullData, v1Projekt, zipVoll, includeAssets: true);
+
+    Console.WriteLine($"  {Path.GetFileName(zipVoll)}: {ergebnis.Files} Datei(en), " +
+                      $"{BackupFileInfo.FormatSize(ergebnis.Bytes)} roh -> " +
+                      $"{BackupFileInfo.FormatSize(ergebnis.ZipBytes)} gepackt");
+
+    Check("ZIP-Export ohne Fehler", ergebnis.Errors.Count == 0, string.Join("; ", ergebnis.Errors.Take(3)));
+    Check("ZIP-Export findet alles im Archiv", ergebnis.Missing.Count == 0,
+          string.Join("; ", ergebnis.Missing.Take(3)));
+    CheckEq("Geschriebene Dateien", ergebnis.Files, v1Projekt.Files.Count);
+    Check("vis-views.json ist enthalten", ergebnis.ViewsIncluded);
+    Check("ZIP-Datei liegt am gemeldeten Platz", File.Exists(ergebnis.ZipPath), ergebnis.ZipPath);
+    Check("Keine Bruchstueckdatei zurueckgelassen", !File.Exists(zipVoll + ".teil"));
+    Check("Dateiname endet auf .zip", zipVoll.EndsWith(".zip", StringComparison.OrdinalIgnoreCase));
+
+    // Der Dateiname ist in VIS zugleich der vorbelegte Projektname: Beim Hineinziehen in
+    // den Import-Dialog traegt VIS ihn selbst ein - ohne fuehrendes Datum. Wer nicht
+    // darauf achtet, importiert unter diesem Namen. Zwei Eigenschaften muss er deshalb
+    // haben, sonst trifft er im Ernstfall das laufende Projekt.
+    var vorschlag = Path.GetFileNameWithoutExtension(v1Projekt.SuggestedFileName(fullData.CreatedAt));
+    Console.WriteLine($"  Vorgeschlagener Name -> Projekt in VIS: {vorschlag}");
+
+    Check("Vorschlag ist nicht der blosse Projektname",
+          !vorschlag.Equals(v1Projekt.Name, StringComparison.OrdinalIgnoreCase), vorschlag);
+    Check("Vorschlag nennt die VIS-Version", vorschlag.Contains("vis1", StringComparison.Ordinal));
+    // Vorn wuerde VIS das Datum abschneiden - dann hiessen zwei Importe aus verschiedenen
+    // Backups gleich, und der zweite ueberschriebe den ersten.
+    Check("Datum steht hinten, nicht vorn",
+          !System.Text.RegularExpressions.Regex.IsMatch(vorschlag, @"^\d{4}-\d{2}-\d{2}-")
+          && System.Text.RegularExpressions.Regex.IsMatch(vorschlag, @"\d{4}-\d{2}-\d{2}$"),
+          vorschlag);
+
+    var ausAnderemBackup = v1Projekt.SuggestedFileName(fullData.CreatedAt?.AddDays(-7));
+    Check("Zwei Backup-Staende ergeben zwei Projektnamen",
+          !ausAnderemBackup.Equals(v1Projekt.SuggestedFileName(fullData.CreatedAt),
+                                   StringComparison.OrdinalIgnoreCase));
+
+    var eintraege = ZipEintraege(ergebnis.ZipPath);
+    var dateien = eintraege.Where(e => !e.EndsWith("/", StringComparison.Ordinal)).ToList();
+
+    // Der Kern des Formats: Der Projektordner selbst steht NICHT in der ZIP. VIS erwartet
+    // seinen Inhalt flach in der Wurzel und vergibt den Projektnamen beim Import neu.
+    Check("vis-views.json liegt in der Wurzel", dateien.Contains(VisProjectExporter.ViewsFileName),
+          string.Join(", ", dateien.Take(5)));
+    Check("Kein Eintrag traegt den Projektnamen als Ordner",
+          !eintraege.Any(e => e.StartsWith(v1Projekt.Name + "/", StringComparison.OrdinalIgnoreCase)));
+    CheckEq("Dateieintraege in der ZIP", dateien.Count, v1Projekt.Files.Count);
+
+    // Pfadhygiene: ZIP-Eintraege muessen relativ und mit / getrennt sein, sonst legt der
+    // Import sie an falscher Stelle ab (oder verweigert sie).
+    Check("Keine Rueckwaerts-Schraegstriche in den Eintraegen", !eintraege.Any(e => e.Contains('\\')));
+    Check("Keine absoluten Eintraege",
+          !eintraege.Any(e => e.StartsWith("/", StringComparison.Ordinal)));
+    Check("Kein Eintrag zeigt aus der ZIP heraus",
+          !eintraege.Any(e => e.Split('/').Contains("..")));
+
+    // Ohne Beiwerk bleibt genau eine Datei uebrig - der Fall "nur die Views zurueckholen".
+    var zipNurViews = Path.Combine(zipDir, "nur-views.zip");
+    var nurViews = VisProjectExporter.Export(fullData, v1Projekt, zipNurViews, includeAssets: false);
+    var nurEintraege = ZipEintraege(zipNurViews)
+        .Where(e => !e.EndsWith("/", StringComparison.Ordinal)).ToList();
+    CheckEq("Ohne Beiwerk genau eine Datei", nurEintraege.Count, 1);
+    Check("Und das ist die vis-views.json",
+          nurEintraege.SingleOrDefault() == VisProjectExporter.ViewsFileName);
+    Check("Ohne Beiwerk ist die ZIP kleiner", nurViews.ZipBytes < ergebnis.ZipBytes,
+          $"{nurViews.ZipBytes} vs {ergebnis.ZipBytes}");
+
+    // --- Befund 3 aus dem Code-Review: Quelle und Ziel duerfen nie dieselbe Datei sein ---
+    var quelleVorher = new FileInfo(fullData.SourceFile).Length;
+    var aufSichSelbst = VisProjectExporter.Export(fullData, v1Projekt, fullData.SourceFile,
+                                                  includeAssets: true);
+    CheckEq("Export auf die Backup-Datei schreibt nichts", aufSichSelbst.Files, 0);
+    Check("Und sagt auch, warum",
+          aufSichSelbst.Errors.Any(e => e.Contains("dieselbe Datei", StringComparison.Ordinal)));
+    CheckEq("Das Backup selbst ist unveraendert",
+            new FileInfo(fullData.SourceFile).Length, quelleVorher);
+    Check("Kein Bruchstueck neben dem Backup", !File.Exists(fullData.SourceFile + ".teil"));
+
+    // Auch mit anderer Schreibweise desselben Pfades - unter Windows ist der Vergleich
+    // unabhaengig von Gross- und Kleinschreibung.
+    if (OperatingSystem.IsWindows())
+    {
+        var andersGeschrieben = VisProjectExporter.Export(fullData, v1Projekt,
+            fullData.SourceFile.ToUpperInvariant(), includeAssets: false);
+        CheckEq("GROSS geschriebener Quellpfad wird ebenfalls abgewehrt", andersGeschrieben.Files, 0);
+    }
+
+    // --- Abbruch mitten im Lauf: kein halbes Ergebnis am Zielort ---
+    var zipAbbruch = Path.Combine(zipDir, "abgebrochen.zip");
+    using (var cts = new CancellationTokenSource())
+    {
+        cts.Cancel();
+        try
+        {
+            VisProjectExporter.Export(fullData, v1Projekt, zipAbbruch, true, cts.Token);
+            Check("Abbruch wird gemeldet", false, "keine OperationCanceledException");
+        }
+        catch (OperationCanceledException)
+        {
+            Check("Abbruch wird gemeldet", true);
+        }
+    }
+    Check("Nach Abbruch keine Zieldatei", !File.Exists(zipAbbruch));
+    Check("Nach Abbruch kein Bruchstueck", !File.Exists(zipAbbruch + ".teil"));
+
+    // Der Zeitstempel kommt aus dem Backup, nicht von der Uhr: Die entpackte Datei soll
+    // zeigen, von wann sie stammt. Das ZIP-Format kann nichts vor 1980.
+    using (var zeitZip = ZipFile.OpenRead(ergebnis.ZipPath))
+    {
+        var eintrag = zeitZip.GetEntry(VisProjectExporter.ViewsFileName);
+        var stempel = eintrag?.LastWriteTime.DateTime ?? DateTime.MinValue;
+        Console.WriteLine($"  Zeitstempel der vis-views.json in der ZIP: {stempel:dd.MM.yyyy HH:mm}");
+        Check("Zeitstempel stammt nicht von der Uhr des Exports",
+              stempel.Year >= 1980 && stempel < DateTime.Now.AddMinutes(-1),
+              stempel.ToString("dd.MM.yyyy HH:mm"));
+    }
+
+    // Eine bereits vorhandene Zieldatei wird ersetzt, nicht angehaengt.
+    File.WriteAllText(zipNurViews, "kein zip");
+    var ersetzt = VisProjectExporter.Export(fullData, v1Projekt, zipNurViews, includeAssets: false);
+    Check("Vorhandene Zieldatei wird ersetzt", ersetzt.Files == 1 && ersetzt.ViewsIncluded);
+    Check("Und ist danach ein lesbares ZIP", ZipEintraege(zipNurViews).Count > 0);
+}
+else
+{
+    Console.WriteLine("  uebersprungen: kein VIS-1-Projekt mit vis-views.json im Testbackup");
+    skipped += 2;
+}
+
+// --- Abgleich mit echten Exporten aus VIS 1 und VIS 2 ---
+// testdaten/vis1 und testdaten/vis2 enthalten je ein "Tools -> Projekt exportieren" aus
+// einer laufenden Anlage. Sie sind der Massstab fuer das Format: Weicht unser Aufbau ab,
+// nimmt der Projektimport die Datei nicht an.
+foreach (var (ordner, bezeichnung) in new[] { ("vis1", "VIS 1"), ("vis2", "VIS 2") })
+{
+    var referenzOrdner = Path.Combine(testdaten, ordner);
+    var refExport = Directory.Exists(referenzOrdner)
+        ? Directory.EnumerateFiles(referenzOrdner, "*.zip").FirstOrDefault()
+        : null;
+
+    if (refExport is null)
+    {
+        Console.WriteLine($"  uebersprungen: kein Referenz-Export unter testdaten/{ordner}");
+        skipped++;
+        continue;
+    }
+
+    var refEintraege = ZipEintraege(refExport);
+    Console.WriteLine($"  {bezeichnung}-Referenz ({Path.GetFileName(refExport)}): " +
+                      string.Join(", ", refEintraege.Take(6)));
+
+    Check($"{bezeichnung}: Referenz hat die vis-views.json in der Wurzel",
+          refEintraege.Contains(VisProjectExporter.ViewsFileName));
+    Check($"{bezeichnung}: Referenz kennt keinen Projektordner",
+          !refEintraege.Any(e => e.Split('/').Length > 1
+                              && e.Split('/')[0].Equals("main", StringComparison.OrdinalIgnoreCase)));
+    Check($"{bezeichnung}: Referenz nutzt / als Trenner", !refEintraege.Any(e => e.Contains('\\')));
+}
+
+// --- Sonderzeichen und Unterordner: synthetisches Backup, damit der Fall sicher vorkommt ---
+var umlautDir = Path.Combine(Path.GetTempPath(), "iob-vis-umlaut");
+if (Directory.Exists(umlautDir)) Directory.Delete(umlautDir, true);
+var umlautProjekt = Path.Combine(umlautDir, "backup", "files", "vis.0", "main");
+Directory.CreateDirectory(Path.Combine(umlautProjekt, "img", "tief"));
+File.WriteAllText(Path.Combine(umlautDir, "backup", "objects.jsonl"),
+    "{\"_id\":\"system.adapter.vis.0\",\"type\":\"instance\"," +
+    "\"common\":{\"name\":\"vis\",\"version\":\"1.5.6\",\"enabled\":true},\"native\":{}}\n");
+File.WriteAllText(Path.Combine(umlautProjekt, "vis-views.json"), "{\"Uebersicht\":{\"widgets\":{}}}");
+File.WriteAllText(Path.Combine(umlautProjekt, "Grundriss Küche.png"), "x");
+File.WriteAllText(Path.Combine(umlautProjekt, "img", "tief", "straße.png"), "y");
+File.WriteAllText(Path.Combine(umlautProjekt, "leer.css"), "");
+
+var umlautTar = Path.Combine(umlautDir, "iobroker_2026_08_20-10_00_00_backupiobroker.tar");
+// Bewusst NICHT ueber TarFile.CreateFromDirectory, und bewusst unkomprimiert:
+// .NETs TarWriter schreibt in einen nicht seekbaren Stream (also in einen GZipStream
+// hinein) PAX-Kopfsaetze, an denen sein eigener TarReader mittendrin scheitert ("Unable to
+// parse number"), waehrend GNU tar dasselbe Archiv anstandslos liest. Das trifft nur das
+// Erzeugen der Testdaten: Backitup schreibt seine Archive mit node, und der Loader liest
+// eine unkomprimierte .tar genauso wie eine .tar.gz.
+CreatePaxTar(umlautTar, new[]
+{
+    (Path.Combine(umlautDir, "backup", "objects.jsonl"), "backup/objects.jsonl"),
+    (Path.Combine(umlautProjekt, "vis-views.json"), "backup/files/vis.0/main/vis-views.json"),
+    (Path.Combine(umlautProjekt, "Grundriss Küche.png"),
+        "backup/files/vis.0/main/Grundriss Küche.png"),
+    (Path.Combine(umlautProjekt, "img", "tief", "straße.png"),
+        "backup/files/vis.0/main/img/tief/straße.png"),
+    (Path.Combine(umlautProjekt, "leer.css"), "backup/files/vis.0/main/leer.css")
+});
+
+var umlautData = BackupLoader.Load(umlautTar);
+var umlautProjekte = VisProjectExporter.FindProjects(umlautData);
+Console.WriteLine($"  Synthetisches Backup: {umlautData.Files.Count} Datei(en), " +
+                  $"Projektdateien={umlautProjekte.FirstOrDefault()?.Files.Count ?? 0}");
+CheckEq("Synthetisches Backup: ein Projekt", umlautProjekte.Count, 1);
+
+if (umlautProjekte.FirstOrDefault() is { } umlautP)
+{
+    var zipUmlaut = Path.Combine(umlautDir, "umlaut.zip");
+    var umlautErgebnis = VisProjectExporter.Export(umlautData, umlautP, zipUmlaut, includeAssets: true);
+    CheckEq("Alle vier Dateien gepackt", umlautErgebnis.Files, 4);
+
+    var umlautEintraege = ZipEintraege(zipUmlaut);
+    Check("Umlaut im Dateinamen bleibt erhalten",
+          umlautEintraege.Contains("Grundriss Küche.png"),
+          string.Join(", ", umlautEintraege));
+    Check("Unterordner bleibt als Pfad erhalten",
+          umlautEintraege.Contains("img/tief/straße.png"));
+    Check("Ordnereintraege werden mitgeschrieben, wie VIS es tut",
+          umlautEintraege.Contains("img/") && umlautEintraege.Contains("img/tief/"));
+
+    // Dateinamen muessen als UTF-8 in der ZIP stehen, nicht als CP437 - sonst liest die
+    // JavaScript-Seite in VIS Kraut und Rueben.
+    var rohBytes = File.ReadAllBytes(zipUmlaut);
+    Check("Dateinamen stehen als UTF-8 in der ZIP",
+          IndexOfBytes(rohBytes, Encoding.UTF8.GetBytes("Küche")) >= 0);
+
+    // Eine 0-Byte-Datei hat im Tar keinen Datenstrom - sie muss trotzdem als leerer
+    // Eintrag ankommen (die vis-user.css im echten Export ist genau das).
+    Check("Leere Datei kommt als leerer Eintrag an", umlautEintraege.Contains("leer.css"));
+    using (var umlautZip = ZipFile.OpenRead(zipUmlaut))
+        CheckEq("Und ist auch wirklich leer", umlautZip.GetEntry("leer.css")?.Length ?? -1L, 0L);
+}
+
+Directory.Delete(zipDir, true);
+Directory.Delete(umlautDir, true);
+
+// Schreibt ein unkomprimiertes .tar aus einer festen Liste (Quelldatei, Name im Archiv).
+static void CreatePaxTar(string zielArchiv, IEnumerable<(string Pfad, string Name)> dateien)
+{
+    using var fs = File.Create(zielArchiv);
+    using var writer = new TarWriter(fs, TarEntryFormat.Pax);
+
+    foreach (var (pfad, name) in dateien)
+        writer.WriteEntry(pfad, name);
+}
+
+// Liest die Eintragsnamen einer ZIP - Dateien wie Ordner, in der gespeicherten Reihenfolge.
+static List<string> ZipEintraege(string pfad)
+{
+    using var zip = ZipFile.OpenRead(pfad);
+    return zip.Entries.Select(e => e.FullName).ToList();
+}
+
+static int IndexOfBytes(byte[] haystack, byte[] needle)
+{
+    for (var i = 0; i + needle.Length <= haystack.Length; i++)
+    {
+        var treffer = true;
+        for (var j = 0; j < needle.Length; j++)
+            if (haystack[i + j] != needle[j]) { treffer = false; break; }
+        if (treffer) return i;
+    }
+    return -1;
+}
+
+
 // ---------------------------------------------------------------- Robustheit
 
 Console.WriteLine();
@@ -2494,6 +2821,34 @@ Check("Dateinamen-Bereinigung", ScriptExporter.SanitizeFileName("Modell+") == "M
 Check("Dateinamen-Bereinigung entfernt verbotene Zeichen",
       ScriptExporter.SanitizeFileName("a/b:c*d") == "a_b_c_d",
       ScriptExporter.SanitizeFileName("a/b:c*d"));
+
+// Zaehlwoerter: Bei genau einem Stueck darf keine Klammerform und keine Mehrzahl stehen.
+CheckEq("Einzahl ohne Klammerform", VisPresenter.Count(1, "Datei", "Dateien"), "1 Datei");
+CheckEq("Mehrzahl ab zwei", VisPresenter.Count(2, "Datei", "Dateien"), "2 Dateien");
+CheckEq("Null nimmt die Mehrzahl", VisPresenter.Count(0, "Datei", "Dateien"), "0 Dateien");
+CheckEq("Grosse Zahlen mit Tausenderpunkt",
+        VisPresenter.Count(1234, "Datei", "Dateien"), "1.234 Dateien");
+Check("Kein neuer Text traegt eine Klammerform",
+      !VisPresenter.ZipIntro(1).Contains("(e)")
+      && !VisPresenter.ZipIntro(3).Contains("(e)"),
+      VisPresenter.ZipIntro(1));
+
+// Schutz der Speicherziele: Kein Export darf ueber ein Backup-Archiv schreiben.
+Check("Derselbe Pfad wird als dieselbe Datei erkannt",
+      ExportPaths.IsSameFile(full, Path.Combine(Path.GetDirectoryName(full)!, ".",
+                                                Path.GetFileName(full))));
+Check("Zwei verschiedene Dateien sind nicht dieselbe",
+      !ExportPaths.IsSameFile(full, js));
+Check("Leerer Pfad ist nie dieselbe Datei", !ExportPaths.IsSameFile(full, null));
+Check("Archivendungen werden erkannt",
+      ExportPaths.LooksLikeArchive("sicherung.tar.gz")
+      && ExportPaths.LooksLikeArchive("sicherung.TGZ")
+      && ExportPaths.LooksLikeArchive("sicherung.tar"));
+Check("Gewoehnliche Ziele loesen keine Rueckfrage aus",
+      ExportPaths.ArchiveWarning("liste.csv") is null
+      && ExportPaths.ArchiveWarning("projekt.zip") is null);
+Check("Rueckfrage nennt die bedrohte Datei",
+      ExportPaths.ArchiveWarning("sicherung.tar.gz")?.Contains("sicherung.tar.gz") == true);
 
 Check("Blockly-Decoder ohne XML liefert Original",
       BlocklyDecoder.Decode("console.log('hallo');", false) is { Xml: null, Broken: false });

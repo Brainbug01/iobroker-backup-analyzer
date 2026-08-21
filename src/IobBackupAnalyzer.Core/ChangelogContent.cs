@@ -23,6 +23,31 @@ public static class ChangelogContent
     /// <summary>Neueste Version zuerst.</summary>
     public static IReadOnlyList<ChangelogEntry> Entries { get; } = new ChangelogEntry[]
     {
+        new("1.20.0", "21.08.2026", new[]
+        {
+            "Der Tab „VIS-Datenpunkte\" kann ein ganzes VIS-Projekt aus dem Backup als " +
+            "ZIP-Datei schreiben — in genau dem Aufbau, den „Tools → Projektimport\" in " +
+            "VIS 1 und VIS 2 erwartet. Damit lässt sich eine gelöschte Ansicht " +
+            "zurückholen, ohne das Backup einzuspielen: Projekt importieren, die " +
+            "vermisste Ansicht über „Views → Exportieren\" herausholen und im eigenen " +
+            "Projekt wieder einfügen. Wahlweise nur die vis-views.json oder alles " +
+            "mitsamt Bildern und CSS.",
+
+            "Der vorgeschlagene Dateiname trägt den Projektnamen, die VIS-Version und " +
+            "das Backup-Datum — in dieser Reihenfolge, und das mit Absicht: VIS trägt " +
+            "beim Hineinziehen der Datei den Projektnamen selbst in den Import-Dialog " +
+            "ein, und zwar den Dateinamen ohne ein führendes Datum. Wer nicht darauf " +
+            "achtet, importiert unter diesem Namen. So kann er das laufende Projekt " +
+            "nicht treffen, und zwei Importe aus verschiedenen Backups überschreiben " +
+            "sich nicht gegenseitig.",
+
+            "Exporte schreiben nicht mehr unmittelbar auf die Zieldatei, sondern " +
+            "zunächst daneben und benennen erst am Ende um. Ein abgebrochener Lauf " +
+            "hinterlässt damit kein Bruchstück, das wie ein fertiges Ergebnis aussieht. " +
+            "Zeigt ein Speicherziel auf die geladene Backup-Datei, wird gar nicht erst " +
+            "geschrieben; zeigt es auf ein anderes Archiv, kommt eine Rückfrage."
+        }),
+
         new("1.19.1", "20.08.2026", new[]
         {
             "Die Analyse kann nicht mehr stillstehen. Die " +
