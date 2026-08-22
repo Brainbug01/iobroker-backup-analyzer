@@ -93,6 +93,24 @@ public static class HelpContent
             "Ordner „global\"). Ob ein Skript deaktiviert ist, ändert die Struktur nicht — das steht nur " +
             "als „ (deaktiviert)\" im Dateinamen. Blockly kommt als .xml (im Admin wieder importierbar) " +
             "und als bereinigtes .js."),
+        new(HelpBlockKind.Text,
+            "Die Spalte „Hinweise\" meldet drei Muster im Aufbau eines Blockly-Skripts. Erstens den " +
+            "Auslöser im Rumpf eines anderen Auslösers: Er wird bei jeder Auslösung des äußeren erneut " +
+            "angelegt und nie wieder entfernt, sodass nach einigen Stunden dieselben Aktionen vielfach " +
+            "parallel laufen — der Blockly-Editor zeigt an dieser Stelle selbst ein Warndreieck. " +
+            "Zweitens einen Baustein, den der javascript-Adapter mit dem Zusatz „(deprecated)\" führt; " +
+            "das ist derzeit genau einer, nämlich „request\" — Nachfolger ist „HTTP-Get\". Drittens " +
+            "einen Auslöser ohne Inhalt, der also auslöst, aber nichts tut. Zu jedem Befund steht " +
+            "unter der Liste die Begründung und die Baustein-ID, mit der er sich im Blockly-Editor " +
+            "wiederfinden lässt; der Filter „Nur mit Hinweisen\" zeigt die betroffenen Skripte allein."),
+        new(HelpBlockKind.Text,
+            "Zwei Einschränkungen dazu, damit die Spalte richtig gelesen wird. Geprüft wird " +
+            "ausschließlich Blockly — dort hängt jeder Befund an einem benannten Baustein. Bei " +
+            "JavaScript und TypeScript ließe sich dasselbe nur über Textsuche vermuten, und ein " +
+            "„on(\" in einem Kommentar oder in einer Zeichenkette wäre davon nicht zu unterscheiden; " +
+            "die Spalte bleibt dort deshalb leer. Und es gibt keine Note: Was dort steht, sind " +
+            "einzelne Fundstellen mit Begründung. Ob daraus etwas folgt, entscheidet, wer das Skript " +
+            "geschrieben hat."),
 
         new(HelpBlockKind.Heading, "Tab „Verwendung\""),
         new(HelpBlockKind.Text,

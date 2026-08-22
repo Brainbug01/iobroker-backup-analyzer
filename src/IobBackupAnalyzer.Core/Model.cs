@@ -202,6 +202,22 @@ public sealed class ScriptInfo
     /// <summary>true, wenn engineType=Blockly ist, das XML aber nicht dekodiert werden konnte.</summary>
     public bool BlocklyBroken { get; init; }
 
+    /// <summary>
+    /// Auffälligkeiten im Blockly-XML (siehe <see cref="ScriptQualityAnalyzer"/>). Immer leer
+    /// bei JavaScript und TypeScript — dort gäbe es nur Textsuche und damit Fehltreffer.
+    /// </summary>
+    public IReadOnlyList<ScriptHint> Hints { get; init; } = Array.Empty<ScriptHint>();
+
+    /// <summary>
+    /// Die Hinweise in einer Zeile für die Listenspalte — gleiche Befunde zusammengefasst,
+    /// damit ein Skript mit fünf abgelösten Bausteinen nicht die Spalte sprengt.
+    /// </summary>
+    public string HintsText => Hints.Count == 0
+        ? ""
+        : string.Join(", ", Hints.GroupBy(h => h.ShortText)
+                                 .OrderBy(g => Hints.First(h => h.ShortText == g.Key).Kind)
+                                 .Select(g => g.Count() == 1 ? g.Key : $"{g.Count()}× {g.Key}"));
+
     public string EngineText => Engine switch
     {
         ScriptEngine.Blockly => BlocklyBroken ? "Blockly (XML defekt)" : "Blockly",

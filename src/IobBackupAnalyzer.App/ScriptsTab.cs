@@ -11,10 +11,12 @@ public sealed class ScriptsTab : UserControl
     private readonly ComboBox _searchMode = new();
     private readonly ComboBox _typeFilter = new();
     private readonly CheckBox _hideDisabled = new();
+    private readonly CheckBox _onlyWithHints = new();
     private readonly CheckBox _withGeneratedJs = new();
     private readonly Label _count = new();
 
     private readonly ListView _list = new();
+    private readonly TextBox _hints = new();
     private readonly TextBox _preview = new();
     private readonly RadioButton _showXml = new();
     private readonly RadioButton _showJs = new();
@@ -73,6 +75,11 @@ public sealed class ScriptsTab : UserControl
         _hideDisabled.Size = new Size(180, 22);
         _hideDisabled.CheckedChanged += (_, _) => ApplyFilter();
 
+        _onlyWithHints.Text = ScriptsPresenter.OnlyWithHintsLabel;
+        _onlyWithHints.Location = new Point(926, 8);
+        _onlyWithHints.Size = new Size(168, 22);
+        _onlyWithHints.CheckedChanged += (_, _) => ApplyFilter();
+
         _count.Location = new Point(0, 40);
         _count.Size = new Size(500, 20);
         _count.ForeColor = SystemColors.GrayText;
@@ -114,10 +121,12 @@ public sealed class ScriptsTab : UserControl
 
         var tips = new ToolTip { AutoPopDelay = 20000 };
         tips.SetToolTip(_withGeneratedJs, ScriptsPresenter.GeneratedJsHint.Replace("\n", "\r\n"));
+        tips.SetToolTip(_onlyWithHints, ScriptsPresenter.HintsHint.Replace("\n", "\r\n"));
 
         filterBar.Controls.AddRange(new Control[]
         {
-            lblSearch, _search, _searchMode, lblType, _typeFilter, _hideDisabled, _count, buttonBar
+            lblSearch, _search, _searchMode, lblType, _typeFilter, _hideDisabled,
+            _onlyWithHints, _count, buttonBar
         });
 
         // ---------- Liste + Vorschau ----------
@@ -149,6 +158,7 @@ public sealed class ScriptsTab : UserControl
         _list.Columns.Add("ioBroker-Pfad", 400);
         _list.Columns.Add("Typ", 140);
         _list.Columns.Add("Status", 90);
+        _list.Columns.Add("Hinweise", 320);
         _list.SelectedIndexChanged += (_, _) => ShowPreview();
         _list.ColumnClick += OnColumnClick;
         // Kopiert Listenwerte wie den ioBroker-Pfad. Der Quelltext des Skripts geht
@@ -167,6 +177,20 @@ public sealed class ScriptsTab : UserControl
         _preview.BackColor = Color.White;
         // Treffermarkierung der Codesuche bleibt sichtbar, auch wenn der Fokus im Suchfeld steht.
         _preview.HideSelection = false;
+
+        // Die Befunde zum gewählten Skript — nur sichtbar, wenn es welche gibt. Bewusst
+        // über der Vorschau und nicht in ihr: Der Vorschautext ist der unveränderte
+        // Quelltext des Skripts und bleibt es auch.
+        _hints.Dock = DockStyle.Top;
+        _hints.Height = 96;
+        _hints.Multiline = true;
+        _hints.ReadOnly = true;
+        _hints.ScrollBars = ScrollBars.Vertical;
+        _hints.WordWrap = true;
+        _hints.BorderStyle = BorderStyle.FixedSingle;
+        _hints.BackColor = Color.FromArgb(255, 248, 225);
+        _hints.ForeColor = Color.FromArgb(90, 60, 0);
+        _hints.Visible = false;
 
         _showJs.Text = "Generiertes JavaScript";
         _showJs.Location = new Point(4, 3);
@@ -187,6 +211,7 @@ public sealed class ScriptsTab : UserControl
         split.Panel1.Controls.Add(_list);
         split.Panel2.Controls.Add(_preview);
         split.Panel2.Controls.Add(_viewSwitch);
+        split.Panel2.Controls.Add(_hints);
 
         _placeholder.Dock = DockStyle.Fill;
         _placeholder.TextAlign = ContentAlignment.MiddleCenter;
@@ -230,6 +255,7 @@ public sealed class ScriptsTab : UserControl
             _search.Text = "";
             _typeFilter.SelectedIndex = 0;
             _hideDisabled.Checked = false;
+            _onlyWithHints.Checked = false;
             ApplyFilter();
         }
 
@@ -251,7 +277,8 @@ public sealed class ScriptsTab : UserControl
         if (_data is null) return;
 
         _filtered = ScriptsPresenter.Filter(_data.Scripts, _hideDisabled.Checked,
-                                            _typeFilter.SelectedIndex, CurrentSearchMode, _search.Text);
+                                            _typeFilter.SelectedIndex, CurrentSearchMode, _search.Text,
+                                            _onlyWithHints.Checked);
         ApplySort();
         FillList();
 
@@ -274,6 +301,7 @@ public sealed class ScriptsTab : UserControl
             item.ForeColor = ScriptsPresenter.Emphasis(s) switch
             {
                 RowEmphasis.Muted => SystemColors.GrayText,
+                RowEmphasis.Warn => Color.DarkOrange,
                 RowEmphasis.Problem => Color.Firebrick,
                 _ => SystemColors.ControlText
             };
@@ -309,11 +337,16 @@ public sealed class ScriptsTab : UserControl
             _current = null;
             _preview.Text = "";
             _viewSwitch.Visible = false;
+            _hints.Visible = false;
             return;
         }
 
         _current = _list.SelectedItems[0].Tag as ScriptInfo;
         if (_current is null) return;
+
+        var details = ScriptsPresenter.HintDetails(_current);
+        _hints.Visible = details.Length > 0;
+        _hints.Text = details.Replace("\r\n", "\n").Replace("\n", "\r\n");
 
         var hasXml = ScriptsPresenter.HasXmlView(_current);
         _viewSwitch.Visible = hasXml;

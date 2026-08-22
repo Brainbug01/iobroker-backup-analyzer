@@ -418,7 +418,8 @@ internal static class ObjectParser
             Source = source,
             CleanSource = decoded.CleanSource,
             BlocklyXml = decoded.Xml,
-            BlocklyBroken = decoded.Broken
+            BlocklyBroken = decoded.Broken,
+            Hints = ScriptQualityAnalyzer.Analyze(decoded.Xml)
         };
     }
 

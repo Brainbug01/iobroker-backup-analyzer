@@ -15,7 +15,7 @@ public enum ScriptSearchMode
 /// </summary>
 public static class ScriptsPresenter
 {
-    public static readonly string[] Columns = { "Name", "ioBroker-Pfad", "Typ", "Status" };
+    public static readonly string[] Columns = { "Name", "ioBroker-Pfad", "Typ", "Status", "Hinweise" };
 
     public static readonly string[] SearchModeLabels = { "Name/Pfad", "Im Code suchen" };
 
@@ -40,16 +40,30 @@ public static class ScriptsPresenter
         "Ein: Bei Blockly kommt zusätzlich das daraus erzeugte JavaScript dazu. Zum Lesen " +
         "und Durchsuchen nützlich, in ioBroker aber nicht bearbeitbar.";
 
+    /// <summary>Beschriftung des Hinweis-Filters.</summary>
+    public const string OnlyWithHintsLabel = "Nur mit Hinweisen";
+
+    /// <summary>Was die Hinweis-Spalte meint — als Tooltip an Filter und Spalte.</summary>
+    public const string HintsHint =
+        "Auffälligkeiten im Blockly-Aufbau: ein Auslöser im Rumpf eines anderen Auslösers, "
+      + "ein vom javascript-Adapter als abgelöst gekennzeichneter Baustein, ein Auslöser "
+      + "ohne Inhalt.\n"
+      + "Geprüft wird ausschließlich Blockly — dort hängt jeder Befund an einem Baustein "
+      + "mit eigener ID. Bei JavaScript und TypeScript bleibt die Spalte leer.\n"
+      + "Das ist keine Bewertung des Skripts, sondern eine Liste von Fundstellen.";
+
     /// <summary>
     /// Filtert nach Status, Typ und Suchbegriff. <paramref name="typeIndex"/> bezieht sich
     /// auf <see cref="TypeLabels"/>; 0 (oder ungültig) lässt alle Typen durch.
     /// </summary>
     public static List<ScriptInfo> Filter(IEnumerable<ScriptInfo> scripts, bool hideDisabled,
-                                          int typeIndex, ScriptSearchMode mode, string? term)
+                                          int typeIndex, ScriptSearchMode mode, string? term,
+                                          bool onlyWithHints = false)
     {
         var q = scripts;
 
         if (hideDisabled) q = q.Where(s => s.Enabled);
+        if (onlyWithHints) q = q.Where(s => s.Hints.Count > 0);
 
         if (typeIndex is > 0 and < 4)
         {
@@ -88,7 +102,8 @@ public static class ScriptsPresenter
             0 => s => s.Name,
             1 => s => s.Id,
             2 => s => s.EngineText,
-            _ => s => s.StatusText
+            3 => s => s.StatusText,
+            _ => s => s.HintsText
         };
 
         return ascending
@@ -111,16 +126,50 @@ public static class ScriptsPresenter
         if (mode == ScriptSearchMode.Code && t.Length > 0)
             text += $"   ·   Codesuche nach „{t}\"";
 
+        // Nur nennen, wenn es etwas zu nennen gibt: Eine Anlage ohne Befund soll keine
+        // Zeile lesen müssen, die „0 mit Hinweisen" sagt.
+        var withHints = data.Scripts.Count(s => s.Hints.Count > 0);
+        if (withHints > 0) text += $"   ·   {withHints} mit Hinweisen";
+
         return text;
     }
 
-    /// <summary>Deaktivierte Skripte gedämpft, defektes Blockly als Problem.</summary>
+    /// <summary>
+    /// Deaktivierte Skripte gedämpft, defektes Blockly als Problem, Skripte mit Hinweisen
+    /// als Warnung.
+    ///
+    /// Die Reihenfolge ist Absicht: Ein deaktiviertes Skript läuft nicht, sein Befund ist
+    /// also nichts, was gerade Ärger macht — es bleibt gedämpft.
+    /// </summary>
     public static RowEmphasis Emphasis(ScriptInfo s) =>
         s.BlocklyBroken ? RowEmphasis.Problem
         : !s.Enabled ? RowEmphasis.Muted
+        : s.Hints.Count > 0 ? RowEmphasis.Warn
         : RowEmphasis.None;
 
-    public static string[] Row(ScriptInfo s) => new[] { s.Name, s.Id, s.EngineText, s.StatusText };
+    public static string[] Row(ScriptInfo s) =>
+        new[] { s.Name, s.Id, s.EngineText, s.StatusText, s.HintsText };
+
+    /// <summary>
+    /// Die Befunde des gewählten Skripts ausformuliert — je Befund eine Begründung und die
+    /// Block-ID zum Wiederfinden im Editor. Leer, wenn es nichts zu melden gibt.
+    /// </summary>
+    public static string HintDetails(ScriptInfo? script)
+    {
+        if (script is null || script.Hints.Count == 0) return "";
+
+        var lines = script.Hints
+            .OrderBy(h => h.Kind)
+            .Select(h => h.BlockId.Length == 0
+                ? "• " + h.LongText
+                : $"• {h.LongText}  (Baustein-ID: {h.BlockId})");
+
+        var kopf = script.Hints.Count == 1
+            ? "1 Hinweis zum Aufbau dieses Skripts:"
+            : $"{script.Hints.Count} Hinweise zum Aufbau dieses Skripts:";
+
+        return kopf + "\n" + string.Join("\n", lines);
+    }
 
     /// <summary>
     /// Der Text der Vorschau. <paramref name="showXml"/> greift nur bei Blockly-Skripten;

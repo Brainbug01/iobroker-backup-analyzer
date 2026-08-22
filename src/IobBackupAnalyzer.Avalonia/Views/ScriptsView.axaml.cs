@@ -17,10 +17,13 @@ public partial class ScriptsView : UserControl
     private readonly ComboBox _searchMode;
     private readonly ComboBox _typeFilter;
     private readonly CheckBox _hideDisabled;
+    private readonly CheckBox _onlyWithHints;
     private readonly CheckBox _withGeneratedJs;
     private readonly Button _exportAll;
     private readonly TextBlock _count;
     private readonly DataGrid _list;
+    private readonly Border _hintsBox;
+    private readonly SelectableTextBlock _hints;
     private readonly TextBox _preview;
     private readonly StackPanel _viewSwitch;
     private readonly RadioButton _showXml;
@@ -41,9 +44,12 @@ public partial class ScriptsView : UserControl
         _searchMode = this.FindControl<ComboBox>("SearchMode")!;
         _typeFilter = this.FindControl<ComboBox>("TypeFilter")!;
         _hideDisabled = this.FindControl<CheckBox>("HideDisabled")!;
+        _onlyWithHints = this.FindControl<CheckBox>("OnlyWithHints")!;
         _withGeneratedJs = this.FindControl<CheckBox>("WithGeneratedJs")!;
         _count = this.FindControl<TextBlock>("Count")!;
         _list = this.FindControl<DataGrid>("List")!;
+        _hintsBox = this.FindControl<Border>("HintsBox")!;
+        _hints = this.FindControl<SelectableTextBlock>("Hints")!;
         _preview = this.FindControl<TextBox>("Preview")!;
         _viewSwitch = this.FindControl<StackPanel>("ViewSwitch")!;
         _showXml = this.FindControl<RadioButton>("ShowXml")!;
@@ -56,6 +62,9 @@ public partial class ScriptsView : UserControl
         _withGeneratedJs.Content = ScriptsPresenter.GeneratedJsLabel;
         ToolTip.SetTip(_withGeneratedJs, ScriptsPresenter.GeneratedJsHint);
 
+        _onlyWithHints.Content = ScriptsPresenter.OnlyWithHintsLabel;
+        ToolTip.SetTip(_onlyWithHints, ScriptsPresenter.HintsHint);
+
         _searchMode.ItemsSource = ScriptsPresenter.SearchModeLabels;
         _searchMode.SelectedIndex = 0;
         _typeFilter.ItemsSource = ScriptsPresenter.TypeLabels;
@@ -65,6 +74,7 @@ public partial class ScriptsView : UserControl
         _searchMode.SelectionChanged += (_, _) => ApplyFilter();
         _typeFilter.SelectionChanged += (_, _) => ApplyFilter();
         _hideDisabled.IsCheckedChanged += (_, _) => ApplyFilter();
+        _onlyWithHints.IsCheckedChanged += (_, _) => ApplyFilter();
         _list.SelectionChanged += (_, _) => ShowPreview();
         _showXml.IsCheckedChanged += (_, _) => ShowPreview();
         _showJs.IsCheckedChanged += (_, _) => ShowPreview();
@@ -83,6 +93,7 @@ public partial class ScriptsView : UserControl
             var s = e.Row.DataContext as ScriptInfo;
             var emphasis = s is null ? RowEmphasis.None : ScriptsPresenter.Emphasis(s);
             Apply(e.Row, "gedaempft", emphasis == RowEmphasis.Muted);
+            Apply(e.Row, "warnung", emphasis == RowEmphasis.Warn);
             Apply(e.Row, "problem", emphasis == RowEmphasis.Problem);
         };
 
@@ -110,6 +121,7 @@ public partial class ScriptsView : UserControl
             _preview.Text = "";
             _count.Text = "";
             _viewSwitch.IsVisible = false;
+            _hintsBox.IsVisible = false;
             ShowPlaceholder(true);
             return;
         }
@@ -142,6 +154,7 @@ public partial class ScriptsView : UserControl
             _search.Text = "";
             _typeFilter.SelectedIndex = 0;
             _hideDisabled.IsChecked = false;
+            _onlyWithHints.IsChecked = false;
             ApplyFilter();
         }
 
@@ -190,7 +203,8 @@ public partial class ScriptsView : UserControl
 
         _filtered = ScriptsPresenter.Sort(
             ScriptsPresenter.Filter(_data.Scripts, _hideDisabled.IsChecked == true,
-                                    _typeFilter.SelectedIndex, CurrentSearchMode, _search.Text),
+                                    _typeFilter.SelectedIndex, CurrentSearchMode, _search.Text,
+                                    _onlyWithHints.IsChecked == true),
             column: -1, ascending: true);
 
         _list.ItemsSource = _filtered;
@@ -206,6 +220,10 @@ public partial class ScriptsView : UserControl
     private void ShowPreview()
     {
         _current = _list.SelectedItem as ScriptInfo;
+
+        var details = ScriptsPresenter.HintDetails(_current);
+        _hintsBox.IsVisible = details.Length > 0;
+        _hints.Text = details;
 
         var hasXml = ScriptsPresenter.HasXmlView(_current);
         _viewSwitch.IsVisible = hasXml;

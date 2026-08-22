@@ -9,9 +9,10 @@ Reines Lesewerkzeug: Es schreibt nichts in ein ioBroker-System und löscht nicht
 > Auswertungslogik und sämtliche Texte stammen von Claude (Anthropic), erarbeitet in Claude
 > Code. Jede Auswertung ist gegen echte ioBroker-Backups verifiziert (siehe
 > [STRUKTUR_VERIFIZIERUNG.md](STRUKTUR_VERIFIZIERUNG.md) und den Verifikationslauf mit
-> derzeit 550 Prüfungen). Trotzdem gilt: Die Listen sind Prüflisten — was gelöscht oder
-> geändert wird, entscheidest du. Der Hinweis steht auch in der App: in der Titelleiste, in
-> der Statusleiste, in der Hilfe und in jeder Datei, die das Werkzeug erzeugt.
+> derzeit 560 Prüfungen, davon 12 nur, wenn eine bash erreichbar ist). Trotzdem gilt:
+> Die Listen sind Prüflisten — was gelöscht oder geändert wird, entscheidest du. Der
+> Hinweis steht auch in der App: in der Titelleiste, in der Statusleiste, in der Hilfe und
+> in jeder Datei, die das Werkzeug erzeugt.
 
 Es gibt das Werkzeug in **zwei Oberflächen** mit gemeinsamer Kernlogik:
 
@@ -73,8 +74,13 @@ Je Datenpunkt und loggender Instanz eine Zeile: ob das Logging aktiv ist, ob nur
 
 ![Logging](docs/bilder/windows/07-logging.png)
 
+Die Skriptliste mit der Spalte „Hinweise". Das ausgewählte Blockly-Skript trägt drei
+Befunde; unter der Liste stehen sie ausformuliert, jeweils mit der Baustein-ID, unter der
+sie auch der Blockly-Editor führt.
+
+![Skripte](docs/bilder/windows/03-skripte.png)
+
 Weitere Tabs als Bild: [Backup-Prüfung](docs/bilder/windows/02-backup-pruefung.png) ·
-[Skripte](docs/bilder/windows/03-skripte.png) ·
 [Dateien](docs/bilder/windows/09-dateien.png) ·
 [Vergleich](docs/bilder/windows/10-vergleich.png)
 
@@ -193,6 +199,32 @@ Original und das JavaScript nur das, was der Adapter daraus erzeugt. Wer es trot
 schaltet „Bei Blockly auch das erzeugte JavaScript" ein — zum Lesen und Durchsuchen nützlich,
 in ioBroker aber nicht bearbeitbar.
 
+Die Spalte **„Hinweise"** meldet drei Muster im **Aufbau eines Blockly-Skripts**:
+
+| Befund | Warum er einer ist |
+|---|---|
+| **Trigger im Trigger** | Ein Auslöser steht im Rumpf eines anderen. Er wird bei jeder Auslösung des äußeren erneut angelegt und nie wieder entfernt — nach einigen Stunden laufen dieselben Aktionen vielfach parallel. Der Blockly-Editor zeigt an dieser Stelle selbst ein Warndreieck. |
+| **Abgelöster Baustein** | Der javascript-Adapter führt ihn selbst mit dem Zusatz `(deprecated)`. Derzeit ist das genau einer: `request` — Nachfolger ist „HTTP-Get". Er funktioniert noch, wird aber nicht mehr gepflegt. |
+| **Trigger ohne Inhalt** | Ein Auslöser ohne Rumpf: Er reagiert auf Änderungen und führt nichts aus. Meist ein Überbleibsel vom Umbauen. |
+
+Unter der Liste steht zu jedem Befund die Begründung und die **Baustein-ID** — dieselbe, die
+auch der Blockly-Editor führt, sodass sich die Stelle im Skript wiederfinden lässt. Der
+Filter **„Nur mit Hinweisen"** zeigt die betroffenen Skripte allein.
+
+Zwei Einschränkungen, damit die Spalte richtig gelesen wird. Geprüft wird **ausschließlich
+Blockly**: Dort hängt jeder Befund an einem benannten Baustein mit eigener ID. Dasselbe in
+JavaScript zu suchen hieße, Text mit regulären Ausdrücken zu deuten — ein `on(` in einem
+Kommentar oder in einer Zeichenkette wäre nicht zu unterscheiden; bei JavaScript und
+TypeScript bleibt die Spalte deshalb leer. Und es gibt **keine Note und keine Punktzahl**:
+Was dort steht, sind einzelne Fundstellen mit Begründung.
+
+Entscheidend für die Verlässlichkeit ist die Unterscheidung zwischen `<next>` und
+`<statement>` im XML. `<next>` ist der Block, der **darunter** angedockt ist — mehrere
+Auslöser nebeneinander sind der Normalfall. `<statement>` ist der Inhalt **innerhalb** des
+Blocks, und nur das ist der Befund. Im XML sehen beide gleich aus: eingerückte
+`<block>`-Elemente. In den Testdaten dieses Projekts liefert die ungenaue Prüfung 78
+Treffer, die genaue null.
+
 ### Tab „Verwendung"
 Die Kreuzreferenz zwischen Skripten und Datenpunkten, **umschaltbar in beide Richtungen**.
 Oben die Liste, unten die Gegenseite des angeklickten Eintrags.
@@ -273,6 +305,19 @@ umgekehrt fragen, was in einer bestimmten View steckt.
 
 Der CSV-Export schreibt **eine Zeile je Fundstelle** (Datenpunkt × Widget × Feld), sodass
 sich in Excel direkt nach View, Widget oder Feld filtern lässt.
+
+**„Projekt als ZIP (VIS-Import)"** schreibt ein ganzes VIS-Projekt aus dem Backup — in genau
+dem Aufbau, den „Tools → Projektimport" in VIS 1 und VIS 2 erwartet. Damit lässt sich eine
+gelöschte Ansicht zurückholen, **ohne das Backup einzuspielen**: Projekt importieren, die
+vermisste Ansicht über „Views → Exportieren" herausholen, im eigenen Projekt wieder
+einfügen. Wahlweise nur die `vis-views.json` oder alles mitsamt Bildern und CSS.
+
+Der vorgeschlagene Dateiname trägt **Projektname, VIS-Version und Backup-Datum** — in dieser
+Reihenfolge, und das mit Absicht: VIS trägt beim Hineinziehen der Datei den Projektnamen
+selbst in den Import-Dialog ein, und zwar den Dateinamen **ohne ein führendes Datum**. Wer
+nicht darauf achtet, importiert unter diesem Namen. So gewählt kann er das laufende Projekt
+nicht treffen, und zwei Importe aus verschiedenen Backups überschreiben sich nicht
+gegenseitig.
 
 Ausgewertet werden alle `oid`-Felder der Widgets (`oid`, `oid1`…`oidN`, `visibility-oid`,
 `countdown_oid`, Tabellen-Schwellwerte) sowie VIS-Bindings der Form `{id;format}` in
@@ -548,7 +593,7 @@ Windows-Fassung nutzt.
 Einzelschritte von Hand:
 
 ```powershell
-dotnet run --project src/IobBackupAnalyzer.Verify     # 550 Prüfungen gegen testdaten/
+dotnet run --project src/IobBackupAnalyzer.Verify     # 560 Prüfungen gegen testdaten/ (ohne bash: 548)
 dotnet publish src/IobBackupAnalyzer.App -c Release -o dist   # nur die Einzeldatei nach dist/
 dotnet run --project src/IobBackupAnalyzer.Avalonia           # plattformübergreifende Fassung starten
 ```
@@ -616,6 +661,12 @@ Das Wesentliche:
   Erstinstallation vergeben und danach unverändert. Damit lässt sich hart prüfen, ob zwei Backups
   überhaupt zusammengehören. Der Hostname ist dagegen durch `$$__hostname__$$` ersetzt und
   nur über das `from`-Feld des Host-Objekts rekonstruierbar.
+- **Kein Export schreibt unmittelbar auf seine Zieldatei.** Geschrieben wird zunächst
+  daneben, umbenannt erst am Ende. Ein abgebrochener Lauf hinterlässt damit kein
+  Bruchstück, das wie ein fertiges Ergebnis aussieht. Zeigt ein Speicherziel auf die
+  **geladene Backup-Datei**, wird gar nicht erst geschrieben; zeigt es auf ein anderes
+  Archiv, kommt eine Rückfrage. Ein Lesewerkzeug darf die Datei, die es gerade auswertet,
+  unter keinen Umständen verlieren.
 - **ioBroker-IDs sind case-sensitiv.** In gewachsenen Installationen gibt es ID-Paare, die
   sich nur in der Schreibweise unterscheiden (`…Temperatur` gegen `…temperatur`). Alle
   ID-Vergleiche laufen deshalb mit `StringComparer.Ordinal` — ein case-insensitiver

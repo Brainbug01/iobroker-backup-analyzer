@@ -180,6 +180,86 @@ else
           XmlEqual(referenz.BlocklyXml ?? "", expected));
 }
 
+// ------------------------------------------------- Hinweise zum Blockly-Aufbau
+
+Console.WriteLine();
+Console.WriteLine("=== Skript-Hinweise (Blockly-Aufbau) ===");
+
+// Konstruierte Faelle statt echter Skripte: Jede Regel wird an genau dem Aufbau
+// geprueft, den sie meldet - und, wichtiger, an dem, den sie NICHT melden darf.
+static string Rumpf() => "<statement name=\"STATEMENT\"><block type=\"update\"/></statement>";
+
+static IReadOnlyList<ScriptHint> Hinweise(string inneresXml)
+    => ScriptQualityAnalyzer.Analyze($"<xml xmlns=\"https://developers.google.com/blockly/xml\">{inneresXml}</xml>");
+
+// Der entscheidende Fall: Zwei Trigger NEBENeinander haengen ueber <next> aneinander und
+// sind im XML genauso eingerueckt wie ein verschachtelter. Ohne diese Unterscheidung
+// meldet die Pruefung jede normale Anlage falsch.
+var nebeneinander = Hinweise(
+    $"<block type=\"on\" id=\"A\">{Rumpf()}<next><block type=\"on\" id=\"B\">{Rumpf()}</block></next></block>");
+CheckEq("Zwei Trigger nebeneinander (<next>): kein Befund", nebeneinander.Count, 0);
+
+// Und derselbe Aufbau als echte Verschachtelung.
+var ineinander = Hinweise(
+    "<block type=\"on\" id=\"A\"><statement name=\"STATEMENT\">"
+  + $"<block type=\"on\" id=\"B\">{Rumpf()}</block></statement></block>");
+Check("Trigger im Trigger erkannt",
+      ineinander.Count == 1
+      && ineinander[0].Kind == ScriptHintKind.TriggerInTrigger
+      && ineinander[0].BlockId == "B",
+      string.Join(" / ", ineinander.Select(h => h.ShortText + ":" + h.BlockId)));
+
+// on_source ist der Baustein "Ausloesung durch". Er steht immer im Rumpf eines Triggers
+// und ist selbst keiner - eine Typliste, die ihn mitzaehlt, meldet fast jedes Skript.
+var mitOnSource = Hinweise(
+    "<block type=\"on\" id=\"A\"><statement name=\"STATEMENT\">"
+  + "<block type=\"update\"><value name=\"VALUE\"><block type=\"on_source\"/></value></block>"
+  + "</statement></block>");
+CheckEq("on_source im Rumpf: kein Befund", mitOnSource.Count, 0);
+
+// schedule_create ist dafuer gedacht, zur Laufzeit einen Zeitplan anzulegen - im Rumpf
+// eines Triggers ist er richtig aufgehoben und darf nicht gemeldet werden.
+var scheduleCreate = Hinweise(
+    "<block type=\"on\" id=\"A\"><statement name=\"STATEMENT\">"
+  + $"<block type=\"schedule_create\" id=\"C\">{Rumpf()}</block></statement></block>");
+CheckEq("schedule_create im Rumpf: kein Befund", scheduleCreate.Count, 0);
+
+var abgeloest = Hinweise(
+    $"<block type=\"on\" id=\"A\"><statement name=\"STATEMENT\"><block type=\"request\" id=\"R\"/></statement></block>");
+Check("Abgeloester Baustein (request) erkannt",
+      abgeloest.Count == 1
+      && abgeloest[0].Kind == ScriptHintKind.DeprecatedBlock
+      && abgeloest[0].BlockId == "R",
+      string.Join(" / ", abgeloest.Select(h => h.ShortText)));
+
+var ohneRumpf = Hinweise("<block type=\"on\" id=\"A\"/>");
+Check("Trigger ohne Inhalt erkannt",
+      ohneRumpf.Count == 1 && ohneRumpf[0].Kind == ScriptHintKind.TriggerWithoutBody,
+      string.Join(" / ", ohneRumpf.Select(h => h.ShortText)));
+
+// Kein XML und kaputtes XML duerfen nicht werfen: Ein Skript ohne dekodierbares Blockly
+// ist bereits ueber BlocklyBroken gemeldet und soll hier nicht ein zweites Mal auffallen.
+CheckEq("Ohne XML: keine Hinweise", ScriptQualityAnalyzer.Analyze(null).Count, 0);
+CheckEq("Kaputtes XML: keine Hinweise statt Absturz",
+        ScriptQualityAnalyzer.Analyze("<xml><block type=\"on\"").Count, 0);
+
+// JavaScript und TypeScript werden bewusst nicht textuell geprueft - dort gaebe es nur
+// Fehltreffer. Die Spalte bleibt bei ihnen leer.
+var nichtBlocklyMitHinweis = scriptsOnly.Scripts
+    .Count(s => s.Engine != ScriptEngine.Blockly && s.Hints.Count > 0);
+CheckEq("Hinweise ausschliesslich bei Blockly", nichtBlocklyMitHinweis, 0);
+
+// Gegen die echten Skripte: Wie viele Skripte tragen einen Befund? Der Erwartungswert
+// steht - wie alle Bestandszahlen - in testdaten/referenzwerte.json.
+var mitHinweis = scriptsOnly.Scripts.Count(s => s.Hints.Count > 0);
+CheckRef("Skripte mit Hinweisen", mitHinweis, "skripte-mit-hinweisen");
+
+foreach (var kind in Enum.GetValues<ScriptHintKind>())
+{
+    var anzahl = scriptsOnly.Scripts.Sum(s => s.Hints.Count(h => h.Kind == kind));
+    Console.WriteLine($"    {kind,-20}: {anzahl}");
+}
+
 // ---------------------------------------------------------------- Voll-Backup
 
 Console.WriteLine();

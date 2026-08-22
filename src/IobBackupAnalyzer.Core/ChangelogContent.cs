@@ -23,6 +23,31 @@ public static class ChangelogContent
     /// <summary>Neueste Version zuerst.</summary>
     public static IReadOnlyList<ChangelogEntry> Entries { get; } = new ChangelogEntry[]
     {
+        new("1.21.0", "22.08.2026", new[]
+        {
+            "Der Tab „Skripte\" hat eine Spalte „Hinweise\". Sie meldet drei Muster im " +
+            "Aufbau eines Blockly-Skripts, die im Betrieb Ärger machen: einen Auslöser " +
+            "im Rumpf eines anderen Auslösers, einen vom javascript-Adapter selbst als " +
+            "abgelöst gekennzeichneten Baustein („request\"), und einen Auslöser ohne " +
+            "Inhalt. Unter der Liste steht zu jedem Befund, warum er einer ist und an " +
+            "welchem Baustein er hängt — die Baustein-ID ist dieselbe, die auch der " +
+            "Blockly-Editor führt. Der Filter „Nur mit Hinweisen\" zeigt die betroffenen " +
+            "Skripte allein.",
+
+            "Der wichtigste dieser Befunde ist der Auslöser im Auslöser: Er wird bei " +
+            "jeder Auslösung des äußeren erneut angelegt und nie wieder entfernt, " +
+            "sodass nach einigen Stunden dieselben Aktionen vielfach parallel laufen. " +
+            "Der Blockly-Editor zeigt an dieser Stelle selbst ein Warndreieck — nur " +
+            "sieht man es dort erst, wenn man das Skript ohnehin geöffnet hat.",
+
+            "Geprüft wird ausschließlich Blockly. Dort hängt jeder Befund an einem " +
+            "benannten Baustein; bei JavaScript und TypeScript ließe sich dasselbe nur " +
+            "über Textsuche vermuten, und ein „on(\" in einem Kommentar wäre davon nicht " +
+            "zu unterscheiden. Die Spalte bleibt bei diesen Skripten deshalb leer. Es " +
+            "gibt auch keine Note und keine Punktzahl: Was dort steht, sind einzelne " +
+            "Fundstellen mit Begründung."
+        }),
+
         new("1.20.0", "21.08.2026", new[]
         {
             "Der Tab „VIS-Datenpunkte\" kann ein ganzes VIS-Projekt aus dem Backup als " +
