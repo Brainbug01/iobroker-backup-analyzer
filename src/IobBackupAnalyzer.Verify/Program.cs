@@ -69,11 +69,11 @@ var passed = 0;
 var failed = 0;
 var skipped = 0;
 
-// PruefblÃ¶cke, die gar nicht erst gelaufen sind â nicht nur mitgezaehlt, sondern am Ende
+// Pruefblöcke, die gar nicht erst gelaufen sind — nicht nur mitgezaehlt, sondern am Ende
 // beim Namen genannt. Anlass: Die Ausfuehrungstests des Aufraeum-Skripts blieben bei jedem
 // Build stillschweigend aus, weil bash nicht im Pfad von pwsh steht. Die Hinweiszeile stand
 // in der Ausgabe, ging aber zwischen 800 Zeilen unter. Ein Lauf, der etwas nicht geprueft
-// hat, muss das am Schluss sagen â sonst liest man gruen, wo nur nichts geprueft wurde.
+// hat, muss das am Schluss sagen — sonst liest man gruen, wo nur nichts geprueft wurde.
 var nichtGelaufen = new List<string>();
 
 if (referenzwerte.Count == 0)
@@ -259,10 +259,152 @@ CheckEq("Kaputtes XML: keine Hinweise statt Absturz",
         ScriptQualityAnalyzer.Analyze("<xml><block type=\"on\"").Count, 0);
 
 // JavaScript und TypeScript werden bewusst nicht textuell geprueft - dort gaebe es nur
-// Fehltreffer. Die Spalte bleibt bei ihnen leer.
+// Fehltreffer. Die Aufbau-Befunde bleiben bei ihnen leer. Ausgenommen sind die beiden
+// Schalter am Skript-Objekt (Debuggen, Ausfuehrliche Protokollausgaben): Die haengen nicht
+// an einem Baustein und gelten fuer jede Sprache.
 var nichtBlocklyMitHinweis = scriptsOnly.Scripts
-    .Count(s => s.Engine != ScriptEngine.Blockly && s.Hints.Count > 0);
-CheckEq("Hinweise ausschliesslich bei Blockly", nichtBlocklyMitHinweis, 0);
+    .Count(s => s.Engine != ScriptEngine.Blockly
+             && s.Hints.Any(h => h.Kind is not (ScriptHintKind.DebugMode
+                                             or ScriptHintKind.VerboseLogging)));
+CheckEq("Aufbau-Hinweise ausschliesslich bei Blockly", nichtBlocklyMitHinweis, 0);
+
+// ------------------------------------------- Debuggen / Ausfuehrliche Protokollausgaben
+//
+// Beide Schalter stehen in common.debug und common.verbose (js-controller, ScriptCommon).
+// "Debuggen" ist kein Protokollschalter: Der javascript-Adapter unterdrueckt damit jede
+// schreibende Operation und protokolliert sie nur als Warnung - das Skript laeuft und tut
+// nichts. Deshalb gehoert es in die Hinweisspalte.
+
+var nurDebug = ScriptQualityAnalyzer.Analyze(null, debug: true);
+Check("Debug-Schalter ergibt einen Hinweis, auch ohne XML",
+      nurDebug.Count == 1 && nurDebug[0].Kind == ScriptHintKind.DebugMode,
+      string.Join(" / ", nurDebug.Select(h => h.ShortText)));
+
+var nurVerbose = ScriptQualityAnalyzer.Analyze(null, verbose: true);
+Check("Verbose-Schalter ergibt einen Hinweis, auch ohne XML",
+      nurVerbose.Count == 1 && nurVerbose[0].Kind == ScriptHintKind.VerboseLogging,
+      string.Join(" / ", nurVerbose.Select(h => h.ShortText)));
+
+CheckEq("Ohne Schalter kein Hinweis", ScriptQualityAnalyzer.Analyze(null).Count, 0);
+CheckEq("Beide Schalter ergeben zwei Hinweise",
+        ScriptQualityAnalyzer.Analyze(null, debug: true, verbose: true).Count, 2);
+
+var beideMitXml = ScriptQualityAnalyzer.Analyze(
+    "<xml xmlns=\"https://developers.google.com/blockly/xml\"><block type=\"on\" id=\"A\"/></xml>",
+    debug: true, verbose: true);
+Check("Schalter und Aufbau-Befunde stehen nebeneinander", beideMitXml.Count == 3,
+      string.Join(" / ", beideMitXml.Select(h => h.ShortText)));
+
+// ------------------------------------------------------- steuern / aktualisieren (ack)
+//
+// control erzeugt setState(id, wert)        -> ack=false, Befehl an den Adapter
+// update  erzeugt setState(id, wert, true)  -> ack=true,  reine Wertmeldung
+// (javascript-Adapter, blocks_system.ts; js-controller zum ack-Feld: "Direction flag:
+// false for desired value and true for actual value")
+
+static string AckXml(string blocktyp, string oid) =>
+    $"<xml xmlns=\"https://developers.google.com/blockly/xml\">" +
+    $"<block type=\"{blocktyp}\" id=\"B1\"><field name=\"OID\">{oid}</field></block></xml>";
+
+ScriptQualityAnalyzer.StateOwner Besitzer(string id) =>
+    id.StartsWith("0_userdata.", StringComparison.Ordinal)
+        ? ScriptQualityAnalyzer.StateOwner.Own
+    : id.StartsWith("hue.", StringComparison.Ordinal)
+        ? ScriptQualityAnalyzer.StateOwner.Adapter
+        : ScriptQualityAnalyzer.StateOwner.Unknown;
+
+var unquittiert = ScriptQualityAnalyzer.AckHints(
+    AckXml("control", "0_userdata.0.zaehler"), Besitzer, _ => true);
+Check("Steuern auf unquittiertem eigenem Datenpunkt wird gemeldet",
+      unquittiert.Count == 1 && unquittiert[0].Kind == ScriptHintKind.ControlOnOwnState
+      && unquittiert[0].Detail == "0_userdata.0.zaehler",
+      string.Join(" / ", unquittiert.Select(h => h.ShortText)));
+
+CheckEq("Steuern auf quittiertem eigenem Datenpunkt bleibt still",
+        ScriptQualityAnalyzer.AckHints(
+            AckXml("control", "0_userdata.0.befehl"), Besitzer, _ => false).Count, 0);
+
+var falschHerum = ScriptQualityAnalyzer.AckHints(
+    AckXml("update", "hue.0.lampe.on"), Besitzer, _ => false);
+Check("Aktualisieren auf Adapter-Datenpunkt wird gemeldet",
+      falschHerum.Count == 1 && falschHerum[0].Kind == ScriptHintKind.UpdateOnAdapterState,
+      string.Join(" / ", falschHerum.Select(h => h.ShortText)));
+
+CheckEq("Steuern auf Adapter-Datenpunkt ist richtig und bleibt still",
+        ScriptQualityAnalyzer.AckHints(
+            AckXml("control", "hue.0.lampe.on"), Besitzer, _ => true).Count, 0);
+CheckEq("Aktualisieren auf eigenem Datenpunkt ist richtig und bleibt still",
+        ScriptQualityAnalyzer.AckHints(
+            AckXml("update", "0_userdata.0.zaehler"), Besitzer, _ => true).Count, 0);
+CheckEq("Unbekannter Namensraum wird nicht beurteilt",
+        ScriptQualityAnalyzer.AckHints(
+            AckXml("update", "fremd.0.wert"), Besitzer, _ => true).Count, 0);
+CheckEq("control_ex bleibt aussen vor",
+        ScriptQualityAnalyzer.AckHints(
+            AckXml("control_ex", "hue.0.lampe.on"), Besitzer, _ => true).Count, 0);
+
+// --------------------------------------------------------------- Befehlskanaele
+//
+// Ein eigener Datenpunkt, den ein anderes Skript als Befehl entgegennimmt, gehoert mit
+// "steuern" beschrieben - dort waere der Hinweis falsch. Beleg ist ein Ausloeser, der
+// etwas TUT und dabei auf Befehle lauscht (ACK_CONDITION=false) oder quittiert
+// (Baustein on_ack_value).
+//
+// Der Rumpf muss etwas tun: Ein Ausloeser, der nur quittiert, ist ein Pflaster gegen die
+// rote Darstellung unquittierter Werte in der Objektuebersicht - kein Befehlskanal.
+// Wuerde er als solcher zaehlen, verschwiege das Werkzeug genau den Befund, der das
+// Sammelskript ueberfluessig machen wuerde.
+
+static string TriggerXml(string oid, string ackBedingung, string rumpf) =>
+    "<xml xmlns=\"https://developers.google.com/blockly/xml\">"
+  + $"<block type=\"on\" id=\"T1\"><field name=\"OID\">{oid}</field>"
+  + (ackBedingung.Length > 0 ? $"<field name=\"ACK_CONDITION\">{ackBedingung}</field>" : "")
+  + $"<statement name=\"STATEMENT\">{rumpf}</statement></block></xml>";
+
+const string AckBaustein = "<block type=\"on_ack_value\" id=\"Q1\"></block>";
+const string EchteArbeit = "<block type=\"control\" id=\"C1\">"
+                         + "<field name=\"OID\">hue.0.lampe.on</field></block>";
+
+var kanalBefehl = ScriptQualityAnalyzer.AcknowledgedStates(
+    TriggerXml("0_userdata.0.befehl", "false", EchteArbeit));
+Check("Ausloeser auf Befehle mit echtem Rumpf gilt als Befehlskanal",
+      kanalBefehl.Contains("0_userdata.0.befehl"), string.Join(", ", kanalBefehl));
+
+var kanalQuittiert = ScriptQualityAnalyzer.AcknowledgedStates(
+    TriggerXml("0_userdata.0.befehl", "", EchteArbeit + AckBaustein));
+Check("Ausloeser, der arbeitet und quittiert, gilt als Befehlskanal",
+      kanalQuittiert.Contains("0_userdata.0.befehl"), string.Join(", ", kanalQuittiert));
+
+var nurQuittieren = ScriptQualityAnalyzer.AcknowledgedStates(
+    TriggerXml("0_userdata.0.anzeige", "false", AckBaustein));
+CheckEq("Ausloeser, der NUR quittiert, ist kein Befehlskanal", nurQuittieren.Count, 0);
+
+var ohneAlles = ScriptQualityAnalyzer.AcknowledgedStates(
+    TriggerXml("0_userdata.0.wert", "", EchteArbeit));
+CheckEq("Gewoehnlicher Ausloeser ohne ack-Bezug ist kein Befehlskanal", ohneAlles.Count, 0);
+
+CheckEq("update-Baustein allein macht keinen Befehlskanal",
+        ScriptQualityAnalyzer.AcknowledgedStates(AckXml("update", "0_userdata.0.wert")).Count, 0);
+
+// Wirkung auf den Hinweis: derselbe unquittierte Datenpunkt, einmal mit und einmal ohne
+// Befehlskanal.
+CheckEq("Befehlskanal stellt den Hinweis still",
+        ScriptQualityAnalyzer.AckHints(AckXml("control", "0_userdata.0.befehl"), Besitzer,
+                                       _ => true, id => id == "0_userdata.0.befehl").Count, 0);
+CheckEq("Ohne Befehlskanal bleibt der Hinweis stehen",
+        ScriptQualityAnalyzer.AckHints(AckXml("control", "0_userdata.0.zaehler"), Besitzer,
+                                       _ => true, _ => false).Count, 1);
+
+// Ein OID aus einem eingesetzten Wert-Baustein gehoert nicht zum aeusseren Block: Sonst
+// wuerde "aktualisiere Zaehler mit dem Wert der Lampe" auf der Lampe gemeldet.
+var verschachtelt = ScriptQualityAnalyzer.AckHints(
+    "<xml xmlns=\"https://developers.google.com/blockly/xml\">"
+  + "<block type=\"update\" id=\"B1\"><field name=\"OID\">0_userdata.0.zaehler</field>"
+  + "<value name=\"VALUE\"><block type=\"get_value\" id=\"B2\">"
+  + "<field name=\"OID\">hue.0.lampe.on</field></block></value></block></xml>",
+    Besitzer, _ => true);
+CheckEq("OID eines eingesetzten Bausteins zaehlt nicht zum aeusseren Block",
+        verschachtelt.Count, 0);
 
 // Gegen die echten Skripte: Wie viele Skripte tragen einen Befund? Der Erwartungswert
 // steht - wie alle Bestandszahlen - in testdaten/referenzwerte.json.
@@ -312,6 +454,133 @@ Check("Alle Instanzen haben eine Version", withVersion == fullData.Instances.Cou
 var withObjects = fullData.Instances.Count(i => i.ObjectCount > 0);
 Check("Mehrheit der Instanzen hat zugeordnete Objekte",
       withObjects > fullData.Instances.Count / 2, $"{withObjects}/{fullData.Instances.Count}");
+
+// ------------------------------------------------- Objektlimit je Instanz (js-controller)
+//
+// Der js-controller meldet beim Start jeder Instanz „This instance has N objects, the limit
+// for this instance is set to M." und legt eine System-Meldung an (numberObjectsLimitExceeded).
+// Die Uebersicht rechnet dasselbe aus dem Backup aus. Geprueft wird beides: das Lesen des
+// Limits aus dem Backup und die Schwellenlogik des Presenters.
+
+var mitEigenemLimit = fullData.Instances.Count(i => i.ObjectLimit != AdapterInstance.DefaultObjectLimit);
+var limitObjekte = fullData.Objects.Count(o => o.ObjectsWarnLimit is not null);
+Console.WriteLine($"  Objektlimit: {limitObjekte} objectsWarnLimit-Objekte gelesen, " +
+                  $"{mitEigenemLimit} Instanzen mit abweichendem Limit, " +
+                  $"{OverviewPresenter.OverObjectLimit(fullData).Count} ueber ihrem Limit");
+
+Check("objectsWarnLimit-Objekte im Backup gefunden", limitObjekte > 0, $"{limitObjekte}");
+Check("Jede Instanz hat ein Limit groesser null",
+      fullData.Instances.All(i => i.ObjectLimit > 0));
+Check("Ueberschreitungen stimmen mit den Zahlen ueberein",
+      OverviewPresenter.OverObjectLimit(fullData).All(i => i.ObjectCount > i.ObjectLimit));
+
+// common.def wird nur am objectsWarnLimit-Objekt als Limit gelesen — an keinem anderen.
+// Sonst wuerde der Vorgabewert eines beliebigen Datenpunkts als Schwelle gelten.
+Check("Limit nur an objectsWarnLimit-Objekten gelesen",
+      fullData.Objects.Where(o => o.ObjectsWarnLimit is not null).All(o =>
+          o.Id.StartsWith("system.adapter.", StringComparison.Ordinal)
+          && o.Id.EndsWith(".objectsWarnLimit", StringComparison.Ordinal)));
+
+// Zuordnung Objekt -> Instanz: Was im Backup steht, muss an der Instanz ankommen.
+var limitAusBackup = fullData.Objects
+    .Where(o => o.ObjectsWarnLimit is not null)
+    .ToDictionary(
+        o => o.Id["system.adapter.".Length..^".objectsWarnLimit".Length],
+        o => o.ObjectsWarnLimit!.Value,
+        StringComparer.OrdinalIgnoreCase);
+
+var zugeordnet = fullData.Instances.Count(i => limitAusBackup.ContainsKey(i.Namespace));
+Check("Limit aus dem Backup landet bei der Instanz", zugeordnet > 0
+      && fullData.Instances.All(i => !limitAusBackup.TryGetValue(i.Namespace, out var l)
+                                     || i.ObjectLimit == l),
+      $"{zugeordnet}/{fullData.Instances.Count} Instanzen mit eigenem Objekt");
+
+// Ohne eigenes Objekt bleibt es bei der Systemvorgabe des js-controllers.
+Check("Ohne eigenes Objekt gilt die Systemvorgabe",
+      fullData.Instances.Where(i => !limitAusBackup.ContainsKey(i.Namespace))
+                        .All(i => i.ObjectLimit == AdapterInstance.DefaultObjectLimit));
+
+// Schwellenlogik: genau auf dem Limit ist noch keine Ueberschreitung — der js-controller
+// vergleicht ebenfalls echt groesser.
+BackupData Kunstanlage(params AdapterInstance[] instanzen) => new()
+{
+    SourceFile = fullData.SourceFile,
+    Kind = BackupKind.Full,
+    Instances = instanzen.ToList()
+};
+
+var genauAufLimit = new AdapterInstance
+    { Adapter = "grenz", Instance = 0, Enabled = true, ObjectCount = 5000, ObjectLimit = 5000 };
+var einsDarueber = new AdapterInstance
+    { Adapter = "grenz", Instance = 1, Enabled = true, ObjectCount = 5001, ObjectLimit = 5000 };
+
+Check("Genau auf dem Limit ist keine Ueberschreitung", !genauAufLimit.OverObjectLimit);
+Check("Ein Objekt darueber ist eine Ueberschreitung", einsDarueber.OverObjectLimit);
+Check("Ohne Ueberschreitung keine Warnzeile",
+      OverviewPresenter.ObjectLimitWarning(Kunstanlage(genauAufLimit)) is null);
+
+var eineWarnung = OverviewPresenter.ObjectLimitWarning(Kunstanlage(genauAufLimit, einsDarueber));
+Check("Warnzeile nennt Instanz, Zahl und Limit",
+      eineWarnung is not null && eineWarnung.Contains("grenz.1")
+      && eineWarnung.Contains("5.001") && eineWarnung.Contains("5.000"),
+      eineWarnung);
+Check("Warnzeile im Singular bei einer Instanz",
+      eineWarnung!.Contains("1 Instanz über dem Objekt-Limit"));
+Check("Warnzeile nennt nur die betroffene Instanz", !eineWarnung.Contains("grenz.0"));
+
+// Deaktivierte Instanzen starten nicht und melden im Betrieb nichts — sie werden deshalb
+// gekennzeichnet, aber nicht verschwiegen: ihre Objekte liegen trotzdem in der Datenbank.
+var ausgeschaltet = new AdapterInstance
+    { Adapter = "ruht", Instance = 0, Enabled = false, ObjectCount = 9000, ObjectLimit = 5000 };
+var mitRuhender = OverviewPresenter.ObjectLimitWarning(Kunstanlage(ausgeschaltet));
+Check("Deaktivierte Instanz wird als solche gekennzeichnet",
+      mitRuhender is not null && mitRuhender.Contains("(deaktiviert)"), mitRuhender);
+
+// Viele Treffer: hoechstens acht werden genannt, der Rest gezaehlt.
+var viele = Enumerable.Range(0, 11)
+    .Select(n => new AdapterInstance
+        { Adapter = "viel", Instance = n, Enabled = true, ObjectCount = 6000 + n, ObjectLimit = 5000 })
+    .ToArray();
+var vieleText = OverviewPresenter.ObjectLimitWarning(Kunstanlage(viele))!;
+Check("Warnzeile kuerzt lange Listen ab", vieleText.Contains("und 3 weitere"),
+      vieleText.Length > 120 ? vieleText[..120] + " …" : vieleText);
+Check("Warnzeile im Plural bei mehreren Instanzen", vieleText.Contains("11 Instanzen"));
+
+// Groesste zuerst — die auffaelligste Instanz steht vorn.
+var reihenfolge = OverviewPresenter.OverObjectLimit(Kunstanlage(viele));
+Check("Ueberschreitungen sind absteigend sortiert",
+      reihenfolge.Select(i => i.ObjectCount).SequenceEqual(
+          reihenfolge.Select(i => i.ObjectCount).OrderByDescending(x => x)));
+
+// --------------------------------- Skript-Befunde gegen die echten Skripte
+
+var debugAusBackup = fullData.Scripts.Count(s => s.Debug);
+var verboseAusBackup = fullData.Scripts.Count(s => s.Verbose);
+Console.WriteLine($"  Schalter im Backup: Debuggen={debugAusBackup}, Verbose={verboseAusBackup}");
+Check("Debug-Schalter fuehrt zum Hinweis am Skript",
+      fullData.Scripts.All(s => s.Debug == s.Hints.Any(h => h.Kind == ScriptHintKind.DebugMode)));
+Check("Verbose-Schalter fuehrt zum Hinweis am Skript",
+      fullData.Scripts.All(s => s.Verbose == s.Hints.Any(h => h.Kind == ScriptHintKind.VerboseLogging)));
+
+// Gegen die echten Skripte.
+var ackBefunde = fullData.Scripts
+    .SelectMany(s => s.Hints.Where(h => h.Kind is ScriptHintKind.ControlOnOwnState
+                                             or ScriptHintKind.UpdateOnAdapterState))
+    .ToList();
+Console.WriteLine("  ack-Befunde im Backup: " +
+    $"{ackBefunde.Count(h => h.Kind == ScriptHintKind.ControlOnOwnState)}x steuern-auf-eigen, " +
+    $"{ackBefunde.Count(h => h.Kind == ScriptHintKind.UpdateOnAdapterState)}x aktualisieren-auf-adapter");
+
+Check("Jeder ack-Befund nennt seinen Datenpunkt",
+      ackBefunde.All(h => h.Detail.Length > 0));
+Check("Gemeldete eigene Datenpunkte liegen wirklich unquittiert",
+      ackBefunde.Where(h => h.Kind == ScriptHintKind.ControlOnOwnState)
+                .All(h => h.Detail.StartsWith("alias.", StringComparison.Ordinal)
+                          || (fullData.States.TryGetValue(h.Detail, out var st) && !st.Ack)));
+Check("Skript-Backups erzeugen keine ack-Befunde (kein Objektbestand)",
+      scriptsOnly.Scripts.SelectMany(s => s.Hints).All(h =>
+          h.Kind is not (ScriptHintKind.ControlOnOwnState or ScriptHintKind.UpdateOnAdapterState)));
+
 
 // ---------------------------------------------------------------- Analysen
 

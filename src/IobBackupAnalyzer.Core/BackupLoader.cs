@@ -631,6 +631,7 @@ public static class BackupLoader
     {
         var instances = BuildInstances(objects);
         var adapterRefs = BuildAdapterRefs(objects, out var hasAdapterConfig);
+        AddAckHints(objects, scripts, instances, states);
 
         return new BackupData
         {
@@ -651,6 +652,103 @@ public static class BackupLoader
             SkippedCount = skipped,
             Validation = validation ?? new BackupValidation()
         };
+    }
+
+    /// <summary>
+    /// Hängt den Skripten die Befunde zu „steuern/aktualisieren" an. Das geht erst hier: Ob
+    /// ein eigener Datenpunkt wirklich unquittiert liegt, steht in states.jsonl, und wem ein
+    /// Datenpunkt gehört, verrät erst der Instanzbestand.
+    ///
+    /// Bei Skript-Backups gibt es weder Instanzen noch States — dann ordnet
+    /// <c>Besitzer</c> nichts zu, und es entsteht kein einziger Befund. Genau richtig: Ohne
+    /// den Objektbestand wäre jede Aussage geraten.
+    /// </summary>
+    private static void AddAckHints(List<IobObject> objects, List<ScriptInfo> scripts,
+                                    List<AdapterInstance> instances,
+                                    Dictionary<string, StateInfo>? states)
+    {
+        var blockly = scripts.Where(s => !string.IsNullOrEmpty(s.BlocklyXml)).ToList();
+        if (blockly.Count == 0) return;
+
+        // Namensräume, hinter denen eine Adapter-Instanz steht. Alles andere ist entweder
+        // selbst angelegt oder gar nicht zuzuordnen — geraten wird nicht.
+        var adapterNs = new HashSet<string>(instances.Select(i => i.Namespace),
+                                            StringComparer.OrdinalIgnoreCase);
+
+        // Aliasse zeigen auf einen anderen Datenpunkt; beurteilt wird das Ziel. Ein Alias auf
+        // eine Lampe ist ein Adapter-Datenpunkt, ein Alias auf 0_userdata ein eigener.
+        var aliasZiel = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var o in objects)
+            if (o.AliasTarget is { Length: > 0 } ziel && o.Id.StartsWith("alias.", StringComparison.Ordinal))
+                aliasZiel[o.Id] = ziel;
+
+        ScriptQualityAnalyzer.StateOwner Besitzer(string id)
+        {
+            // Höchstens einmal auflösen: Ein Alias auf einen Alias ist in ioBroker nicht
+            // vorgesehen, und eine Schleife soll hier nicht entstehen können.
+            if (id.StartsWith("alias.", StringComparison.Ordinal))
+            {
+                if (!aliasZiel.TryGetValue(id, out var ziel)) return ScriptQualityAnalyzer.StateOwner.Unknown;
+                id = ziel;
+                if (id.StartsWith("alias.", StringComparison.Ordinal))
+                    return ScriptQualityAnalyzer.StateOwner.Unknown;
+            }
+
+            var erster = id.IndexOf('.');
+            if (erster < 0) return ScriptQualityAnalyzer.StateOwner.Unknown;
+            var zweiter = id.IndexOf('.', erster + 1);
+            if (zweiter < 0) return ScriptQualityAnalyzer.StateOwner.Unknown;
+
+            var ns = id[..zweiter];
+
+            // Selbst angelegt: die beiden Ablagen, in denen kein Adapter quittiert.
+            if (ns.StartsWith("0_userdata.", StringComparison.OrdinalIgnoreCase)
+                || ns.StartsWith("javascript.", StringComparison.OrdinalIgnoreCase))
+                return ScriptQualityAnalyzer.StateOwner.Own;
+
+            return adapterNs.Contains(ns)
+                ? ScriptQualityAnalyzer.StateOwner.Adapter
+                : ScriptQualityAnalyzer.StateOwner.Unknown;
+        }
+
+        bool Unquittiert(string id)
+        {
+            // Beim Alias zählt der Zustand des Ziels: Der Alias selbst führt keinen eigenen.
+            if (id.StartsWith("alias.", StringComparison.Ordinal)
+                && aliasZiel.TryGetValue(id, out var ziel))
+                id = ziel;
+
+            return states is not null && states.TryGetValue(id, out var st) && !st.Ack;
+        }
+
+        // Erst alle Befehlskanäle einsammeln, dann erst urteilen: Quittiert wird ein
+        // Datenpunkt oft von einem ganz anderen Skript als dem, das ihn beschreibt — ein
+        // eigenes „ACK"-Skript, das reihum auf mehrere eigene Datenpunkte lauscht, ist ein
+        // verbreitetes Muster. Wer nur das schreibende Skript ansieht, meldet genau das
+        // als Fehler, was der Nutzer bewusst so gebaut hat.
+        var befehlskanaele = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var s in blockly)
+            foreach (var id in ScriptQualityAnalyzer.AcknowledgedStates(s.BlocklyXml))
+                befehlskanaele.Add(id);
+
+        bool Befehlskanal(string id)
+        {
+            if (befehlskanaele.Contains(id)) return true;
+
+            // Auch über den Alias hinweg: Quittiert wird üblicherweise das Ziel.
+            return id.StartsWith("alias.", StringComparison.Ordinal)
+                   && aliasZiel.TryGetValue(id, out var ziel)
+                   && befehlskanaele.Contains(ziel);
+        }
+
+        foreach (var s in blockly)
+        {
+            var weitere = ScriptQualityAnalyzer.AckHints(s.BlocklyXml, Besitzer, Unquittiert,
+                                                        Befehlskanal);
+            if (weitere.Count == 0) continue;
+
+            s.Hints = s.Hints.Concat(weitere).OrderBy(h => h.Kind).ToList();
+        }
     }
 
     /// <summary>
@@ -749,6 +847,21 @@ public static class BackupLoader
 
             var ns = o.Id[..second];
             if (byNamespace.TryGetValue(ns, out var inst)) inst.ObjectCount++;
+        }
+
+        // Objektlimit je Instanz. Ohne eigenes objectsWarnLimit-Objekt bleibt es bei der
+        // Systemvorgabe, die AdapterInstance bereits mitbringt — so verhält sich auch der
+        // js-controller, wenn der State fehlt.
+        const string prefix = "system.adapter.";
+        const string suffix = ".objectsWarnLimit";
+        foreach (var o in objects)
+        {
+            if (o.ObjectsWarnLimit is not { } limit) continue;
+            if (!o.Id.StartsWith(prefix, StringComparison.Ordinal)) continue;
+            if (!o.Id.EndsWith(suffix, StringComparison.Ordinal)) continue;
+
+            var ns = o.Id[prefix.Length..^suffix.Length];
+            if (byNamespace.TryGetValue(ns, out var inst)) inst.ObjectLimit = limit;
         }
 
         return list

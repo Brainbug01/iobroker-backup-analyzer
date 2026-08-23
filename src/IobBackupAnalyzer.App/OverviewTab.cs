@@ -7,6 +7,15 @@ public sealed class OverviewTab : UserControl
 {
     private readonly Label _header = new();
     private readonly Label _metrics = new();
+
+    // Warnzeile über dem Filter: Instanzen, die mehr Objekte haben als ihr Limit erlaubt.
+    // Sie erscheint nur, wenn es etwas zu melden gibt — und schiebt dann die Filterzeile
+    // nach unten (siehe PositionHead).
+    private readonly Panel _head = TabLayout.TopBar(HeadHeight);
+    private readonly Label _limitWarning = new();
+    private readonly Label _lblFilter = new();
+    private readonly ToolTip _tips = new() { AutoPopDelay = 20000 };
+
     private readonly TextBox _filter = new();
     private readonly Label _count = new();
     private readonly Button _csv = new();
@@ -26,6 +35,12 @@ public sealed class OverviewTab : UserControl
     private int _sortColumn = -1;
     private bool _sortAscending = true;
 
+    /// <summary>Höhe der Kopfleiste ohne Warnzeile.</summary>
+    private const int HeadHeight = 104;
+
+    /// <summary>Zusätzliche Höhe, sobald die Warnzeile sichtbar ist.</summary>
+    private const int WarningHeight = 40;
+
     public OverviewTab()
     {
         BuildUi();
@@ -36,7 +51,7 @@ public sealed class OverviewTab : UserControl
         Padding = new Padding(8);
 
         // ---------- Kopfbereich mit Kennzahlen ----------
-        var head = TabLayout.TopBar(104);
+        var head = _head;
 
         _header.Location = new Point(0, 0);
         _header.Size = new Size(1100, 24);
@@ -48,23 +63,38 @@ public sealed class OverviewTab : UserControl
         _metrics.Size = new Size(1100, 46);
         _metrics.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
 
-        var lblFilter = new Label { Text = "Filter:", Location = new Point(0, 80), Size = new Size(44, 20) };
-        _filter.Location = new Point(46, 77);
+        // Warnzeile über dem Filter, in gedecktem Gelb wie die übrigen Hinweiskästen der
+        // App — auffällig genug, um gelesen zu werden, ohne wie ein Fehler auszusehen:
+        // Das Objektlimit ist eine Leistungswarnung, kein Defekt.
+        _limitWarning.BackColor = Color.FromArgb(255, 249, 219);
+        _limitWarning.ForeColor = Color.FromArgb(90, 60, 0);
+        _limitWarning.Size = new Size(TabLayout.DesignWidth, WarningHeight - 6);
+        _limitWarning.Padding = new Padding(6, 3, 6, 3);
+        _limitWarning.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+        _limitWarning.Visible = false;
+        _tips.SetToolTip(_limitWarning, OverviewPresenter.ObjectLimitHint);
+
+        _lblFilter.Text = "Filter:";
+        _lblFilter.Size = new Size(44, 20);
+
         _filter.Size = new Size(320, 24);
         _filter.PlaceholderText = "Adaptername …";
         _filter.TextChanged += (_, _) => ApplyFilter();
 
-        _count.Location = new Point(380, 80);
         _count.Size = new Size(400, 20);
         _count.ForeColor = SystemColors.GrayText;
 
         _csv.Text = "Als CSV exportieren";
         _csv.Size = new Size(160, 26);
-        _csv.Location = TabLayout.RightAligned(160, 76);
         _csv.Anchor = AnchorStyles.Top | AnchorStyles.Right;
         _csv.Click += (_, _) => ExportCsv();
 
-        head.Controls.AddRange(new Control[] { _header, _metrics, lblFilter, _filter, _count, _csv });
+        // Die senkrechten Positionen der Filterzeile setzt PositionHead — sie hängen
+        // davon ab, ob die Warnzeile gerade sichtbar ist.
+        PositionHead(false);
+
+        head.Controls.AddRange(new Control[]
+            { _header, _metrics, _limitWarning, _lblFilter, _filter, _count, _csv });
 
         // ---------- Instanztabelle ----------
         _list.Dock = DockStyle.Fill;
@@ -139,6 +169,23 @@ public sealed class OverviewTab : UserControl
         Controls.Add(head);
     }
 
+    /// <summary>
+    /// Setzt die Kopfleiste — mit oder ohne Warnzeile. Die Filterzeile rückt um die Höhe
+    /// der Warnzeile nach unten, damit dort kein Loch bleibt, wenn nichts zu melden ist.
+    /// </summary>
+    private void PositionHead(bool withWarning)
+    {
+        _limitWarning.Visible = withWarning;
+        _limitWarning.Location = new Point(0, 76);
+
+        var dy = withWarning ? WarningHeight : 0;
+        _lblFilter.Location = new Point(0, 80 + dy);
+        _filter.Location = new Point(46, 77 + dy);
+        _count.Location = new Point(380, 80 + dy);
+        _csv.Location = TabLayout.RightAligned(160, 76 + dy);
+        _head.Height = HeadHeight + dy;
+    }
+
     public void SetAvailable(bool available)
     {
         _placeholder.Visible = !available;
@@ -162,6 +209,7 @@ public sealed class OverviewTab : UserControl
         {
             _header.Text = "";
             _metrics.Text = "";
+            PositionHead(false);
             _list.Items.Clear();
             _adaptersWithoutInstance = new List<AdapterWithoutInstance>();
             _noInstance.Items.Clear();
@@ -172,6 +220,10 @@ public sealed class OverviewTab : UserControl
 
         // Der Presenter trennt Zeilen mit \n; WinForms-Labels brauchen \r\n.
         _metrics.Text = OverviewPresenter.MetricsText(data).Replace("\n", "\r\n");
+
+        var warning = OverviewPresenter.ObjectLimitWarning(data);
+        _limitWarning.Text = warning?.Replace("\n", "\r\n") ?? "";
+        PositionHead(warning is not null);
 
         _adaptersWithoutInstance = OrphanAnalyzer.FindAdaptersWithoutInstance(data);
         FillNoInstance();
@@ -226,6 +278,22 @@ public sealed class OverviewTab : UserControl
             var item = new ListViewItem(OverviewPresenter.DisplayRow(i)) { Tag = i };
 
             if (!i.Enabled) item.ForeColor = SystemColors.GrayText;
+
+            // Nur die Objektzahl wird hervorgehoben, nicht die ganze Zeile: Die Instanz ist
+            // in Ordnung, allein ihr Objektbestand ist zu groß. Sobald einzelne Zellen ihre
+            // eigene Farbe bekommen, erben sie die Zeilenfarbe nicht mehr — deshalb wird
+            // sie hier zuerst auf alle Zellen übertragen.
+            if (i.OverObjectLimit)
+            {
+                item.UseItemStyleForSubItems = false;
+                foreach (ListViewItem.ListViewSubItem cell in item.SubItems)
+                    cell.ForeColor = item.ForeColor;
+
+                var objects = item.SubItems[Array.IndexOf(OverviewPresenter.InstanceColumns, "Objekte")];
+                objects.ForeColor = Color.DarkOrange;
+                objects.Font = new Font(_list.Font, FontStyle.Bold);
+            }
+
             _list.Items.Add(item);
         }
 

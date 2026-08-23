@@ -58,6 +58,37 @@ public static class HelpContent
             "Kennzahlen des Backups und alle Adapter-Instanzen mit Version, Status und Objektzahl. " +
             "Unten „Installierte Adapter ohne eigene Instanz\": eine Bestandsaufnahme, keine Löschliste — " +
             "manche Adapter (z. B. Socket-Backends wie ws/socketio) laufen bewusst ohne eigene Instanz."),
+        new(HelpBlockKind.Text,
+            "Hat eine Instanz mehr Objekte, als ihr Limit erlaubt, erscheint über dem Filter eine " +
+            "Warnzeile und die betroffene Objektzahl wird orange. Dieselbe Grenze zieht ioBroker " +
+            "selbst: Der js-controller meldet bei jedem Start einer solchen Instanz " +
+            "„This instance has N objects, the limit for this instance is set to M.\" und legt " +
+            "eine System-Meldung an. Vorgabe sind 5.000 Objekte je Instanz; manche Adapter bringen " +
+            "einen eigenen Wert mit. Das ist eine Leistungswarnung, kein Defekt — viele Objekte " +
+            "verlangsamen Start, Admin und Backup. Ein von Hand hochgesetztes Limit sieht der " +
+            "Analyzer allerdings nicht: Es steht im Wert des Datenpunkts, und Werte liest er " +
+            "bewusst nicht mit."),
+
+        new(HelpBlockKind.Text,
+            "Zwei der Hinweise hängen nicht am Aufbau, sondern an den beiden Schaltern unter dem " +
+            "Zahnrad des Editors und gelten deshalb für jede Sprache. „Debug-Modus aktiv\" ist der " +
+            "wichtigere: Der Haken „Debuggen\" ist kein Protokollschalter — der javascript-Adapter " +
+            "unterdrückt damit jede schreibende Operation (setState, exec, writeFile) und " +
+            "protokolliert sie nur als Warnung. Das Skript läuft und bewirkt nichts. " +
+            "„Ausführliche Protokollausgaben\" füllt dagegen nur das Protokoll."),
+        new(HelpBlockKind.Text,
+            "Ebenfalls geprüft wird der Unterschied zwischen „Zustand steuern\" und „Zustand " +
+            "aktualisieren\". Steuern schreibt unquittiert (ack=false) — das ist ein Befehl, auf den " +
+            "ein Adapter reagiert und den er quittiert, sobald er ihn ausgeführt hat. Aktualisieren " +
+            "schreibt quittiert (ack=true), also eine reine Wertmeldung. Daraus folgt: " +
+            "Adapter-Datenpunkte steuern, selbst angelegte Datenpunkte (0_userdata, javascript) " +
+            "aktualisieren. Gemeldet wird beides falsch herum — „steuern\" auf einem eigenen " +
+            "Datenpunkt allerdings nur dann, wenn er im Backup wirklich unquittiert liegt und " +
+            "ihn kein anderes Skript als Befehl entgegennimmt. Echte Befehlskanäle bleiben so " +
+            "still. Ein Sammelskript, das nur quittiert und sonst nichts tut, gilt dabei nicht " +
+            "als Befehlskanal: Solche Skripte machen die rote Darstellung unquittierter Werte in " +
+            "der Objektübersicht weiß und ändern an der Ursache nichts — wer stattdessen auf " +
+            "„aktualisieren\" umstellt, braucht sie für den betreffenden Datenpunkt nicht mehr."),
 
         new(HelpBlockKind.Heading, "Tab „Backup-Prüfung\""),
         new(HelpBlockKind.Text,

@@ -41,6 +41,12 @@ public sealed class IobObject
     public bool? Writable { get; init; }
 
     /// <summary>
+    /// Nur bei <c>system.adapter.&lt;ns&gt;.objectsWarnLimit</c> gesetzt: der Vorgabewert aus
+    /// common.def — ab welcher Objektzahl ioBroker die zugehörige Instanz beanstandet.
+    /// </summary>
+    public int? ObjectsWarnLimit { get; init; }
+
+    /// <summary>
     /// Logging-Konfiguration je Instanz aus common.custom — eine Zeile je loggender
     /// Instanz (influxdb.0, history.1, sql.2 …), unabhängig von der Instanznummer.
     /// null, wenn kein Logging konfiguriert ist.
@@ -203,10 +209,29 @@ public sealed class ScriptInfo
     public bool BlocklyBroken { get; init; }
 
     /// <summary>
+    /// common.debug — die Schaltfläche „Debuggen" im Editor. <b>Kein Protokollschalter:</b>
+    /// Der javascript-Adapter unterdrückt bei gesetztem Haken jede schreibende Operation
+    /// (setState, exec, writeFile) und protokolliert sie nur als Warnung
+    /// („was not executed, while debug mode is active"). Das Skript läuft also und tut nichts.
+    /// </summary>
+    public bool Debug { get; init; }
+
+    /// <summary>
+    /// common.verbose — „Ausführliche Protokollausgaben". Jede interne Operation des
+    /// Sandkastens landet als info-Zeile im Protokoll.
+    /// </summary>
+    public bool Verbose { get; init; }
+
+    /// <summary>
     /// Auffälligkeiten im Blockly-XML (siehe <see cref="ScriptQualityAnalyzer"/>). Immer leer
     /// bei JavaScript und TypeScript — dort gäbe es nur Textsuche und damit Fehltreffer.
     /// </summary>
-    public IReadOnlyList<ScriptHint> Hints { get; init; } = Array.Empty<ScriptHint>();
+    /// <remarks>
+    /// Setzbar, weil ein Teil der Befunde erst feststeht, wenn das ganze Backup gelesen ist:
+    /// Ob ein eigener Datenpunkt tatsächlich unquittiert liegt, verrät erst states.jsonl.
+    /// Der Lader hängt diese Befunde in <c>Build</c> an (siehe <c>BackupLoader.AddAckHints</c>).
+    /// </remarks>
+    public IReadOnlyList<ScriptHint> Hints { get; set; } = Array.Empty<ScriptHint>();
 
     /// <summary>
     /// Die Hinweise in einer Zeile für die Listenspalte — gleiche Befunde zusammengefasst,
@@ -316,6 +341,29 @@ public sealed class AdapterInstance
     public string Version { get; init; } = "";
     public bool Enabled { get; init; }
     public int ObjectCount { get; set; }
+
+    /// <summary>
+    /// Ab wie vielen Objekten der js-controller diese Instanz beanstandet. ioBroker legt den
+    /// Wert je Instanz im State <c>system.adapter.&lt;ns&gt;.objectsWarnLimit</c> ab; die
+    /// Vorgabe steht in <c>common.def</c> desselben Objekts und ist entweder der adaptereigene
+    /// Wert (<c>common.defaultObjectsWarnLimit</c>) oder die Systemvorgabe
+    /// <see cref="DefaultObjectLimit"/>. Gelesen wird nur diese Vorgabe — State-Werte lädt der
+    /// Analyzer bewusst nicht. Ein von Hand hochgesetztes Limit bleibt dadurch unsichtbar.
+    /// </summary>
+    public int ObjectLimit { get; set; } = DefaultObjectLimit;
+
+    /// <summary>
+    /// Systemvorgabe des js-controllers: <c>DEFAULT_OBJECTS_WARN_LIMIT</c> aus
+    /// <c>packages/common-db/src/lib/common/constants.ts</c>.
+    /// </summary>
+    public const int DefaultObjectLimit = 5000;
+
+    /// <summary>
+    /// true, wenn ioBroker beim Start dieser Instanz die Meldung „This instance has N objects,
+    /// the limit for this instance is set to M." schreibt und eine System-Meldung der Kategorie
+    /// numberObjectsLimitExceeded anlegt. Verglichen wird echt größer — genau wie dort.
+    /// </summary>
+    public bool OverObjectLimit => ObjectCount > ObjectLimit;
 
     public string Namespace => $"{Adapter}.{Instance}";
     public string EnabledText => Enabled ? "Ja" : "Nein";

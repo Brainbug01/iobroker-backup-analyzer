@@ -2,6 +2,36 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="IobBackupAnalyzer.Avalonia.Views.OverviewView">
 
+  <UserControl.Styles>
+    <!--
+      Warnkasten über der Filterzeile, gleiche Farben wie in den übrigen Ansichten:
+      gedecktes Gelb mit dunkler Schrift, fest gewählt, damit der Hinweis in hellem wie
+      dunklem Thema gleich deutlich bleibt.
+    -->
+    <Style Selector="Border.warnung">
+      <Setter Property="Background" Value="#FFF9DB" />
+      <Setter Property="BorderBrush" Value="#E0CE8A" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="3" />
+      <Setter Property="Padding" Value="8,5" />
+    </Style>
+    <Style Selector="Border.warnung TextBlock">
+      <Setter Property="Foreground" Value="#5A3C00" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <!--
+      Hervorgehoben wird allein die Objektzahl, nicht die ganze Zeile: Die Instanz ist in
+      Ordnung, allein ihr Objektbestand ist zu groß. Die Klasse „ueberlimit" setzt der
+      Code-Behind an der Zeile (LoadingRow), der Selektor greift von dort auf die eine
+      Zelle durch — datenabhängige Trigger je Zelle kennt Avalonia nicht.
+    -->
+    <Style Selector="DataGridRow.ueberlimit DataGridCell.objekte TextBlock">
+      <Setter Property="Foreground" Value="#D98A00" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+  </UserControl.Styles>
+
   <Grid Margin="8" RowDefinitions="Auto,*,Auto">
 
     <!-- ================= Kopf: Kennzahlen und Filter ================= -->
@@ -9,6 +39,11 @@
       <TextBlock Name="Header" FontSize="15" FontWeight="SemiBold"
                  TextTrimming="CharacterEllipsis" />
       <TextBlock Name="Metrics" />
+
+      <!-- Nur sichtbar, wenn wirklich eine Instanz über ihrem Limit liegt. -->
+      <Border Name="LimitWarningBox" Classes="warnung" IsVisible="False">
+        <TextBlock Name="LimitWarning" />
+      </Border>
 
       <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto" Margin="0,4,0,0">
         <TextBlock Grid.Column="0" Text="Filter:" VerticalAlignment="Center" Margin="0,0,8,0" />
@@ -59,7 +94,7 @@
           <DataGridTextColumn Header="Objekte"
                               Binding="{Binding ObjectCount, StringFormat={}{0:N0}}"
                               SortMemberPath="ObjectCount" Width="110"
-                              CellStyleClasses="zahl" />
+                              CellStyleClasses="zahl objekte" />
         </DataGrid.Columns>
       </DataGrid>
 

@@ -137,6 +137,22 @@ internal static class ObjectParser
                 writable = wr.ValueKind == JsonValueKind.True;
         }
 
+        // system.adapter.<ns>.objectsWarnLimit: die Schwelle, ab der ioBroker beim Start einer
+        // Instanz „This instance has N objects …" meldet. common.def trägt die Vorgabe — den
+        // adaptereigenen Wert oder die Systemvorgabe 5000. Der tatsächlich eingestellte Wert
+        // stünde im State; State-Werte lädt der Analyzer bewusst nicht.
+        int? objectsWarnLimit = null;
+        if (hasCommon
+            && id.StartsWith("system.adapter.", StringComparison.Ordinal)
+            && id.EndsWith(".objectsWarnLimit", StringComparison.Ordinal)
+            && common.TryGetProperty("def", out var defVal)
+            && defVal.ValueKind == JsonValueKind.Number
+            && defVal.TryGetInt32(out var defLimit)
+            && defLimit > 0)
+        {
+            objectsWarnLimit = defLimit;
+        }
+
         // Chart: native.data.l ist die Linienliste; je Linie steht in id der referenzierte
         // Datenpunkt und in instance die Quelle (system.adapter.<name>.<nr> oder z. B. "json").
         // Erfasst wird ausschließlich id — instanzunabhängig, damit auch über history oder
@@ -197,6 +213,7 @@ internal static class ObjectParser
             Enabled = enabled,
             HasCustom = hasCustom,
             Writable = writable,
+            ObjectsWarnLimit = objectsWarnLimit,
             CustomLogging = customLogging,
             AliasTarget = aliasTarget,
             AliasRead = aliasRead,
@@ -408,6 +425,12 @@ internal static class ObjectParser
         // common.name gewinnt, wenn gesetzt — sonst das letzte ID-Segment.
         if (!string.IsNullOrWhiteSpace(name)) scriptName = name;
 
+        // Die beiden Schalter aus dem Editor (Zahnrad): „Debuggen" und „Ausführliche
+        // Protokollausgaben". Fehlt das Feld, gilt es als nicht gesetzt — so hält es auch
+        // der javascript-Adapter.
+        var debug = common.TryGetProperty("debug", out var dbg) && dbg.ValueKind == JsonValueKind.True;
+        var verbose = common.TryGetProperty("verbose", out var vrb) && vrb.ValueKind == JsonValueKind.True;
+
         return new ScriptInfo
         {
             Id = id,
@@ -419,7 +442,12 @@ internal static class ObjectParser
             CleanSource = decoded.CleanSource,
             BlocklyXml = decoded.Xml,
             BlocklyBroken = decoded.Broken,
-            Hints = ScriptQualityAnalyzer.Analyze(decoded.Xml)
+            Debug = debug,
+            Verbose = verbose,
+
+            // Die ack-Befunde fehlen hier noch: Sie brauchen den Objektbestand und
+            // states.jsonl. Der Lader hängt sie am Ende an (BackupLoader.AddAckHints).
+            Hints = ScriptQualityAnalyzer.Analyze(decoded.Xml, debug, verbose)
         };
     }
 

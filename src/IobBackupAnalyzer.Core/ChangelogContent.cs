@@ -23,6 +23,41 @@ public static class ChangelogContent
     /// <summary>Neueste Version zuerst.</summary>
     public static IReadOnlyList<ChangelogEntry> Entries { get; } = new ChangelogEntry[]
     {
+        new("1.22.0", "23.08.2026", new[]
+        {
+            "Die Übersicht warnt, wenn eine Adapter-Instanz mehr Objekte hat, als ihr " +
+            "Limit erlaubt. Über dem Filter erscheint dann eine Zeile mit den betroffenen " +
+            "Instanzen, und ihre Objektzahl wird hervorgehoben. Es ist dieselbe Grenze, " +
+            "die ioBroker selbst zieht: Der js-controller meldet bei jedem Start einer " +
+            "solchen Instanz „This instance has N objects, the limit for this instance is " +
+            "set to M.\" und legt eine System-Meldung an. Vorgabe sind 5.000 Objekte je " +
+            "Instanz; manche Adapter bringen einen eigenen Wert mit. Das ist eine " +
+            "Leistungswarnung, kein Defekt — viele Objekte verlangsamen Start, Admin und " +
+            "Backup.",
+
+            "Neuer Hinweis „Debug-Modus aktiv\" im Tab „Skripte\". Der Haken „Debuggen\" " +
+            "im Editor ist kein Protokollschalter: Der javascript-Adapter führt das Skript " +
+            "zwar aus, unterdrückt aber jede schreibende Operation — setState, exec und " +
+            "writeFile passieren nicht, sondern werden nur als Warnung protokolliert. Ein " +
+            "Skript mit vergessenem Haken läuft also und bewirkt nichts, ohne dass ein " +
+            "Fehler auffällt. Ebenfalls neu: ein Hinweis auf eingeschaltete „Ausführliche " +
+            "Protokollausgaben\", die im Dauerbetrieb das Log füllen.",
+
+            "Neuer Hinweis zu „steuern\" und „aktualisieren\" in Blockly. Der Baustein " +
+            "„Zustand steuern\" schreibt unquittiert (ack=false) und ist für " +
+            "Adapter-Datenpunkte gedacht — der Adapter reagiert nur darauf und quittiert " +
+            "selbst, sobald er den Befehl ausgeführt hat. „Zustand aktualisieren\" " +
+            "schreibt quittiert (ack=true) und gehört zu selbst angelegten Datenpunkten. " +
+            "Gemeldet wird beides falsch herum: „aktualisieren\" auf einem " +
+            "Adapter-Datenpunkt, wo dann nichts passiert, und „steuern\" auf einem eigenen " +
+            "Datenpunkt. Letzteres nur, wenn der Datenpunkt im Backup tatsächlich " +
+            "unquittiert liegt und ihn kein anderes Skript als Befehl entgegennimmt — als " +
+            "Befehlskanal zwischen zwei Skripten ist „steuern\" nämlich richtig. Ein " +
+            "Sammelskript, das nur quittiert und sonst nichts tut, zählt dabei nicht als " +
+            "Befehlskanal: Es macht unquittierte Werte in der Objektübersicht weiß, ändert " +
+            "an der Ursache aber nichts.",
+        }),
+
         new("1.21.1", "23.08.2026", new[]
         {
             "Die plattformübergreifende Fassung läuft jetzt tatsächlich unter Linux. " +

@@ -32,6 +32,64 @@ public static class OverviewPresenter
         $"Enums: {data.EnumCount:N0}";
 
     /// <summary>
+    /// Höchstens so viele Instanzen werden in der Warnzeile namentlich genannt. Darüber
+    /// hinaus zählt sie die restlichen nur noch — sonst wird aus einem Hinweis eine Tabelle.
+    /// </summary>
+    private const int MaxNamedOverLimit = 8;
+
+    /// <summary>
+    /// Instanzen, deren Objektzahl über ihrem Limit liegt — größte zuerst. Genau diese
+    /// beanstandet der js-controller beim Start mit „This instance has N objects, the limit
+    /// for this instance is set to M." und legt dazu eine System-Meldung an
+    /// (Kategorie numberObjectsLimitExceeded, Schweregrad alert).
+    /// </summary>
+    public static List<AdapterInstance> OverObjectLimit(BackupData data) =>
+        data.Instances
+            .Where(i => i.OverObjectLimit)
+            .OrderByDescending(i => i.ObjectCount)
+            .ThenBy(i => i.Adapter, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(i => i.Instance)
+            .ToList();
+
+    /// <summary>
+    /// Die Warnzeile unter den Kennzahlen — <b>null</b>, wenn keine Instanz über ihrem Limit
+    /// liegt. Dann zeigt die Oberfläche gar nichts an: Ein Hinweis, der immer dasteht, wird
+    /// nicht gelesen.
+    ///
+    /// Deaktivierte Instanzen werden mitgezählt, aber gekennzeichnet — sie starten nicht und
+    /// melden im Betrieb deshalb nichts. Ihre Objekte liegen trotzdem in der Datenbank.
+    /// </summary>
+    public static string? ObjectLimitWarning(BackupData data)
+    {
+        var over = OverObjectLimit(data);
+        if (over.Count == 0) return null;
+
+        var named = over.Take(MaxNamedOverLimit)
+                        .Select(i => $"{i.Namespace}: {i.ObjectCount:N0} von {i.ObjectLimit:N0}"
+                                     + (i.Enabled ? "" : " (deaktiviert)"));
+
+        var list = string.Join("   ·   ", named);
+        var rest = over.Count - MaxNamedOverLimit;
+        if (rest > 0) list += $"   ·   … und {rest} weitere";
+
+        var head = over.Count == 1
+            ? "⚠ 1 Instanz über dem Objekt-Limit"
+            : $"⚠ {over.Count} Instanzen über dem Objekt-Limit";
+
+        return $"{head} — ioBroker meldet das bei jedem Start dieser Instanzen:\n{list}";
+    }
+
+    /// <summary>
+    /// Erklärung zur Warnzeile, für den Kurzhinweis der Oberfläche. Bewusst kurz: Das Limit
+    /// ist eine Leistungswarnung, kein Fehler — nichts ist kaputt, nur groß geworden.
+    /// </summary>
+    public const string ObjectLimitHint =
+        "ioBroker warnt, sobald eine Instanz mehr Objekte hat als ihr Limit erlaubt " +
+        "(Vorgabe 5.000, je Instanz einstellbar). Das ist eine Leistungswarnung, kein Defekt: " +
+        "Viele Objekte verlangsamen Start, Admin und Backup. Meist lohnt der Blick, ob die " +
+        "Instanz Datenpunkte anlegt, die niemand braucht.";
+
+    /// <summary>
     /// Instanzen nach Adaptername filtern. Leerer Suchbegriff heißt „alles".
     /// Groß-/Kleinschreibung spielt hier bewusst keine Rolle — anders als bei ID-Vergleichen,
     /// weil der Nutzer den Namen tippt und nicht kopiert.

@@ -162,6 +162,21 @@ Erkannt wird am **Inhalt**, nicht am Dateinamen.
 Backup-Datum, Objekt- und State-Zahlen, Tabelle aller Adapter-Instanzen mit Version,
 Aktivierungsstatus und Anzahl zugehöriger Objekte. Spaltenklick sortiert.
 
+**Objektlimit je Instanz.** Liegt eine Instanz über ihrem Limit, erscheint über dem Filter
+eine Warnzeile, und ihre Objektzahl wird orange hervorgehoben. Die Grenze ist dieselbe, die
+ioBroker selbst zieht: Der js-controller prüft sie bei jedem Start einer Instanz und meldet
+`This instance has N objects, the limit for this instance is set to M.` — dazu eine
+System-Meldung der Kategorie `numberObjectsLimitExceeded`. Vorgabe sind **5.000 Objekte je
+Instanz** (`DEFAULT_OBJECTS_WARN_LIMIT`); ein Adapter kann über `defaultObjectsWarnLimit`
+einen eigenen Wert mitbringen, der dann aus `system.adapter.<ns>.objectsWarnLimit` gelesen
+wird. Das ist eine Leistungswarnung, kein Defekt — viele Objekte verlangsamen Start, Admin
+und Backup.
+
+> Ein **von Hand** hochgesetztes Limit bleibt unsichtbar: Es steht im *Wert* des Datenpunkts,
+> und State-Werte lädt der Analyzer bewusst nicht. Gelesen wird nur der Vorgabewert aus dem
+> Objekt. Deaktivierte Instanzen werden mitgezählt, aber gekennzeichnet — sie starten nicht
+> und melden im Betrieb deshalb nichts, ihre Objekte liegen aber trotzdem in der Datenbank.
+
 ### Tab „Backup-Prüfung"
 Prüft, ob das Backup heil ist — nach demselben Muster wie `iobroker backup` es beim Erstellen
 tut. `objects.jsonl` und `states.jsonl` werden zeilenweise streng als JSON geprüft (Pflicht:
@@ -215,6 +230,10 @@ Die Spalte **„Hinweise"** meldet drei Muster im **Aufbau eines Blockly-Skripts
 | **Trigger im Trigger** | Ein Auslöser steht im Rumpf eines anderen. Er wird bei jeder Auslösung des äußeren erneut angelegt und nie wieder entfernt — nach einigen Stunden laufen dieselben Aktionen vielfach parallel. Der Blockly-Editor zeigt an dieser Stelle selbst ein Warndreieck. |
 | **Abgelöster Baustein** | Der javascript-Adapter führt ihn selbst mit dem Zusatz `(deprecated)`. Derzeit ist das genau einer: `request` — Nachfolger ist „HTTP-Get". Er funktioniert noch, wird aber nicht mehr gepflegt. |
 | **Trigger ohne Inhalt** | Ein Auslöser ohne Rumpf: Er reagiert auf Änderungen und führt nichts aus. Meist ein Überbleibsel vom Umbauen. |
+| **Debug-Modus aktiv** | `common.debug` ist gesetzt. Kein Protokollschalter: Der javascript-Adapter unterdrückt jede schreibende Operation — `setState`, `exec` und `writeFile` passieren nicht, sondern werden nur als Warnung protokolliert (`was not executed, while debug mode is active`, siehe `src/lib/sandbox.ts`). Das Skript läuft und bewirkt nichts. Gilt für jede Sprache, nicht nur Blockly. |
+| **Ausführliches Protokoll** | `common.verbose` ist gesetzt. Jede interne Operation des Sandkastens landet als `info` im Log — zum Fehlersuchen gedacht, nicht für den Dauerbetrieb. Gilt ebenfalls für jede Sprache. |
+| **steuern statt aktualisieren** | „Zustand steuern" auf einem selbst angelegten Datenpunkt (`0_userdata`, `javascript`), der im Backup **unquittiert** liegt. Steuern schreibt `ack=false` — einen Befehl, den normalerweise ein Adapter quittiert. Bei einem eigenen Datenpunkt gibt es keinen; der Wert bleibt für immer ein offener Befehl. Richtig wäre „Zustand aktualisieren". **Ausgenommen sind echte Befehlskanäle:** Nimmt ein anderes Skript den Datenpunkt als Befehl entgegen — erkennbar an einem Auslöser, der etwas tut und dabei auf `ack=false` lauscht oder mit dem Baustein „quittieren" antwortet —, ist „steuern" richtig und es gibt keinen Hinweis. Ein Sammelskript, das **nur** quittiert, zählt bewusst nicht dazu: Es macht die rote Darstellung in der Objektübersicht weiß, ändert an der Ursache aber nichts. |
+| **aktualisieren statt steuern** | „Zustand aktualisieren" auf einem Adapter-Datenpunkt. Das schreibt `ack=true`, als hätte das Gerät gemeldet — der Adapter reagiert nur auf unquittierte Änderungen und führt deshalb nichts aus. Richtig wäre „Zustand steuern". |
 
 Unter der Liste steht zu jedem Befund die Begründung und die **Baustein-ID** — dieselbe, die
 auch der Blockly-Editor führt, sodass sich die Stelle im Skript wiederfinden lässt. Der

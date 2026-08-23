@@ -15,6 +15,8 @@ public partial class OverviewView : UserControl
 {
     private readonly TextBlock _header;
     private readonly TextBlock _metrics;
+    private readonly Border _limitWarningBox;
+    private readonly TextBlock _limitWarning;
     private readonly TextBox _filter;
     private readonly TextBlock _count;
     private readonly Button _csv;
@@ -38,6 +40,8 @@ public partial class OverviewView : UserControl
 
         _header = this.FindControl<TextBlock>("Header")!;
         _metrics = this.FindControl<TextBlock>("Metrics")!;
+        _limitWarningBox = this.FindControl<Border>("LimitWarningBox")!;
+        _limitWarning = this.FindControl<TextBlock>("LimitWarning")!;
         _filter = this.FindControl<TextBox>("Filter")!;
         _count = this.FindControl<TextBlock>("Count")!;
         _csv = this.FindControl<Button>("Csv")!;
@@ -51,6 +55,7 @@ public partial class OverviewView : UserControl
         _noInstanceSection = this.FindControl<Grid>("NoInstanceSection")!;
 
         _noInstanceHint.Text = OverviewPresenter.NoInstanceHint;
+        ToolTip.SetTip(_limitWarningBox, OverviewPresenter.ObjectLimitHint);
 
         _filter.TextChanged += (_, _) => ApplyFilter();
         _csv.Click += async (_, _) => await ExportInstancesAsync();
@@ -60,9 +65,17 @@ public partial class OverviewView : UserControl
         // Trigger wie WPF; die Stilklasse wird deshalb beim Aufbau der Zeile gesetzt.
         _instances.LoadingRow += (_, e) =>
         {
-            var enabled = (e.Row.DataContext as AdapterInstance)?.Enabled ?? true;
+            var instance = e.Row.DataContext as AdapterInstance;
+
+            var enabled = instance?.Enabled ?? true;
             if (enabled) e.Row.Classes.Remove("deaktiviert");
             else if (!e.Row.Classes.Contains("deaktiviert")) e.Row.Classes.Add("deaktiviert");
+
+            // Mehr Objekte als das Limit erlaubt — der Stil färbt daraufhin allein die
+            // Spalte „Objekte" ein, nicht die ganze Zeile.
+            var over = instance?.OverObjectLimit ?? false;
+            if (!over) e.Row.Classes.Remove("ueberlimit");
+            else if (!e.Row.Classes.Contains("ueberlimit")) e.Row.Classes.Add("ueberlimit");
         };
 
         SetData(null);
@@ -79,6 +92,8 @@ public partial class OverviewView : UserControl
         {
             _header.Text = "";
             _metrics.Text = "";
+            _limitWarning.Text = "";
+            _limitWarningBox.IsVisible = false;
             _count.Text = "";
             _filtered = new List<AdapterInstance>();
             _adaptersWithoutInstance = new List<AdapterWithoutInstance>();
@@ -101,6 +116,10 @@ public partial class OverviewView : UserControl
 
         _header.Text = OverviewPresenter.HeaderText(data);
         _metrics.Text = OverviewPresenter.MetricsText(data);
+
+        var warning = OverviewPresenter.ObjectLimitWarning(data);
+        _limitWarning.Text = warning ?? "";
+        _limitWarningBox.IsVisible = warning is not null;
 
         _adaptersWithoutInstance = OrphanAnalyzer.FindAdaptersWithoutInstance(data);
         _noInstance.ItemsSource = _adaptersWithoutInstance;
