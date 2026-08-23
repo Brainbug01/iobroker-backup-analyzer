@@ -35,6 +35,13 @@ public sealed class UserSettings
 
     private static readonly Dictionary<string, string> ResolvedPaths = new(StringComparer.Ordinal);
 
+    /// <summary>
+    /// Der Ort, an dem eine Begleitdatei liegt — neben dem Programm, sonst im
+    /// Anwendungsdatenordner. Auch das Ladeprotokoll nutzt diese Auflösung, damit alles,
+    /// was das Programm ablegt, am selben Ort liegt.
+    /// </summary>
+    public static string ResolveFilePath(string fileName) => ResolvePath(fileName);
+
     private static string ResolvePath(string fileName)
     {
         if (ResolvedPaths.TryGetValue(fileName, out var known)) return known;

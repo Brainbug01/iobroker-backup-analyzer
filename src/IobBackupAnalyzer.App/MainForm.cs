@@ -279,10 +279,22 @@ public sealed class MainForm : Form
         SetBusy(true, "Datei wird gelesen …");
         var sw = System.Diagnostics.Stopwatch.StartNew();
 
+        // Das Protokoll wird vom jeweils arbeitenden Thread geschrieben, nicht über die
+        // Fortschrittsmeldung: Sonst fehlte genau die letzte Zeile, wenn es der UI-Thread
+        // ist, der nicht mehr weiterkommt.
+        using var log = LoadLog.Start(LoadLog.DefaultPath(), AppInfo.Version, path);
+
         try
         {
             var progress = new Progress<string>(msg => _statusText.Text = msg);
-            var data = await BackupLoader.LoadAsync(path, progress, _cts.Token);
+            var data = await BackupLoader.LoadAsync(path, progress, _cts.Token, log);
+
+            // Die schweren Analysen laufen im Hintergrund, nicht beim Füllen der Tabs.
+            // Vorher blockierten sie das Fenster für ihre gesamte Rechenzeit.
+            _statusText.Text = "Backup wird analysiert …";
+            var analysen = await Task.Run(
+                () => AnalysisResults.Compute(data, log, _cts.Token), _cts.Token);
+
             sw.Stop();
 
             _data = data;
@@ -291,7 +303,7 @@ public sealed class MainForm : Form
             _btnRecent.Tag = path;
             _btnRecent.Enabled = true;
 
-            ApplyData(data);
+            ApplyData(data, analysen, log);
 
             var kind = data.Kind == BackupKind.Full ? "Voll-Backup" : "Skript-Backup";
             _lblFile.Text = $"{Path.GetFileName(path)}   ·   {kind}   ·   " +
@@ -343,6 +355,11 @@ public sealed class MainForm : Form
         _statusText.Text = "Laden fehlgeschlagen.";
         var extra = log ? "\r\n\r\nDetails wurden protokolliert in:\r\n" + Program.ErrorLogPath : "";
 
+        // Der Ladevorgang selbst wird ebenfalls mitgeschrieben. Der Pfad gehört hierher,
+        // weil man ihn genau dann sucht — und weil das Protokoll auch dann etwas hergibt,
+        // wenn gar kein Fehler kam, sondern das Fenster einfach stehen blieb.
+        extra += "\r\n\r\nDer Ablauf des Ladevorgangs steht in:\r\n" + LoadLog.DefaultPath();
+
         MessageBox.Show(this,
             $"Datei: {Path.GetFileName(path)}\r\n\r\n{message}{extra}",
             "Backup konnte nicht geladen werden", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -378,19 +395,32 @@ public sealed class MainForm : Form
         _statusText.Text = msg;
     }
 
-    private void ApplyData(BackupData data)
+    private void ApplyData(BackupData data, AnalysisResults? analysen = null, LoadLog? log = null)
     {
-        _scripts.SetData(data);
-        _usage.SetData(data);
-        _overview.SetData(data);
-        _backupCheck.SetData(data);
-        _vis.SetData(data);
-        _orphans.SetData(data);
-        _logging.SetData(data);
-        _aliases.SetData(data);
-        _files.SetData(data);
-        _compare.SetData(data);
+        // Die Tabs bekommen die fertigen Analysen und füllen nur noch ihre Listen. Das
+        // dauert trotzdem einen Moment — deshalb sagt die Statuszeile, welcher Tab gerade
+        // dran ist, und das Fenster darf sich zwischendurch neu zeichnen. Ohne das steht
+        // die Beschriftung des letzten Ladeschritts da, während scheinbar nichts passiert.
+        void Schritt(string name, Action fuellen)
+        {
+            _statusText.Text = $"{name} wird aufgebaut …";
+            log?.Step($"Tab: {name}");
+            Application.DoEvents();
+            fuellen();
+        }
+
+        Schritt("Skripte", () => _scripts.SetData(data));
+        Schritt("Verwendung", () => _usage.SetData(data, analysen));
+        Schritt("Übersicht", () => _overview.SetData(data));
+        Schritt("Backup-Prüfung", () => _backupCheck.SetData(data));
+        Schritt("VIS-Datenpunkte", () => _vis.SetData(data, analysen));
+        Schritt("Verwaiste Datenpunkte", () => _orphans.SetData(data, analysen));
+        Schritt("Logging", () => _logging.SetData(data));
+        Schritt("Aliasse", () => _aliases.SetData(data));
+        Schritt("Dateien", () => _files.SetData(data));
+        Schritt("Vergleich", () => _compare.SetData(data));
         SetAvailability(data);
+        log?.Step("Alle Tabs aufgebaut");
 
         // Bei einem reinen Skript-Backup direkt auf den einzigen nutzbaren Tab springen.
         _tabs.SelectedTab = data.Kind == BackupKind.Full ? _pageOverview : _pageScripts;

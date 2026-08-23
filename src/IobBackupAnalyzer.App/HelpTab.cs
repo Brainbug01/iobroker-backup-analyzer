@@ -59,9 +59,9 @@ public sealed class HelpTab : UserControl
         {
             switch (block.Kind)
             {
-                case HelpBlockKind.Title: H1(block.Text); break;
-                case HelpBlockKind.Heading: H2(block.Text); break;
-                default: P(block.Text); break;
+                case HelpBlockKind.Title: H1(HelpContent.Resolve(block.Text)); break;
+                case HelpBlockKind.Heading: H2(HelpContent.Resolve(block.Text)); break;
+                default: P(HelpContent.Resolve(block.Text)); break;
             }
         }
 

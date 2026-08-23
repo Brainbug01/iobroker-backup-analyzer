@@ -133,7 +133,7 @@ public partial class OrphansView : UserControl
 
     private StateView CurrentStateView => (StateView)Math.Max(0, _viewC.SelectedIndex);
 
-    public void SetData(BackupData? data)
+    public void SetData(BackupData? data, AnalysisResults? fertig = null)
     {
         _data = data;
 
@@ -157,9 +157,9 @@ public partial class OrphansView : UserControl
             return;
         }
 
-        _orphans = OrphanAnalyzer.FindOrphanObjects(data);
-        _unused = OrphanAnalyzer.FindUnusedDatapoints(data);
-        _states = StateAnalyzer.Analyze(data);
+        _orphans = fertig?.Orphans ?? OrphanAnalyzer.FindOrphanObjects(data);
+        _unused = fertig?.Unused ?? OrphanAnalyzer.FindUnusedDatapoints(data);
+        _states = fertig?.States ?? StateAnalyzer.Analyze(data);
 
         // Aufräum-Skript nur anbieten, wenn es überhaupt Werte-Leichen gibt.
         _cleanupC.IsEnabled = _states.StatesWithoutObject.Count > 0;

@@ -67,6 +67,18 @@ public static class BackupCheckPresenter
                             : v.States.Present ? CheckSeverity.Problem : CheckSeverity.Info)
         };
 
+        // Gefundene, aber nicht verwendete Pflichtdateien zuerst: Wer ein Archiv vor sich
+        // hat, in dem eine zweite objects.jsonl steckt, soll das erfahren, bevor er sich
+        // über Zahlen wundert. Ein Befund ist es nicht — die richtige Datei wurde ja
+        // genommen —, aber eine Auskunft, die man kennen will.
+        foreach (var doppelt in v.IgnoredDuplicates)
+            rows.Add(new CheckRow(doppelt, "Übergangen", "nicht verwendet",
+                                  "Diese Datei trägt den Namen einer Pflichtdatei, liegt aber nicht "
+                                + "oben im Archiv. Sie stammt vermutlich aus einem mitgesicherten "
+                                + "fremden Backup und wurde deshalb nicht verwendet — gelesen wurde "
+                                + "die Datei aus dem Wurzelordner.",
+                                  CheckSeverity.Info));
+
         foreach (var f in v.OptionalFiles
                      .OrderBy(f => f.Valid)
                      .ThenBy(f => f.ShortPath, StringComparer.OrdinalIgnoreCase))

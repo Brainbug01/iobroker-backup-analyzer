@@ -27,7 +27,7 @@ public partial class HelpView : UserControl
         {
             var text = new TextBlock
             {
-                Text = block.Text,
+                Text = HelpContent.Resolve(block.Text),
                 TextWrapping = TextWrapping.Wrap
             };
 

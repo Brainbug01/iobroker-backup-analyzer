@@ -185,12 +185,22 @@ public partial class MainWindow : Window
         // die Zustellung auf dem UI-Thread sicher, weil es hier erzeugt wird.
         var progress = new Progress<string>(msg => _lblStatus.Text = msg);
 
+        // Aus dem arbeitenden Thread geschrieben, damit die letzte Zeile auch dann auf der
+        // Platte steht, wenn das Fenster nicht mehr reagiert.
+        using var log = LoadLog.Start(LoadLog.DefaultPath(), AppInfo.Version, path);
+
         try
         {
-            var data = await BackupLoader.LoadAsync(path, progress, ct);
+            var data = await BackupLoader.LoadAsync(path, progress, ct, log);
             if (ct.IsCancellationRequested) return;
 
-            SetData(data);
+            // Die schweren Analysen laufen im Hintergrund und nicht mehr dort, wo die
+            // Ansichten ihre Daten bekommen — das ist der UI-Thread.
+            _lblStatus.Text = "Backup wird analysiert …";
+            var analysen = await Task.Run(() => AnalysisResults.Compute(data, log, ct), ct);
+            if (ct.IsCancellationRequested) return;
+
+            SetData(data, analysen, log);
 
             // Erst nach erfolgreichem Laden merken — ein Pfad, der nicht funktioniert hat,
             // gehört nicht hinter den Knopf „Zuletzt geöffnet".
@@ -210,9 +220,10 @@ public partial class MainWindow : Window
         {
             SetData(null);
             _lblStatus.Text = "Laden fehlgeschlagen.";
-            await ShowErrorAsync(ex is NotABackupException
+            var wo = $"\n\nDer Ablauf des Ladevorgangs steht in:\n{LoadLog.DefaultPath()}";
+            await ShowErrorAsync((ex is NotABackupException
                 ? ex.Message
-                : $"Die Datei konnte nicht gelesen werden.\n\n{ex.Message}");
+                : $"Die Datei konnte nicht gelesen werden.\n\n{ex.Message}") + wo);
         }
         finally
         {
@@ -228,20 +239,27 @@ public partial class MainWindow : Window
     /// <c>internal</c>, damit der Selbsttest (<c>--selftest</c>) alle Ansichten mit echten
     /// Daten befüllen kann statt nur ihre Konstruktion zu prüfen.
     /// </summary>
-    internal void SetData(BackupData? data)
+    internal void SetData(BackupData? data, AnalysisResults? analysen = null, LoadLog? log = null)
     {
         _data = data;
 
-        _overview.SetData(data);
-        _backupCheck.SetData(data);
-        _vis.SetData(data);
-        _orphans.SetData(data);
-        _scripts.SetData(data);
-        _usage.SetData(data);
-        _compare.SetData(data);
-        _logging.SetData(data);
-        _aliases.SetData(data);
-        _files.SetData(data);
+        void Schritt(string name, Action fuellen)
+        {
+            log?.Step($"Ansicht: {name}");
+            fuellen();
+        }
+
+        Schritt("Übersicht", () => _overview.SetData(data));
+        Schritt("Backup-Prüfung", () => _backupCheck.SetData(data));
+        Schritt("VIS-Datenpunkte", () => _vis.SetData(data, analysen));
+        Schritt("Verwaiste Datenpunkte", () => _orphans.SetData(data, analysen));
+        Schritt("Skripte", () => _scripts.SetData(data));
+        Schritt("Verwendung", () => _usage.SetData(data, analysen));
+        Schritt("Vergleich", () => _compare.SetData(data));
+        Schritt("Logging", () => _logging.SetData(data));
+        Schritt("Aliasse", () => _aliases.SetData(data));
+        Schritt("Dateien", () => _files.SetData(data));
+        log?.Step("Alle Ansichten aufgebaut");
     }
 
     private void SetBusy(bool busy)

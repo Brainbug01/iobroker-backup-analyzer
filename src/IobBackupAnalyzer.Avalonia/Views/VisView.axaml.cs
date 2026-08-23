@@ -77,7 +77,7 @@ public partial class VisView : UserControl
         SetData(null);
     }
 
-    public void SetData(BackupData? data)
+    public void SetData(BackupData? data, AnalysisResults? fertig = null)
     {
         _data = data;
 
@@ -98,7 +98,7 @@ public partial class VisView : UserControl
             return;
         }
 
-        _all = VisAnalyzer.Analyze(data);
+        _all = fertig?.Vis ?? VisAnalyzer.Analyze(data);
         _summary.Text = VisPresenter.SummaryText(_all, data);
         FillProjects();
 

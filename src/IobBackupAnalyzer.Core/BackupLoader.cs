@@ -27,20 +27,26 @@ public static class BackupLoader
         new(@"(\d{4})_(\d{2})_(\d{2})-(\d{2})_(\d{2})_(\d{2})", RegexOptions.Compiled,
             RegexLimits.MatchTimeout);
 
+    /// <param name="log">
+    /// Optionales Ladeprotokoll. Es wird aus <b>diesem</b> Thread beschrieben, damit die
+    /// letzte Zeile auch dann auf der Platte steht, wenn das Programm anschließend nicht
+    /// mehr reagiert. Siehe <see cref="LoadLog"/>.
+    /// </param>
     public static Task<BackupData> LoadAsync(string path, IProgress<string>? progress = null,
-                                             CancellationToken ct = default)
-        => Task.Run(() => Load(path, progress, ct), ct);
+                                             CancellationToken ct = default, LoadLog? log = null)
+        => Task.Run(() => Load(path, progress, ct, log), ct);
 
     public static BackupData Load(string path, IProgress<string>? progress = null,
-                                  CancellationToken ct = default)
+                                  CancellationToken ct = default, LoadLog? log = null)
     {
         if (!File.Exists(path))
             throw new NotABackupException($"Die Datei wurde nicht gefunden:\r\n{path}");
 
         var createdAt = ParseDateFromName(path) ?? File.GetLastWriteTime(path);
+        log?.Step($"Datei geoeffnet ({LoadLog.Groesse(new FileInfo(path).Length)})");
 
         if (LooksLikeGzip(path))
-            return LoadFromArchive(path, createdAt, compressed: true, progress, ct);
+            return LoadFromArchive(path, createdAt, compressed: true, progress, ct, log);
 
         // Ein Backitup-Archiv ohne gzip-Hülle ist kein Sonderfall, sondern auf macOS der
         // Regelfall: Safari und iCloud Drive packen .gz beim Herunterladen selbsttätig aus,
@@ -83,7 +89,8 @@ public static class BackupLoader
     /// einzigen Durchlauf alles Relevante eingesammelt. Nichts wird auf Platte entpackt.
     /// </summary>
     private static BackupData LoadFromArchive(string path, DateTime createdAt, bool compressed,
-                                              IProgress<string>? progress, CancellationToken ct)
+                                              IProgress<string>? progress, CancellationToken ct,
+                                              LoadLog? log = null)
     {
         List<IobObject>? objects = null;
         List<ScriptInfo>? scripts = null;
@@ -104,6 +111,62 @@ public static class BackupLoader
         using (var tar = new TarReader(source))
         {
             TarEntry? entry;
+            var geprueft = 0;
+
+            // Wurde die jeweilige Pflichtdatei bereits OBEN im Archiv gefunden? Ein späterer
+            // Fund weiter unten darf einen solchen nie überschreiben.
+            var objectsOben = false;
+            var statesOben = false;
+            var scriptOben = false;
+            var scriptQuelleGefunden = false;
+
+            // Wo der bisher verwendete Fund lag — wird er später durch einen von oben
+            // ersetzt, gehört er in die Liste der übergangenen Funde.
+            string? objectsPfad = null;
+            string? statesPfad = null;
+            string? scriptPfad = null;
+
+            /// <summary>
+            /// Entscheidet, ob ein Fund verwendet wird.
+            ///
+            /// <b>Warum das nötig ist:</b> Erkannt wurde bisher allein am Dateinamen. Ein
+            /// Archiv, das ein zweites Backup enthält — ein Adapter, der seine eigenen Daten
+            /// mitsichert, ein versehentlich mitgepacktes Backup —, überschrieb damit
+            /// stillschweigend die echte Objektliste; angezeigt wurde anschließend die
+            /// falsche Anlage. Das macht keine Symptome, nur falsche Zahlen.
+            ///
+            /// <b>Warum nicht einfach alles unterhalb verwerfen:</b> Die Eintragsnamen in
+            /// echten Archiven sind erstaunlich verschieden — manche tragen einen Vorspann,
+            /// den der Tar-Leser mitliefert, andere legen die Datei ohne Ordner in die
+            /// Wurzel. Ein zu strenger Filter würde ein Backup gar nicht mehr laden. Deshalb
+            /// gilt: „oben" schlägt „unten", aber gibt es nichts oben, wird der Fund von
+            /// unten weiterhin genommen.
+            /// </summary>
+            bool Annehmen(string pfad, string datei, bool schonVorhanden, ref bool schonOben,
+                          ref string? bisher)
+            {
+                var oben = IsTopLevel(pfad, datei);
+
+                if (!schonVorhanden)
+                {
+                    schonOben = oben;
+                    bisher = pfad;
+                    return true;
+                }
+
+                if (oben && !schonOben)
+                {
+                    // Der bisher genommene Fund lag weiter unten — er wird ersetzt, aber
+                    // nicht verschwiegen.
+                    if (bisher is not null) validation.IgnoredDuplicates.Add(CleanEntryPath(bisher));
+                    schonOben = true;
+                    bisher = pfad;
+                    return true;
+                }
+
+                validation.IgnoredDuplicates.Add(CleanEntryPath(pfad));
+                return false;
+            }
             while ((entry = ReadNextEntrySafe(tar, out var readFailed)) is not null || readFailed)
             {
                 ct.ThrowIfCancellationRequested();
@@ -119,6 +182,7 @@ public static class BackupLoader
 
                 validation.EntriesRead++;
                 var name = entry!.Name.Replace('\\', '/');
+                log?.Detail($"Eintrag {validation.EntriesRead}: {LoadLog.Beschreibe(name, entry.Length)}");
 
                 // Kenndaten aller Dateien aus dem files/-Baum einsammeln — im selben
                 // Durchlauf, denn ein Tar lässt sich nur einmal vorwärts lesen. Der Inhalt
@@ -138,21 +202,37 @@ public static class BackupLoader
 
                 if (EndsWith(name, "objects.jsonl"))
                 {
+                    if (!Annehmen(name, "objects.jsonl", objects is not null, ref objectsOben,
+                                  ref objectsPfad))
+                        continue;
+
                     progress?.Report("Objekte werden gelesen …");
+                    log?.Step("objects.jsonl wird gelesen");
                     validation.Objects.Present = true;
                     objects = ReadObjectsJsonl(entry.DataStream, identity, validation.Objects, out var s, ct);
                     skipped += s;
                     isFull = true;
+                    log?.Step($"objects.jsonl fertig: {objects.Count:N0} Objekte, {s:N0} uebersprungen");
                 }
                 else if (EndsWith(name, "states.jsonl"))
                 {
+                    if (!Annehmen(name, "states.jsonl", states is not null, ref statesOben,
+                                  ref statesPfad))
+                        continue;
+
                     progress?.Report("States werden gelesen …");
+                    log?.Step("states.jsonl wird gelesen");
                     validation.States.Present = true;
                     states = ReadStatesJsonl(entry.DataStream, validation.States, out stateCount, ct);
                     isFull = true;
+                    log?.Step($"states.jsonl fertig: {stateCount:N0} Zeilen");
                 }
                 else if (EndsWith(name, "backup.json"))
                 {
+                    if (!Annehmen(name, "backup.json", objects is not null, ref objectsOben,
+                                  ref objectsPfad))
+                        continue;
+
                     // Ältere Backitup-Version: klassisches JSON-Objekt.
                     progress?.Report("backup.json wird gelesen …");
                     var res = ReadClassicJson(entry.DataStream, ct);
@@ -163,6 +243,11 @@ public static class BackupLoader
                 }
                 else if (EndsWith(name, "script.json"))
                 {
+                    if (!Annehmen(name, "script.json", scriptQuelleGefunden, ref scriptOben,
+                                  ref scriptPfad))
+                        continue;
+                    scriptQuelleGefunden = true;
+
                     progress?.Report("Skripte werden gelesen …");
                     var res = ReadClassicJson(entry.DataStream, ct);
                     // Ein Voll-Backup kann zusätzlich eine script.json enthalten; die
@@ -181,14 +266,23 @@ public static class BackupLoader
                 else if (IsFilesJson(name))
                 {
                     // Alle JSON-Dateien aus dem files/-Baum für die Backup-Prüfung strikt
-                    // validieren (wie der js-controller: files/**/*.json optional). Die
-                    // vis-views.json wird zusätzlich als Inhalt für die VIS-Auswertung behalten.
-                    var text = ReadAllTextDetectingBom(entry.DataStream, out var hasBom, ct);
-                    validation.OptionalFiles.Add(ValidateJson(CleanEntryPath(name), text, hasBom));
-
+                    // validieren (wie der js-controller: files/**/*.json optional).
+                    //
+                    // Der Inhalt wird dabei NICHT in den Speicher geholt: Die Prüfung braucht
+                    // nur „gültig ja/nein" samt Fehlertext und wirft den Text sofort weg.
+                    // Vorher wurde jede Datei komplett gepuffert — bei einer großen JSON eines
+                    // fremden Adapters waren das mehrere Kopien der Datei im Arbeitsspeicher,
+                    // und das Programm schien minutenlang zu stehen.
+                    //
+                    // Einzige Ausnahme ist die vis-views.json: Ihr Inhalt wird für die
+                    // VIS-Auswertung gebraucht und deshalb einmal gelesen.
                     if (EndsWith(name, "vis-views.json"))
                     {
                         progress?.Report("VIS-Views werden gelesen …");
+                        log?.Step($"vis-views.json wird gelesen ({LoadLog.Groesse(entry.Length)})");
+                        var text = ReadAllTextDetectingBom(entry.DataStream, out var hasBom, ct);
+                        validation.OptionalFiles.Add(ValidateJson(CleanEntryPath(name), text, hasBom));
+
                         visViews.Add(new VisFile
                         {
                             // vis-2.0 muss vor vis.0 geprüft werden — sonst matcht "vis." beides.
@@ -199,6 +293,18 @@ public static class BackupLoader
                             Path = CleanEntryPath(name),
                             Content = text
                         });
+                    }
+                    else
+                    {
+                        geprueft++;
+                        if (geprueft % 250 == 0)
+                        {
+                            progress?.Report($"Dateien werden geprüft … ({geprueft:N0})");
+                            log?.Step($"{geprueft:N0} JSON-Dateien geprueft");
+                        }
+
+                        validation.OptionalFiles.Add(
+                            ValidateJsonStream(CleanEntryPath(name), entry.DataStream, ct));
                     }
                 }
             }
@@ -219,8 +325,15 @@ public static class BackupLoader
         validation.WasChecked = validation.Objects.Present;
         validation.SkippedObjects = skipped;
 
-        return Build(path, createdAt, isFull, objects, scripts, visViews, stateCount, skipped,
-                     states, system, validation, files);
+        log?.Step($"Archiv durchlaufen: {validation.EntriesRead:N0} Eintraege, " +
+                  $"{validation.OptionalCount:N0} JSON geprueft, {files.Count:N0} Dateien erfasst");
+
+        progress?.Report("Backup wird ausgewertet …");
+        var ergebnis = Build(path, createdAt, isFull, objects, scripts, visViews, stateCount, skipped,
+                             states, system, validation, files, log);
+        log?.Step($"Auswertung fertig: {ergebnis.Instances.Count:N0} Instanzen, " +
+                  $"{ergebnis.Scripts.Count:N0} Skripte");
+        return ergebnis;
     }
 
     /// <summary>true, wenn der Eintrag eine JSON-Datei im files/-Baum ist (nicht die JSONL).</summary>
@@ -341,6 +454,33 @@ public static class BackupLoader
         if (!path.EndsWith(file, StringComparison.OrdinalIgnoreCase)) return false;
         var start = path.Length - file.Length;
         return start == 0 || path[start - 1] == '/';
+    }
+
+    /// <summary>
+    /// Wie <see cref="EndsWith"/>, verlangt aber zusätzlich, dass die Datei <b>oben</b> im
+    /// Archiv liegt: entweder ganz vorn oder unmittelbar in dessen Wurzelordner. Genau dort
+    /// legt Backitup sie ab (<c>backup/objects.jsonl</c>).
+    ///
+    /// Für die vier Pflichtdateien ist das entscheidend: Ohne diese Bedingung gilt jede
+    /// gleichnamige Datei irgendwo im Archiv als die echte — und die zuletzt gelesene
+    /// gewinnt. Siehe <see cref="BackupValidation.IgnoredDuplicates"/>.
+    /// </summary>
+    private static bool IsTopLevel(string path, string file)
+    {
+        if (!EndsWith(path, file)) return false;
+
+        // Beurteilt wird der bereinigte Pfad: Der Tar-Leser liefert die Eintragsnamen
+        // mancher Archive mit einem Vorspann aus Leerzeichen und Zahlen aus — dort steht
+        // der erste Schrägstrich mitten im Vorspann. Siehe CleanEntryPath.
+        var clean = CleanEntryPath(path);
+
+        // Entweder ohne Ordner in der Wurzel (so liegt script.json im Skript-Backup) …
+        if (clean.Equals(file, StringComparison.OrdinalIgnoreCase)) return true;
+
+        // … oder unmittelbar im Wurzelordner des Archivs (backup/objects.jsonl).
+        return clean.Length == file.Length + 7
+               && clean.StartsWith("backup/", StringComparison.OrdinalIgnoreCase)
+               && clean.EndsWith(file, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -593,6 +733,77 @@ public static class BackupLoader
         return DateTimeOffset.FromUnixTimeMilliseconds(ms).LocalDateTime;
     }
 
+    /// <summary>
+    /// Prüft einen JSON-Datenstrom, ohne ihn vollständig in den Speicher zu holen.
+    ///
+    /// <b>Warum nicht einfach <see cref="JsonDocument"/>?</b> Der braucht den ganzen Text.
+    /// Eine JSON-Datei im dreistelligen Megabytebereich — Adapter legen im Dateibereich
+    /// durchaus solche ab — belegte damit ein Vielfaches ihrer Größe an Arbeitsspeicher,
+    /// nur um am Ende ein „gültig" zurückzugeben. <see cref="Utf8JsonReader"/> liest
+    /// stattdessen häppchenweise mit festem Puffer.
+    ///
+    /// Die Regeln sind dieselben wie bei <see cref="ValidateJson"/> und damit dieselben wie
+    /// im js-controller: Kommentare sind ungültig, ein BOM ebenfalls, eine leere Datei auch.
+    /// Auch der Fehlertext ist derselbe — er kommt aus der gleichen
+    /// <see cref="JsonException"/> und wird vom BackupCheckPresenter übersetzt.
+    /// </summary>
+    private static JsonFileCheck ValidateJsonStream(string path, Stream stream, CancellationToken ct)
+    {
+        var buffer = new byte[64 * 1024];
+        var options = new JsonReaderOptions { CommentHandling = JsonCommentHandling.Disallow };
+        var state = new JsonReaderState(options);
+
+        var leftover = 0;
+        var firstBlock = true;
+        var tokens = 0L;
+
+        while (true)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var read = stream.Read(buffer, leftover, buffer.Length - leftover);
+            var length = leftover + read;
+            var isFinal = read == 0;
+
+            // Ein BOM verschluckt der StreamReader stillschweigend; ioBroker lehnt die Datei
+            // deshalb ab, während sie hier als gültig durchginge. Die ersten drei Bytes
+            // werden darum selbst angesehen.
+            if (firstBlock)
+            {
+                firstBlock = false;
+                if (length >= 3 && buffer[0] == 0xEF && buffer[1] == 0xBB && buffer[2] == 0xBF)
+                    return ValidateJson(path, "", hasBom: true);
+            }
+
+            var reader = new Utf8JsonReader(new ReadOnlySpan<byte>(buffer, 0, length), isFinal, state);
+
+            try
+            {
+                while (reader.Read()) tokens++;
+            }
+            catch (JsonException ex)
+            {
+                return new JsonFileCheck { Path = path, Valid = false, Error = ex.Message };
+            }
+
+            state = reader.CurrentState;
+            var consumed = (int)reader.BytesConsumed;
+            leftover = length - consumed;
+
+            if (leftover > 0) Buffer.BlockCopy(buffer, consumed, buffer, 0, leftover);
+            if (isFinal) break;
+
+            // Ein einzelnes Token, das nicht in den Puffer passt (eine sehr lange
+            // Zeichenkette etwa), käme sonst nie voran — dann wächst der Puffer.
+            if (leftover == buffer.Length) Array.Resize(ref buffer, buffer.Length * 2);
+        }
+
+        // Kein einziges Token heißt: leere Datei. Das ist auch für node kein gültiges JSON.
+        // Die Meldung kommt bewusst aus derselben Quelle wie sonst, damit der Text im
+        // Prüfbericht identisch bleibt.
+        return tokens == 0 ? ValidateJson(path, "") : new JsonFileCheck { Path = path, Valid = true };
+    }
+
     private static string ReadAllText(Stream stream, CancellationToken ct)
     {
         using var sr = new StreamReader(stream, Encoding.UTF8, leaveOpen: true);
@@ -627,11 +838,15 @@ public static class BackupLoader
                                     Dictionary<string, StateInfo>? states = null,
                                     SystemIdentity? system = null,
                                     BackupValidation? validation = null,
-                                    List<BackupFileInfo>? files = null)
+                                    List<BackupFileInfo>? files = null,
+                                    LoadLog? log = null)
     {
         var instances = BuildInstances(objects);
+        log?.Step("Instanzen gezaehlt");
         var adapterRefs = BuildAdapterRefs(objects, out var hasAdapterConfig);
+        log?.Step("Adapter-Verweise gesammelt");
         AddAckHints(objects, scripts, instances, states);
+        log?.Step("Skript-Befunde ergaenzt");
 
         return new BackupData
         {

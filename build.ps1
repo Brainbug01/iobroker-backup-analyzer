@@ -270,6 +270,61 @@ if ($LASTEXITCODE -ne 0) { throw "Ordner-Publish fehlgeschlagen." }
 # In der Ordner-Variante liegt die Lizenz direkt neben der EXE.
 Copy-Item $license $stageFolder -Force
 
+# Eine kurze LIESMICH gehoert ins Paket. Der Hinweis auf das Ladeprotokoll steht zwar auch
+# im Tab "Hilfe" - aber genau dann, wenn man ihn braucht, kommt man dort nicht mehr hin:
+# Bleibt das Fenster stehen, ist die Hilfe unerreichbar. Deshalb liegt der Pfad hier
+# daneben, in einer Datei, die man ohne das Programm lesen kann.
+$liesmichWin = @"
+====================================================================
+  ioBroker Backup Analyzer - Windows
+====================================================================
+
+Starten
+-------
+ioBroker-Backup-Analyzer.exe doppelklicken. Keine Installation noetig,
+kein .NET erforderlich - die Laufzeitumgebung liegt im Ordner.
+
+Dann oben links "Backup oeffnen ..." und die von ioBroker erzeugte
+Datei waehlen (iobroker_*_backupiobroker.tar.gz). Das Programm liest
+sie nur; es veraendert nichts und sendet nichts.
+
+Nimm den ganzen Ordner
+----------------------
+Die EXE braucht die Dateien neben sich. Einzeln kopiert startet sie
+nicht. Wer eine einzelne Datei moechte, nimmt die separate
+ioBroker-Backup-Analyzer.exe aus dem uebergeordneten Ordner - die ist
+allerdings unter Smart App Control nicht zuverlaessig.
+
+Wenn das Programm beim Laden stehen bleibt
+------------------------------------------
+Bei jedem Ladevorgang wird ein Protokoll geschrieben - jede Zeile
+sofort, damit auch ein ueber den Task-Manager beendetes Programm die
+Stelle hinterlaesst, an der es nicht weiterkam:
+
+  ladeprotokoll.txt   neben dieser EXE
+                      (bei schreibgeschuetztem Ordner stattdessen
+                       %APPDATA%\ioBroker-Backup-Analyzer\)
+
+Das Protokoll enthaelt nichts aus deiner Anlage: nur Schritte, Zeiten,
+Groessen und die Namensraeume der Adapter - keine Objekt-IDs, keine
+Werte, keine Namen von Skripten, Ansichten oder Geraeten und keine
+vollstaendigen Pfade. Es kann bedenkenlos weitergegeben werden.
+
+Mit KI erstellt
+---------------
+Programmcode, Auswertungslogik und saemtliche Texte stammen von Claude
+(Anthropic). Vor jeder Auslieferung laeuft ein Verifikationslauf gegen
+echte Backups. Die Listen sind Pruef-, keine Loeschlisten - was
+geloescht oder geaendert wird, entscheidest du.
+
+Lizenz: MIT (siehe beiliegende Datei LICENSE).
+"@
+$liesmichWin | Set-Content -Path (Join-Path $stageFolder 'LIESMICH.txt') -Encoding UTF8
+
+# Neben der Einzeldatei liegt dieselbe Erklaerung - dort gibt es keinen Ordner, in dem
+# sie sonst zu finden waere.
+$liesmichWin | Set-Content -Path (Join-Path $dist 'LIESMICH_Windows.txt') -Encoding UTF8
+
 # Den App-Ordner selbst als oberste Ebene ins ZIP legen, damit beim Entpacken ein
 # sauberer Ordner "ioBroker-Backup-Analyzer" entsteht statt eines Stage-Namens.
 $zip = Join-Path $dist 'ioBroker-Backup-Analyzer_Ordner.zip'
@@ -533,6 +588,21 @@ Windows
 ZIP entpacken, ioBroker-Backup-Analyzer.exe starten. Fuer Windows ist die Fassung im
 uebergeordneten Ordner (WinForms) die gepflegte Empfehlung - diese hier ist vor allem
 fuer macOS und Linux gedacht.
+
+Wenn das Programm beim Laden stehen bleibt
+------------------------------------------
+Bei jedem Ladevorgang wird ein Protokoll geschrieben - jede Zeile sofort, damit auch ein
+abgebrochenes Programm die Stelle hinterlaesst, an der es nicht weiterkam:
+
+  Linux/macOS   ladeprotokoll.txt im Programmordner, sonst
+                ~/.config/ioBroker-Backup-Analyzer/ladeprotokoll.txt
+  Windows       ladeprotokoll.txt neben der EXE, sonst
+                %APPDATA%\ioBroker-Backup-Analyzer\ladeprotokoll.txt
+
+Das Protokoll enthaelt nichts aus der Anlage: nur Schritte, Zeiten, Groessen und die
+Namensraeume der Adapter - keine Objekt-IDs, keine Werte, keine Namen von Skripten,
+Ansichten oder Geraeten, keine vollstaendigen Pfade. Es kann bedenkenlos weitergegeben
+werden.
 
 Stand der Portierung
 --------------------

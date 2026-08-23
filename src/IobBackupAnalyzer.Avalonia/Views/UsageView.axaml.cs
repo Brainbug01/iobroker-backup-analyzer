@@ -102,7 +102,7 @@ public partial class UsageView : UserControl
     private Core.UsageDirection CurrentDirection =>
         (Core.UsageDirection)Math.Max(0, _viewChoice.SelectedIndex);
 
-    public void SetData(BackupData? data)
+    public void SetData(BackupData? data, AnalysisResults? fertig = null)
     {
         if (data is null || data.Kind != BackupKind.Full)
         {
@@ -122,7 +122,9 @@ public partial class UsageView : UserControl
             return;
         }
 
-        _report = UsageAnalyzer.Analyze(data);
+        // Im Regelfall im Hintergrund vorberechnet; nur ohne Vorberechnung (Selbsttest,
+        // Bildschirmfotos) wird hier gerechnet.
+        _report = fertig?.Usage ?? UsageAnalyzer.Analyze(data);
         _summary.Text = UsagePresenter.Stats(_report);
         ShowPlaceholder(false);
         SwitchView();

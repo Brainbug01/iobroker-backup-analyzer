@@ -1121,6 +1121,18 @@ public sealed class BackupValidation
     /// <summary>Anzahl gelesener Archiv-Einträge bis zum Abbruch — grenzt die Stelle ein.</summary>
     public int EntriesRead { get; set; }
 
+    /// <summary>
+    /// Pfade von Pflichtdateien, die <b>nicht</b> an ihrem Platz lagen und deshalb nicht
+    /// verwendet wurden — etwa eine zweite objects.jsonl tief im Archiv.
+    ///
+    /// <b>Warum das gemeldet wird:</b> Die Erkennung ging früher nur nach dem Dateinamen.
+    /// Ein Archiv mit einem eingepackten zweiten Backup — ein Adapter, der seine eigenen
+    /// Daten mitsichert, ein versehentlich mitkopiertes Backup — überschrieb damit
+    /// stillschweigend die echte Objektliste, und das Werkzeug zeigte anschließend die
+    /// falsche Anlage an. Das macht keine Symptome; man sieht nur Zahlen, die nicht stimmen.
+    /// </summary>
+    public List<string> IgnoredDuplicates { get; } = new();
+
     public int OptionalCount => OptionalFiles.Count;
     public int OptionalInvalid => OptionalFiles.Count(f => !f.Valid);
 

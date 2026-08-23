@@ -220,7 +220,7 @@ public sealed class UsageTab : UserControl
         }
     }
 
-    public void SetData(BackupData data)
+    public void SetData(BackupData data, AnalysisResults? fertig = null)
     {
         if (data.Kind != BackupKind.Full)
         {
@@ -231,14 +231,23 @@ public sealed class UsageTab : UserControl
             return;
         }
 
-        Cursor = Cursors.WaitCursor;
-        try
+        // Im Regelfall ist das Ergebnis schon im Hintergrund gerechnet worden; nur wenn es
+        // fehlt (Bildschirmfotos, Prüfläufe), wird hier nachgerechnet.
+        if (fertig?.Usage is { } vorberechnet)
         {
-            _report = UsageAnalyzer.Analyze(data);
+            _report = vorberechnet;
         }
-        finally
+        else
         {
-            Cursor = Cursors.Default;
+            Cursor = Cursors.WaitCursor;
+            try
+            {
+                _report = UsageAnalyzer.Analyze(data);
+            }
+            finally
+            {
+                Cursor = Cursors.Default;
+            }
         }
 
         _summary.Text = UsagePresenter.Stats(_report).Replace("\n", "\r\n");

@@ -196,7 +196,7 @@ public sealed class VisTab : UserControl
         }
     }
 
-    public void SetData(BackupData data)
+    public void SetData(BackupData data, AnalysisResults? fertig = null)
     {
         _data = data;
         _sortColumn = -1;
@@ -210,14 +210,21 @@ public sealed class VisTab : UserControl
             return;
         }
 
-        Cursor = Cursors.WaitCursor;
-        try
+        if (fertig?.Vis is { } vorberechnet)
         {
-            _all = VisAnalyzer.Analyze(data);
+            _all = vorberechnet;
         }
-        finally
+        else
         {
-            Cursor = Cursors.Default;
+            Cursor = Cursors.WaitCursor;
+            try
+            {
+                _all = VisAnalyzer.Analyze(data);
+            }
+            finally
+            {
+                Cursor = Cursors.Default;
+            }
         }
 
         FillProjects();

@@ -24,6 +24,26 @@ public sealed record HelpBlock(HelpBlockKind Kind, string Text);
 /// </summary>
 public static class HelpContent
 {
+    /// <summary>
+    /// Platzhalter, den <see cref="Resolve"/> durch den tatsächlichen Ablageort des
+    /// Ladeprotokolls ersetzt.
+    ///
+    /// <b>Warum nicht gleich der Pfad?</b> Die Blockliste ist statisch; den Pfad dort
+    /// einzusetzen hieße, beim bloßen Lesen der Hilfe eine Schreibprobe auf die Platte
+    /// auszulösen. Ersetzt wird deshalb erst beim Anzeigen.
+    /// </summary>
+    public const string LogPlaceholder = "{ladeprotokoll}";
+
+    /// <summary>
+    /// Setzt die Platzhalter eines Hilfetextes ein. Beide Oberflächen rufen das beim
+    /// Aufbauen der Hilfe auf — ein Pfad, den man nur ungefähr beschreibt, hilft niemandem
+    /// beim Suchen.
+    /// </summary>
+    public static string Resolve(string text) =>
+        text.Contains(LogPlaceholder, StringComparison.Ordinal)
+            ? text.Replace(LogPlaceholder, LoadLog.DefaultPath(), StringComparison.Ordinal)
+            : text;
+
     public static IReadOnlyList<HelpBlock> Blocks { get; } = new HelpBlock[]
     {
         new(HelpBlockKind.Title, "ioBroker Backup Analyzer — Hilfe"),
@@ -89,6 +109,19 @@ public static class HelpContent
             "als Befehlskanal: Solche Skripte machen die rote Darstellung unquittierter Werte in " +
             "der Objektübersicht weiß und ändern an der Ursache nichts — wer stattdessen auf " +
             "„aktualisieren\" umstellt, braucht sie für den betreffenden Datenpunkt nicht mehr."),
+
+        new(HelpBlockKind.Heading, "Wenn etwas nicht lädt"),
+        new(HelpBlockKind.Text,
+            "Bei jedem Laden schreibt das Programm ein Ladeprotokoll. Es liegt hier:\n\n" +
+            LogPlaceholder + "\n\n" +
+            "Die Datei wird bei jedem Laden überschrieben und nennt jeden Schritt mit Zeit und " +
+            "Speicherbedarf. Bleibt das Programm einmal stehen, steht in der letzten Zeile, wobei — " +
+            "auch dann, wenn man es über den Task-Manager beenden musste."),
+        new(HelpBlockKind.Text,
+            "Das Protokoll enthält bewusst nur Struktur: Schritte, Zeiten, Größen und die " +
+            "Namensräume der Adapter. Objekt-IDs, Werte, Namen von Skripten, Ansichten oder Geräten " +
+            "und vollständige Pfade stehen nicht darin — es lässt sich also weitergeben, ohne dass " +
+            "etwas aus der eigenen Anlage mitgeht."),
 
         new(HelpBlockKind.Heading, "Tab „Backup-Prüfung\""),
         new(HelpBlockKind.Text,

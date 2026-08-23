@@ -23,6 +23,43 @@ public static class ChangelogContent
     /// <summary>Neueste Version zuerst.</summary>
     public static IReadOnlyList<ChangelogEntry> Entries { get; } = new ChangelogEntry[]
     {
+        new("1.22.1", "23.08.2026", new[]
+        {
+            "Das Fenster friert beim Laden nicht mehr ein. Die aufwendigen Auswertungen — " +
+            "Verwendung, verwaiste Datenpunkte und VIS — liefen bisher genau dort, wo die " +
+            "Tabs ihre Daten bekamen, und das ist die Oberfläche selbst. Bei einer großen " +
+            "Anlage stand das Fenster deshalb minutenlang still und wurde als „Keine " +
+            "Rückmeldung\" gemeldet, obwohl das Programm arbeitete. Gerechnet wird jetzt " +
+            "einmal im Hintergrund, und die Statuszeile nennt jeden Schritt beim Namen — " +
+            "bis dahin blieb sie auf der letzten Meldung des Ladevorgangs stehen und " +
+            "zeigte „VIS-Views werden gelesen\", während längst etwas anderes lief.",
+
+            "Große JSON-Dateien im Dateibereich kosten keinen Arbeitsspeicher mehr. Für " +
+            "die Backup-Prüfung wurde bisher jede Datei vollständig eingelesen — bei " +
+            "einer Datei im dreistelligen Megabytebereich ein Vielfaches ihrer Größe, nur " +
+            "um am Ende „gültig\" zu sagen. Geprüft wird jetzt strömend. Gemessen an einer " +
+            "40 MB großen Datei: statt eines dreistelligen Megabyte-Zuwachses weniger als " +
+            "ein Megabyte. Am Ergebnis ändert sich nichts, es wird nichts übersprungen.",
+
+            "Ein zweites Backup im Backup führt nicht mehr in die Irre. Erkannt wurden " +
+            "objects.jsonl, states.jsonl, backup.json und script.json bisher allein am " +
+            "Dateinamen — eine gleichnamige Datei tief im Archiv, etwa aus einem Adapter, " +
+            "der seine eigenen Daten mitsichert, ersetzte damit stillschweigend die echte " +
+            "Objektliste. Jetzt gilt die Datei aus dem Wurzelordner; ein übergangener Fund " +
+            "steht mit Pfad in der Backup-Prüfung. Gibt es oben nichts, wird der Fund von " +
+            "unten weiterhin genommen — sonst ließe sich ein ungewohnt aufgebautes Archiv " +
+            "gar nicht mehr laden.",
+
+            "Neu ist ein Ladeprotokoll. Es liegt als „ladeprotokoll.txt\" dort, wo auch die " +
+            "Einstellungen liegen, und wird bei jedem Laden neu geschrieben. Jede Zeile " +
+            "geht sofort auf die Platte — auch ein abgeschossenes Programm hinterlässt " +
+            "damit die Stelle, an der es nicht weiterkam. Das Protokoll enthält " +
+            "ausschließlich Struktur: Schritte, Zeiten, Größen und Adapter-Namensräume, " +
+            "aber keine Objekt-IDs, keine Werte, keine Namen von Skripten, Ansichten oder " +
+            "Geräten und keine vollständigen Pfade. Es kann deshalb bedenkenlos " +
+            "weitergegeben werden.",
+        }),
+
         new("1.22.0", "23.08.2026", new[]
         {
             "Die Übersicht warnt, wenn eine Adapter-Instanz mehr Objekte hat, als ihr " +

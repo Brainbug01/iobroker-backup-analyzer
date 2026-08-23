@@ -419,7 +419,7 @@ public sealed class OrphansTab : UserControl
         }
     }
 
-    public void SetData(BackupData data)
+    public void SetData(BackupData data, AnalysisResults? fertig = null)
     {
         _data = data;
 
@@ -435,6 +435,14 @@ public sealed class OrphansTab : UserControl
             return;
         }
 
+        if (fertig is { Orphans: { } o, Unused: { } u, States: { } st })
+        {
+            _orphans = o;
+            _unused = u;
+            _states = st;
+        }
+        else
+        {
         Cursor = Cursors.WaitCursor;
         try
         {
@@ -445,6 +453,7 @@ public sealed class OrphansTab : UserControl
         finally
         {
             Cursor = Cursors.Default;
+        }
         }
 
         // Aufräum-Skript nur anbieten, wenn es überhaupt Werte-Leichen gibt.

@@ -143,6 +143,38 @@ Backup dann per Button auswählen oder auf das Fenster ziehen.
 > wird von SAC **immer** blockiert, weil sie sich beim Start selbst entpackt. Unkomprimiert
 > ist sie wenigstens manchmal lauffähig — verlässlich ist aber nur die ZIP-Variante.
 
+### Wenn das Programm beim Laden stehen bleibt
+
+Bei **jedem** Ladevorgang schreibt das Programm ein Ladeprotokoll. Jede Zeile geht sofort
+auf die Platte — auch ein über den Task-Manager beendetes Programm hinterlässt damit die
+Stelle, an der es nicht weiterkam. Zu finden ist die Datei hier:
+
+| System | Ort |
+|---|---|
+| **Windows** | `ladeprotokoll.txt` neben der EXE — liegt das Programm in einem schreibgeschützten Ordner, stattdessen `%APPDATA%\ioBroker-Backup-Analyzer\ladeprotokoll.txt` |
+| **Linux** | `ladeprotokoll.txt` im entpackten Programmordner — sonst `~/.config/ioBroker-Backup-Analyzer/ladeprotokoll.txt` |
+| **macOS** | im Programmordner der `.app` — sonst `~/.config/ioBroker-Backup-Analyzer/ladeprotokoll.txt` |
+
+Der Pfad steht außerdem im Tab „Hilfe" und in der Fehlermeldung, falls eine kommt. Bleibt
+das Fenster hängen, kommt man dort allerdings nicht mehr hin — deshalb steht er auch hier.
+
+So sieht das Protokoll aus:
+
+```
+   Zeit  Speicher   Schritt
+  0.06s       0 MB   Eintrag 5: backup · .jsonl · 26.3 MB
+  0.06s       0 MB   objects.jsonl wird gelesen
+  0.89s     157 MB   objects.jsonl fertig: 16.576 Objekte, 0 uebersprungen
+  1.10s     214 MB   Eintrag 191: vis.0 · .json · 3.5 MB
+  1.46s     243 MB   Analyse: Verwendung
+  2.58s     215 MB   Analyse: States (C)
+```
+
+> **Es enthält nichts aus deiner Anlage.** Protokolliert werden ausschließlich Schritte,
+> Zeiten, Größen und die Namensräume der Adapter — keine Objekt-IDs, keine Werte, keine
+> Namen von Skripten, Ansichten oder Geräten und keine vollständigen Pfade. Die Datei kann
+> deshalb ohne Bedenken weitergegeben werden; für die Fehlersuche reicht sie aus.
+
 Akzeptierte Eingaben:
 
 | Datei | Was verfügbar wird |

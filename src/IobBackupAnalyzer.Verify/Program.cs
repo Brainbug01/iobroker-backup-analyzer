@@ -417,6 +417,57 @@ foreach (var kind in Enum.GetValues<ScriptHintKind>())
     Console.WriteLine($"    {kind,-20}: {anzahl}");
 }
 
+// -------------------------------------------- Erzeugtes Archiv: Sonderfaelle im Aufbau
+//
+// Diese Faelle kommen in den vorhandenen Testbackups nicht vor, sind aber genau die, an
+// denen ein fremdes Backup scheitern kann. Das Archiv wird deshalb erfunden und erzeugt -
+// es enthaelt keinerlei Daten aus einer echten Anlage.
+
+Console.WriteLine();
+Console.WriteLine("=== Erzeugtes Archiv (Sonderfaelle) ===");
+
+var kunstOrdner = Path.Combine(Path.GetTempPath(), "iob-analyzer-pruefarchiv");
+var kunstArchiv = Path.Combine(kunstOrdner, "pruef.tar.gz");
+ErzeugePruefarchiv(kunstArchiv);
+
+var kunst = BackupLoader.Load(kunstArchiv);
+
+CheckEq("Erzeugtes Archiv wird als Voll-Backup erkannt", kunst.Kind, BackupKind.Full);
+CheckEq("Die echte objects.jsonl wurde verwendet", kunst.Objects.Count, 2);
+Check("Die untergeschobene objects.jsonl wurde NICHT verwendet",
+      kunst.Objects.Any(o => o.Id == "pruefadapter.0.echt")
+      && kunst.Objects.All(o => o.Id != "fremd.0.untergeschoben"),
+      string.Join(", ", kunst.Objects.Select(o => o.Id)));
+Check("Der uebergangene Fund wird benannt statt verschwiegen",
+      kunst.Validation.IgnoredDuplicates.Count == 1
+      && kunst.Validation.IgnoredDuplicates[0].Contains("fremdadapter", StringComparison.Ordinal),
+      string.Join(" / ", kunst.Validation.IgnoredDuplicates));
+
+// Stroemende JSON-Pruefung: dieselben Urteile wie zuvor, nur ohne die Datei zu puffern.
+JsonFileCheck Datei(string endeAuf) =>
+    kunst.Validation.OptionalFiles.First(f => f.Path.EndsWith(endeAuf, StringComparison.Ordinal));
+
+Check("Gueltige JSON gilt als gueltig", Datei("gut.json").Valid);
+Check("JSON mit //-Kommentar gilt als ungueltig", !Datei("kommentar.json").Valid);
+Check("Leere JSON gilt als ungueltig", !Datei("leer.json").Valid);
+Check("JSON mit BOM gilt als ungueltig", !Datei("bom.json").Valid);
+Check("BOM wird als Ursache benannt",
+      Datei("bom.json").Error.Contains("BOM", StringComparison.Ordinal), Datei("bom.json").Error);
+Check("Abgeschnittene JSON gilt als ungueltig", !Datei("abgeschnitten.json").Valid);
+
+// Eine grosse Datei darf keinen nennenswerten Speicher kosten - genau dafuer wurde die
+// Pruefung auf einen Datenstrom umgestellt.
+var vorher = GC.GetTotalMemory(forceFullCollection: true);
+var kunst2 = BackupLoader.Load(kunstArchiv);
+var nachher = GC.GetTotalMemory(forceFullCollection: true);
+var zuwachsMB = (nachher - vorher) / 1048576.0;
+Console.WriteLine($"  Grosse JSON im Archiv: 40 MB   Speicherzuwachs beim Laden: {zuwachsMB:N1} MB");
+Check("Grosse JSON belegt keinen Speicher in Dateigroesse", zuwachsMB < 20, $"{zuwachsMB:N1} MB");
+Check("Grosse JSON wurde trotzdem geprueft", Datei("gross.json").Valid);
+CheckEq("Zweiter Ladevorgang liefert dasselbe", kunst2.Objects.Count, kunst.Objects.Count);
+
+try { Directory.Delete(kunstOrdner, true); } catch { /* Aufraeumen ist Kuer */ }
+
 // ---------------------------------------------------------------- Voll-Backup
 
 Console.WriteLine();
@@ -3262,6 +3313,35 @@ foreach (var datei in coreQuellen)
     }
 }
 
+// ---------------------------------------------- Hilfe: Platzhalter fuer das Ladeprotokoll
+//
+// Der Pfad wird erst beim Anzeigen eingesetzt. Vergisst eine der beiden Oberflaechen den
+// Aufruf, stuende in der Hilfe woertlich "{ladeprotokoll}" - und ausgerechnet der Hinweis,
+// den jemand sucht, waere unbrauchbar.
+
+var hilfeMitPlatzhalter = HelpContent.Blocks
+    .Count(b => b.Text.Contains(HelpContent.LogPlaceholder, StringComparison.Ordinal));
+Check("Die Hilfe nennt den Ort des Ladeprotokolls", hilfeMitPlatzhalter == 1,
+      $"{hilfeMitPlatzhalter} Bloecke mit Platzhalter");
+
+var aufgeloest = HelpContent.Resolve(HelpContent.Blocks
+    .First(b => b.Text.Contains(HelpContent.LogPlaceholder, StringComparison.Ordinal)).Text);
+Check("Der Platzhalter wird durch einen echten Pfad ersetzt",
+      !aufgeloest.Contains(HelpContent.LogPlaceholder, StringComparison.Ordinal)
+      && aufgeloest.Contains("ladeprotokoll.txt", StringComparison.OrdinalIgnoreCase));
+
+// Beide Oberflaechen muessen Resolve benutzen - sonst wirkt der Platzhalter nicht.
+foreach (var (datei, bezeichnung) in new[]
+         {
+             (Path.Combine(root, "src", "IobBackupAnalyzer.App", "HelpTab.cs"), "WinForms"),
+             (Path.Combine(root, "src", "IobBackupAnalyzer.Avalonia", "Views", "HelpView.axaml.cs"), "Avalonia")
+         })
+{
+    var quelle = File.Exists(datei) ? File.ReadAllText(datei) : "";
+    Check($"Hilfe der {bezeichnung}-Fassung loest Platzhalter auf",
+          quelle.Contains("HelpContent.Resolve", StringComparison.Ordinal));
+}
+
 Check("Regulaere Ausdruecke werden ueberhaupt gefunden", mitMuster > 0, mitMuster.ToString());
 Check("Jeder regulaere Ausdruck hat eine Zeitgrenze",
       ohneZeitgrenze.Count == 0, string.Join(", ", ohneZeitgrenze.Distinct()));
@@ -3398,4 +3478,67 @@ static string? FindeBash()
     }
 
     return null;
+}
+
+/// <summary>
+/// Baut ein frei erfundenes Archiv mit genau den Sonderfaellen, die in echten Testdaten
+/// fehlen: eine untergeschobene zweite objects.jsonl in einem Adapter-Unterordner sowie
+/// JSON-Dateien, die gueltig, leer, kommentiert, mit BOM versehen, abgeschnitten oder sehr
+/// gross sind. Es enthaelt keine Daten aus einer Anlage.
+/// </summary>
+static void ErzeugePruefarchiv(string ziel)
+{
+    var ordner = Path.GetDirectoryName(ziel)!;
+    var bau = Path.Combine(ordner, "bau");
+    if (Directory.Exists(ordner)) Directory.Delete(ordner, true);
+    Directory.CreateDirectory(Path.Combine(bau, "backup", "files", "pruef.0"));
+    Directory.CreateDirectory(Path.Combine(bau, "backup", "fremdadapter.0", "backup"));
+
+    // Die echte Objektliste - oben im Archiv.
+    File.WriteAllText(Path.Combine(bau, "backup", "objects.jsonl"),
+        "{\"_id\":\"system.adapter.pruefadapter.0\",\"type\":\"instance\"," +
+        "\"common\":{\"name\":\"pruefadapter\",\"version\":\"1.0.0\",\"enabled\":true},\"native\":{}}\n" +
+        "{\"_id\":\"pruefadapter.0.echt\",\"type\":\"state\"," +
+        "\"common\":{\"name\":\"echt\",\"type\":\"number\"},\"native\":{}}\n");
+
+    File.WriteAllText(Path.Combine(bau, "backup", "states.jsonl"),
+        "{\"id\":\"pruefadapter.0.echt\",\"state\":{\"val\":1,\"ack\":true,\"ts\":1786000000000," +
+        "\"lc\":1786000000000,\"from\":\"system.adapter.pruefadapter.0\",\"q\":0}}\n");
+
+    // Ein Adapter, der sein eigenes Backup mitsichert - frueher gewann diese Liste.
+    File.WriteAllText(Path.Combine(bau, "backup", "fremdadapter.0", "backup", "objects.jsonl"),
+        "{\"_id\":\"fremd.0.untergeschoben\",\"type\":\"state\"," +
+        "\"common\":{\"name\":\"fremd\",\"type\":\"number\"},\"native\":{}}\n");
+
+    var dateien = Path.Combine(bau, "backup", "files", "pruef.0");
+    File.WriteAllText(Path.Combine(dateien, "gut.json"), "{\"a\":1,\"b\":[1,2,3]}");
+    File.WriteAllText(Path.Combine(dateien, "kommentar.json"), "{\n// Kommentar\n\"a\":1\n}");
+    File.WriteAllText(Path.Combine(dateien, "leer.json"), "");
+    File.WriteAllBytes(Path.Combine(dateien, "bom.json"),
+        new byte[] { 0xEF, 0xBB, 0xBF }.Concat("{\"a\":1}"u8.ToArray()).ToArray());
+    File.WriteAllText(Path.Combine(dateien, "abgeschnitten.json"), "{\"a\":1,\"b\":[1,2");
+
+    // Eine grosse, gueltige JSON - der Fall, der frueher ein Vielfaches ihrer Groesse an
+    // Arbeitsspeicher belegte.
+    using (var gross = new StreamWriter(Path.Combine(dateien, "gross.json")))
+    {
+        gross.Write("{\"werte\":[");
+        for (var i = 0; i < 1_500_000; i++)
+        {
+            if (i > 0) gross.Write(',');
+            gross.Write(i % 1000);
+        }
+        gross.Write("]}");
+    }
+
+    using (var fs = File.Create(ziel))
+    using (var gz = new System.IO.Compression.GZipStream(fs, System.IO.Compression.CompressionLevel.Fastest))
+    using (var tw = new TarWriter(gz, TarEntryFormat.Pax))
+    {
+        foreach (var datei in Directory.EnumerateFiles(bau, "*", SearchOption.AllDirectories)
+                                       .OrderBy(x => x, StringComparer.Ordinal))
+            tw.WriteEntry(datei, Path.GetRelativePath(bau, datei).Replace('\\', '/'));
+    }
+
+    Directory.Delete(bau, true);
 }
