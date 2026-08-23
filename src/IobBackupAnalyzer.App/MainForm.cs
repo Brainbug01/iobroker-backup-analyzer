@@ -286,14 +286,18 @@ public sealed class MainForm : Form
 
         try
         {
-            var progress = new Progress<string>(msg => _statusText.Text = msg);
+            // „Bitte warten" steht an einer einzigen Stelle und gilt damit für jede
+            // Fortschrittsmeldung — beim Lesen, beim Auswerten und beim Aufbauen der Tabs.
+            // Ein Schritt, der nur seinen Namen nennt, sieht aus wie ein Ergebnis; hier
+            // soll er aussehen wie das, was er ist: etwas, das gerade läuft.
+            var progress = new Progress<string>(msg => _statusText.Text = Wartetext(msg));
             var data = await BackupLoader.LoadAsync(path, progress, _cts.Token, log);
 
             // Die schweren Analysen laufen im Hintergrund, nicht beim Füllen der Tabs.
             // Vorher blockierten sie das Fenster für ihre gesamte Rechenzeit.
-            _statusText.Text = "Backup wird analysiert …";
+            _statusText.Text = Wartetext("Backup wird analysiert …");
             var analysen = await Task.Run(
-                () => AnalysisResults.Compute(data, log, _cts.Token), _cts.Token);
+                () => AnalysisResults.Compute(data, log, progress, _cts.Token), _cts.Token);
 
             sw.Stop();
 
@@ -347,6 +351,12 @@ public sealed class MainForm : Form
             SetBusy(false, null);
         }
     }
+
+    /// <summary>
+    /// Setzt „Bitte warten" vor eine Fortschrittsmeldung. Eine eigene Methode, damit die
+    /// Formulierung an einer Stelle steht und nicht in zehn Zeichenketten gepflegt wird.
+    /// </summary>
+    private static string Wartetext(string schritt) => $"Bitte warten — {schritt}";
 
     private void ShowLoadError(string path, string message, Exception ex, bool log)
     {
@@ -403,7 +413,7 @@ public sealed class MainForm : Form
         // die Beschriftung des letzten Ladeschritts da, während scheinbar nichts passiert.
         void Schritt(string name, Action fuellen)
         {
-            _statusText.Text = $"{name} wird aufgebaut …";
+            _statusText.Text = Wartetext($"{name} wird aufgebaut …");
             log?.Step($"Tab: {name}");
             Application.DoEvents();
             fuellen();

@@ -23,6 +23,28 @@ public static class ChangelogContent
     /// <summary>Neueste Version zuerst.</summary>
     public static IReadOnlyList<ChangelogEntry> Entries { get; } = new ChangelogEntry[]
     {
+        new("1.22.2", "23.08.2026", new[]
+        {
+            "Die Analyse „unbenutzte Datenpunkte\" ist bei großen Anlagen nicht mehr " +
+            "quälend langsam. Sie durchsuchte bisher für jeden einzelnen eigenen " +
+            "Datenpunkt den kompletten VIS- und Skripttext. Solange beides klein ist, " +
+            "fällt das nicht auf; bei einem umfangreichen VIS-Projekt und vielen tausend " +
+            "Datenpunkten unter 0_userdata wuchs es sich zu Minuten aus, in denen nichts " +
+            "anderes geschah — während alles Übrige zusammen wenige Sekunden brauchte.",
+
+            "Der Text wird jetzt einmal abgesucht statt einmal je Datenpunkt. Gemessen an " +
+            "erzeugten Testarchiven mit elf Megabyte VIS: bei 8.000 eigenen Datenpunkten " +
+            "15 Millisekunden statt 26 Sekunden, und die Dauer wächst nicht mehr mit ihrer " +
+            "Zahl. Die Befunde bleiben dabei buchstäblich dieselben — der Verifikationslauf " +
+            "rechnet beide Wege parallel und vergleicht jeden Datenpunkt Feld für Feld.",
+
+            "Die Statuszeile nennt jetzt auch die einzelnen Analyseschritte und stellt " +
+            "jeder Meldung ein „Bitte warten\" voran — aus „Backup wird analysiert\" wird " +
+            "„Bitte warten — Analyse 3/5: unbenutzte Datenpunkte …\". Bei einer großen " +
+            "Anlage sieht man damit, woran das Programm gerade arbeitet, und dass es " +
+            "arbeitet und nicht steht.",
+        }),
+
         new("1.22.1", "23.08.2026", new[]
         {
             "Das Fenster friert beim Laden nicht mehr ein. Die aufwendigen Auswertungen — " +

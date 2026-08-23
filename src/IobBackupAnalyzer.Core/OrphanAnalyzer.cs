@@ -122,6 +122,27 @@ public static class OrphanAnalyzer
     /// </summary>
     public static List<UnusedDatapoint> FindUnusedDatapoints(BackupData data,
                                                              CancellationToken ct = default)
+        => FindUnusedDatapoints(data, mitIndex: true, ct);
+
+    /// <summary>
+    /// Dieselbe Analyse ohne Index — die geradeheraus geschriebene Fassung, die für jeden
+    /// Datenpunkt den ganzen Text durchsucht.
+    ///
+    /// <b>Wozu die noch da ist:</b> Sie ist offensichtlich richtig, und genau das macht sie
+    /// zum Maßstab. Der Verifikationslauf lässt beide Wege über dieselben Backups laufen
+    /// und vergleicht die Ergebnisse Feld für Feld. Eine schnellere Analyse, die andere
+    /// Befunde liefert, wäre keine Verbesserung, sondern ein neuer Fehler — und in einer
+    /// Liste, aus der Leute Datenpunkte löschen, ein besonders unangenehmer.
+    ///
+    /// Für den laufenden Betrieb ist sie ungeeignet: Bei sehr vielen eigenen Datenpunkten
+    /// und einem umfangreichen VIS-Projekt braucht sie mehrere Minuten.
+    /// </summary>
+    public static List<UnusedDatapoint> FindUnusedDatapointsOhneIndex(BackupData data,
+                                                                      CancellationToken ct = default)
+        => FindUnusedDatapoints(data, mitIndex: false, ct);
+
+    private static List<UnusedDatapoint> FindUnusedDatapoints(BackupData data, bool mitIndex,
+                                                              CancellationToken ct)
     {
         // Ein einziger Suchtext über alle Skripte: 1 Substring-Suche statt N.
         var scriptText = string.Join("\n", data.Scripts.Select(s => s.SearchableCode));
@@ -144,6 +165,13 @@ public static class OrphanAnalyzer
                 foreach (var r in o.ChartRefs)
                     chartRefs.Add(r);
 
+        // Der Index beantwortet dieselbe Frage wie die Textsuche, aber ohne den Text je
+        // Datenpunkt erneut zu durchlaufen. Siehe IdIndex — dort steht auch, warum das
+        // dieselben Antworten gibt und nicht bloß ähnliche.
+        var namensraeume = Namensraeume(data.Objects);
+        var visIndex = mitIndex ? IdIndex.Baue(visText, namensraeume) : null;
+        var scriptIndex = mitIndex ? IdIndex.Baue(scriptText, namensraeume) : null;
+
         var result = new List<UnusedDatapoint>();
 
         // Bezugspunkt für das Alter ist der Backup-Zeitpunkt, nicht „heute" — sonst würde
@@ -164,8 +192,10 @@ public static class OrphanAnalyzer
             {
                 Id = o.Id,
                 Name = o.Name,
-                InScripts = FindIn(scriptText, o.Id),
-                InVis = visText.Length == 0 ? FindKind.Nicht : FindIn(visText, o.Id),
+                InScripts = scriptIndex?.Finde(o.Id) ?? FindIn(scriptText, o.Id),
+                InVis = visText.Length == 0
+                    ? FindKind.Nicht
+                    : visIndex?.Finde(o.Id) ?? FindIn(visText, o.Id),
                 AliasTarget = aliasTargets.Contains(o.Id),
                 LoggingActive = o.HasCustom,
                 InChart = chartRefs.Contains(o.Id),
@@ -212,6 +242,142 @@ public static class OrphanAnalyzer
     /// Case-sensitiv (Ordinal), weil ioBroker-IDs es sind. Ein case-insensitiver Vergleich
     /// würde genau die Tippfehler-Dubletten verschleiern, die dieses Werkzeug aufdecken soll.
     /// </summary>
+    /// <summary>
+    /// Die Namensräume, mit denen eigene Datenpunkte beginnen — jeweils bis zum zweiten
+    /// Punkt einschließlich, also „0_userdata.0." oder „javascript.0.". In einer Anlage
+    /// sind das eine Handvoll.
+    /// </summary>
+    private static List<string> Namensraeume(IEnumerable<IobObject> objects)
+    {
+        var gefunden = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var o in objects)
+        {
+            if (o.Type != "state" || !IsUserDatapoint(o.Id)) continue;
+
+            var erster = o.Id.IndexOf('.');
+            if (erster < 0) continue;
+            var zweiter = o.Id.IndexOf('.', erster + 1);
+            if (zweiter < 0) continue;
+
+            gefunden.Add(o.Id[..(zweiter + 1)]);
+        }
+
+        return gefunden.ToList();
+    }
+
+    /// <summary>
+    /// Beantwortet „kommt diese Datenpunkt-ID im Text vor?" — ohne den Text je Frage erneut
+    /// zu durchsuchen.
+    ///
+    /// <b>Das Problem.</b> Die Analyse fragt das für jeden eigenen Datenpunkt einmal — der
+    /// Aufwand ist also Datenpunkte mal Textlänge. Bei kleinen Anlagen fällt das nicht auf.
+    /// An erzeugten Testarchiven mit elf Megabyte VIS-Text gemessen: 500 eigene Datenpunkte
+    /// brauchten 1,8 Sekunden, 2.000 schon 6,6 und 8.000 rund 26 — sauber linear. Eine
+    /// gewachsene Anlage liegt um Größenordnungen darüber, und daraus werden Minuten, in
+    /// denen nichts anderes passiert.
+    ///
+    /// <b>Der Ausweg — und warum er dieselben Antworten gibt.</b> Jede gesuchte ID beginnt
+    /// mit ihrem Namensraum („0_userdata.0." oder „javascript.0."). Wo immer die ID im Text
+    /// steht, steht dort also auch ihr Namensraum. Es genügt daher, den Text <b>einmal</b>
+    /// nach den paar Namensräumen abzusuchen und an jeder Fundstelle die dort beginnende
+    /// Zeichenkette mitzunehmen. Steht die gesuchte ID irgendwo im Text, ist sie der Anfang
+    /// einer dieser Zeichenketten — und genau darauf lässt sich mit einer Binärsuche
+    /// antworten.
+    ///
+    /// Die mitgenommene Zeichenkette reicht dabei bis zum ersten Zeichen, das in einer
+    /// ioBroker-ID nicht vorkommen darf. Der Zeichenvorrat ist bewusst großzügig (er
+    /// enthält auch Leerzeichen, Klammern und Schrägstriche): Wäre er zu eng, endete die
+    /// Zeichenkette mitten in einer ID, und ein tatsächlich benutzter Datenpunkt stünde
+    /// anschließend als Löschkandidat in der Liste. Lieber zu viel mitnehmen als zu wenig.
+    /// </summary>
+    private sealed class IdIndex
+    {
+        /// <summary>
+        /// Keine ID ist länger als das. Die Obergrenze verhindert, dass eine einzelne
+        /// Fundstelle in einem langen Text (ein eingebettetes Bild etwa) eine riesige
+        /// Zeichenkette erzeugt.
+        /// </summary>
+        private const int MaxLaenge = 512;
+
+        private readonly string[] _stellen;
+
+        private IdIndex(string[] stellen) => _stellen = stellen;
+
+        public static IdIndex Baue(string text, List<string> namensraeume)
+        {
+            var stellen = new List<string>();
+
+            foreach (var praefix in namensraeume)
+            {
+                if (praefix.Length == 0) continue;
+
+                var pos = 0;
+                while ((pos = text.IndexOf(praefix, pos, StringComparison.Ordinal)) >= 0)
+                {
+                    var ende = pos;
+                    var grenze = Math.Min(text.Length, pos + MaxLaenge);
+                    while (ende < grenze && IstIdZeichen(text[ende])) ende++;
+
+                    stellen.Add(text[pos..ende]);
+                    pos++;
+                }
+            }
+
+            stellen.Sort(StringComparer.Ordinal);
+            return new IdIndex(stellen.ToArray());
+        }
+
+        /// <summary>
+        /// Dieselbe Einstufung wie <see cref="FindIn"/>: volle ID gefunden, sonst der
+        /// Elternpfad, sonst nichts.
+        /// </summary>
+        public FindKind Finde(string id)
+        {
+            if (Enthaelt(id)) return FindKind.Exakt;
+
+            var letzterPunkt = id.LastIndexOf('.');
+            if (letzterPunkt > 0)
+            {
+                var eltern = id[..letzterPunkt];
+                // Sehr kurze Präfixe träfen praktisch immer zu und wären wertlos —
+                // dieselbe Grenze wie in FindIn.
+                if (eltern.Length > 14 && Enthaelt(eltern)) return FindKind.NurPraefix;
+            }
+
+            return FindKind.Nicht;
+        }
+
+        /// <summary>
+        /// Beginnt eine der mitgenommenen Zeichenketten mit <paramref name="gesucht"/>?
+        /// Binärsuche auf der sortierten Liste: Die erste Zeichenkette, die nicht kleiner
+        /// ist als der gesuchte Text, ist auch die einzige, die mit ihm beginnen kann.
+        /// </summary>
+        private bool Enthaelt(string gesucht)
+        {
+            var links = 0;
+            var rechts = _stellen.Length;
+
+            while (links < rechts)
+            {
+                var mitte = (links + rechts) / 2;
+                if (string.CompareOrdinal(_stellen[mitte], gesucht) < 0) links = mitte + 1;
+                else rechts = mitte;
+            }
+
+            return links < _stellen.Length
+                   && _stellen[links].StartsWith(gesucht, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Darf das Zeichen in einer ioBroker-ID stehen? Der Vorrat ist die Umkehrung von
+        /// FORBIDDEN_CHARS aus dem js-controller (packages/common-db, tools.ts) und
+        /// bewusst großzügig gehalten — siehe die Erklärung an der Klasse.
+        /// </summary>
+        private static bool IstIdZeichen(char c) =>
+            char.IsLetterOrDigit(c) || "._-/ :!#$%&()+=@^{}|~".Contains(c);
+    }
+
     private static FindKind FindIn(string haystack, string id)
     {
         if (haystack.Contains(id, StringComparison.Ordinal))

@@ -143,6 +143,20 @@ Backup dann per Button auswählen oder auf das Fenster ziehen.
 > wird von SAC **immer** blockiert, weil sie sich beim Start selbst entpackt. Unkomprimiert
 > ist sie wenigstens manchmal lauffähig — verlässlich ist aber nur die ZIP-Variante.
 
+### Wie lange das Laden dauert
+
+Gemessen an einer Anlage mit 16.700 Objekten und 14.600 States: rund anderthalb Sekunden
+fürs Laden, gut eine Sekunde für alle Analysen. Beides wächst mit der Anlage, aber
+gutmütig — die Analysen laufen im Hintergrund, das Fenster bleibt bedienbar, und die
+Statuszeile nennt jeden Schritt.
+
+> **Eine Ausnahme gab es bis 1.22.1:** Die Analyse „unbenutzte Datenpunkte" durchsuchte für
+> jeden eigenen Datenpunkt den gesamten VIS- und Skripttext. Bei einem großen VIS-Projekt
+> und vielen tausend Datenpunkten unter `0_userdata` wurden daraus Minuten. Seit 1.22.2
+> wird der Text einmal abgesucht statt einmal je Datenpunkt; die Dauer wächst nicht mehr
+> mit der Zahl der Datenpunkte. Die Befunde sind unverändert — der Verifikationslauf
+> vergleicht beide Rechenwege Datenpunkt für Datenpunkt.
+
 ### Wenn das Programm beim Laden stehen bleibt
 
 Bei **jedem** Ladevorgang schreibt das Programm ein Ladeprotokoll. Jede Zeile geht sofort

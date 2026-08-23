@@ -39,28 +39,41 @@ public sealed class AnalysisResults
     /// gibt es keinen Objektbestand; dann bleibt alles leer, statt Aussagen über einen
     /// Bestand zu treffen, den es nicht gibt.
     /// </summary>
+    /// <param name="progress">
+    /// Meldet den gerade laufenden Schritt an die Oberfläche. Die Analysen sind seit dem
+    /// Index schnell, aber „schnell" hängt an der Anlage — und eine Statuszeile, die den
+    /// Schritt benennt, ist auch dann richtig, wenn er nur einen Wimpernschlag dauert.
+    /// </param>
     public static AnalysisResults Compute(BackupData data, LoadLog? log = null,
+                                          IProgress<string>? progress = null,
                                           CancellationToken ct = default)
     {
         if (data.Kind != BackupKind.Full) return new AnalysisResults();
 
-        log?.Step("Analyse: Verwendung");
+        void Schritt(int nummer, string name)
+        {
+            log?.Step($"Analyse: {name}");
+            progress?.Report($"Analyse {nummer}/5: {name} …");
+        }
+
+        Schritt(1, "Verwendung");
         var usage = UsageAnalyzer.Analyze(data, ct);
         ct.ThrowIfCancellationRequested();
 
-        log?.Step($"Analyse: Waisen (A) — {usage.States.Count:N0} Datenpunkte in der Kreuzreferenz");
+        log?.Step($"Kreuzreferenz: {usage.States.Count:N0} Datenpunkte");
+        Schritt(2, "verwaiste Objekte (A)");
         var orphans = OrphanAnalyzer.FindOrphanObjects(data);
         ct.ThrowIfCancellationRequested();
 
-        log?.Step("Analyse: unbenutzte Datenpunkte (B)");
+        Schritt(3, "unbenutzte Datenpunkte (B)");
         var unused = OrphanAnalyzer.FindUnusedDatapoints(data);
         ct.ThrowIfCancellationRequested();
 
-        log?.Step("Analyse: States (C)");
+        Schritt(4, "States (C)");
         var states = StateAnalyzer.Analyze(data, ct);
         ct.ThrowIfCancellationRequested();
 
-        log?.Step("Analyse: VIS");
+        Schritt(5, "VIS");
         var vis = VisAnalyzer.Analyze(data);
         ct.ThrowIfCancellationRequested();
 

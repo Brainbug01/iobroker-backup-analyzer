@@ -183,7 +183,9 @@ public partial class MainWindow : Window
 
         // Fortschrittsmeldungen kommen aus einem Hintergrund-Thread; Progress<T> stellt
         // die Zustellung auf dem UI-Thread sicher, weil es hier erzeugt wird.
-        var progress = new Progress<string>(msg => _lblStatus.Text = msg);
+        // Siehe die gleichlautende Stelle in der WinForms-Fassung: „Bitte warten" gehört
+        // an eine Stelle, nicht in jede einzelne Meldung.
+        var progress = new Progress<string>(msg => _lblStatus.Text = Wartetext(msg));
 
         // Aus dem arbeitenden Thread geschrieben, damit die letzte Zeile auch dann auf der
         // Platte steht, wenn das Fenster nicht mehr reagiert.
@@ -196,8 +198,8 @@ public partial class MainWindow : Window
 
             // Die schweren Analysen laufen im Hintergrund und nicht mehr dort, wo die
             // Ansichten ihre Daten bekommen — das ist der UI-Thread.
-            _lblStatus.Text = "Backup wird analysiert …";
-            var analysen = await Task.Run(() => AnalysisResults.Compute(data, log, ct), ct);
+            _lblStatus.Text = Wartetext("Backup wird analysiert …");
+            var analysen = await Task.Run(() => AnalysisResults.Compute(data, log, progress, ct), ct);
             if (ct.IsCancellationRequested) return;
 
             SetData(data, analysen, log);
@@ -239,6 +241,9 @@ public partial class MainWindow : Window
     /// <c>internal</c>, damit der Selbsttest (<c>--selftest</c>) alle Ansichten mit echten
     /// Daten befüllen kann statt nur ihre Konstruktion zu prüfen.
     /// </summary>
+    /// <summary>Setzt „Bitte warten" vor eine Fortschrittsmeldung.</summary>
+    private static string Wartetext(string schritt) => $"Bitte warten — {schritt}";
+
     internal void SetData(BackupData? data, AnalysisResults? analysen = null, LoadLog? log = null)
     {
         _data = data;

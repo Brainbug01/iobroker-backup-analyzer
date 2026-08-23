@@ -692,6 +692,45 @@ Console.WriteLine($"    Alias-Ziel           : {unused.Count(u => u.AliasTarget)
 Console.WriteLine($"    Logging aktiv        : {unused.Count(u => u.LoggingActive)}");
 
 Check("Analyse B prueft ueberhaupt Datenpunkte", unused.Count > 0);
+
+// --------------------------------------------- Analyse B: Index gegen Textsuche
+//
+// Analyse B durchsuchte fuer JEDEN eigenen Datenpunkt den gesamten VIS- und Skripttext.
+// Bei einer Anlage mit sehr vielen eigenen Datenpunkten und einem grossen VIS-Projekt
+// dauerte das Minuten. Seit dem Index wird der Text einmal abgesucht und danach nur noch
+// nachgeschlagen.
+//
+// Die geradeheraus geschriebene Fassung bleibt als Massstab erhalten. Beide Wege muessen
+// Feld fuer Feld dasselbe liefern - eine schnellere Analyse mit anderen Befunden waere in
+// einer Liste, aus der Leute Datenpunkte loeschen, ein besonders unangenehmer Fehler.
+
+static string Fingerabdruck(UnusedDatapoint u) =>
+    $"{u.Id}|{u.InScripts}|{u.InVis}|{u.AliasTarget}|{u.LoggingActive}|{u.InChart}|" +
+    $"{u.HasState}|{u.LastChange:O}|{u.AgeDays}|{u.IsCandidate}";
+
+var swIndex = System.Diagnostics.Stopwatch.StartNew();
+var mitIndex = OrphanAnalyzer.FindUnusedDatapoints(fullData);
+swIndex.Stop();
+
+var swOhne = System.Diagnostics.Stopwatch.StartNew();
+var ohneIndex = OrphanAnalyzer.FindUnusedDatapointsOhneIndex(fullData);
+swOhne.Stop();
+
+Console.WriteLine($"  Analyse B: mit Index {swIndex.ElapsedMilliseconds} ms, " +
+                  $"ohne Index {swOhne.ElapsedMilliseconds} ms");
+
+CheckEq("Index und Textsuche finden gleich viele Datenpunkte", mitIndex.Count, ohneIndex.Count);
+
+var abweichungen = mitIndex.Zip(ohneIndex)
+                           .Where(p => Fingerabdruck(p.First) != Fingerabdruck(p.Second))
+                           .ToList();
+Check("Index und Textsuche stufen jeden Datenpunkt gleich ein",
+      abweichungen.Count == 0,
+      abweichungen.Count == 0
+          ? "keine Abweichung"
+          : $"{abweichungen.Count} Abweichungen, erste: {Fingerabdruck(abweichungen[0].First)} " +
+            $"vs {Fingerabdruck(abweichungen[0].Second)}");
+
 Check("Kandidaten sind echte Teilmenge", candidates.Count < unused.Count,
       $"{candidates.Count}/{unused.Count}");
 Check("Kein Kandidat wird in Skripten verwendet",
@@ -3312,6 +3351,36 @@ foreach (var datei in coreQuellen)
             ohneZeitgrenze.Add(Path.GetFileName(datei));
     }
 }
+
+// ------------------------------------------- Fortschrittsmeldungen: „Bitte warten"
+//
+// Ein Schritt, der nur seinen Namen nennt ("Analyse 3/5: unbenutzte Datenpunkte"), sieht
+// aus wie ein Ergebnis. Beide Oberflaechen stellen deshalb "Bitte warten" voran - und zwar
+// an einer einzigen Stelle je Fassung, damit es nicht in zehn Zeichenketten gepflegt
+// werden muss und in einer davon fehlt.
+
+foreach (var (datei, bezeichnung) in new[]
+         {
+             (Path.Combine(root, "src", "IobBackupAnalyzer.App", "MainForm.cs"), "WinForms"),
+             (Path.Combine(root, "src", "IobBackupAnalyzer.Avalonia", "MainWindow.axaml.cs"), "Avalonia")
+         })
+{
+    var quelle = File.Exists(datei) ? File.ReadAllText(datei) : "";
+
+    Check($"{bezeichnung}: Fortschrittsmeldungen sagen „Bitte warten\"",
+          quelle.Contains("Bitte warten", StringComparison.Ordinal)
+          && quelle.Contains("Wartetext(msg)", StringComparison.Ordinal));
+
+    // Die Analyse-Schritte sind der laengste Abschnitt - dort ist der Hinweis am wichtigsten.
+    Check($"{bezeichnung}: auch die Analyse meldet sich mit Wartehinweis",
+          quelle.Contains("Wartetext(\"Backup wird analysiert", StringComparison.Ordinal));
+}
+
+// Die Schritte selbst kommen aus dem Core und muessen benannt und gezaehlt sein.
+var analyseQuelle = File.ReadAllText(Path.Combine(root, "src", "IobBackupAnalyzer.Core",
+                                                  "AnalysisResults.cs"));
+Check("Analyse-Schritte sind durchnummeriert",
+      analyseQuelle.Contains("Analyse {nummer}/5", StringComparison.Ordinal));
 
 // ---------------------------------------------- Hilfe: Platzhalter fuer das Ladeprotokoll
 //
