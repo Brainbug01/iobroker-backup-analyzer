@@ -10,6 +10,10 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
+        // Deutsche Zahlendarstellung, unabhängig von der Spracheinstellung des Systems.
+        // Muss vor dem ersten Fenster stehen — siehe AppCulture.
+        Core.AppCulture.Apply();
+
         Application.SetHighDpiMode(HighDpiMode.SystemAware);
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);

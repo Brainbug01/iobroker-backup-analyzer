@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Formats.Tar;
+using System.Globalization;
 using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
@@ -14,6 +15,12 @@ using IobBackupAnalyzer.Core;
 // oeffentlichen Repository nichts verloren. Sie liegen neben den Backups in
 // testdaten/referenzwerte.json und werden ueber CheckRef gelesen. Fehlt die Datei,
 // werden genau diese Pruefungen uebersprungen statt fehlzuschlagen — der Rest laeuft.
+
+// Dieselbe Anzeigekultur wie in beiden Oberflächen. Ohne diese Zeile prüfte der Lauf die
+// Kultur des Rechners mit, auf dem er gerade läuft: Auf einem deutschen Windows waren die
+// Zahlentexte grün, auf einem englischen System oder einem frischen Linux wären dieselben
+// Prüfungen rot gewesen. Ein Verifikationslauf soll überall dasselbe Ergebnis liefern.
+AppCulture.Apply();
 
 var root = FindProjectRoot();
 var testdaten = Path.Combine(root, "testdaten");
@@ -61,6 +68,13 @@ var second = WaehleArchiv("zweites-voll-backup", null);
 var passed = 0;
 var failed = 0;
 var skipped = 0;
+
+// PruefblÃ¶cke, die gar nicht erst gelaufen sind â nicht nur mitgezaehlt, sondern am Ende
+// beim Namen genannt. Anlass: Die Ausfuehrungstests des Aufraeum-Skripts blieben bei jedem
+// Build stillschweigend aus, weil bash nicht im Pfad von pwsh steht. Die Hinweiszeile stand
+// in der Ausgabe, ging aber zwischen 800 Zeilen unter. Ein Lauf, der etwas nicht geprueft
+// hat, muss das am Schluss sagen â sonst liest man gruen, wo nur nichts geprueft wurde.
+var nichtGelaufen = new List<string>();
 
 if (referenzwerte.Count == 0)
     Console.WriteLine("Hinweis: testdaten/referenzwerte.json fehlt — bestandsabhaengige " +
@@ -155,6 +169,7 @@ var referenz = refId is null
 if (refId is null || !File.Exists(refXml))
 {
     Console.WriteLine("  [--]   keine Blockly-Referenz in testdaten/ - uebersprungen");
+    nichtGelaufen.Add("Blockly-Vergleich gegen die Referenz (keine Referenz in testdaten/)");
 }
 else if (referenz is null)
 {
@@ -1058,11 +1073,16 @@ void RunBashChecks(string script)
     // Backslashes im Argument als Escapes lesen.
     var shArg = shPath.Replace('\\', '/');
 
+    // Einmal ermitteln, welcher bash-Aufruf auf diesem Rechner traegt — siehe FindeBash.
+    var bashExe = FindeBash();
+
     string? Run(string args, string stdin, out int exitCode)
     {
+        if (bashExe is null) { exitCode = -1; return null; }
+
         try
         {
-            var psi = new ProcessStartInfo("bash", args)
+            var psi = new ProcessStartInfo(bashExe, args)
             {
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
@@ -1093,6 +1113,7 @@ void RunBashChecks(string script)
     if (syntax is null)
     {
         Console.WriteLine("  [--]   bash nicht verfügbar - Ausführungstests übersprungen");
+        nichtGelaufen.Add("Ausfuehrungstests des Aufraeum-Skripts (keine bash erreichbar)");
         return;
     }
 
@@ -1159,6 +1180,8 @@ void RunBashChecks(string script)
     else
     {
         Console.WriteLine("  [--]   ioBroker-CLI vorhanden - scharfer Lauf nicht getestet");
+        nichtGelaufen.Add("Scharfer Lauf und Modusabfrage des Aufraeum-Skripts "
+                          + "(ioBroker-CLI auf diesem Rechner vorhanden)");
     }
 
     File.Delete(shPath);
@@ -2706,6 +2729,7 @@ var weitere = Directory.GetDirectories(testdaten)
 if (weitere is null)
 {
     Console.WriteLine("  [--]   kein weiteres Backup in einem Unterordner von testdaten/ - uebersprungen");
+    nichtGelaufen.Add("Herkunftspruefung gegen ein zweites Voll-Backup (keines in testdaten/)");
 }
 else
 {
@@ -2908,6 +2932,17 @@ CheckEq("Mehrzahl ab zwei", VisPresenter.Count(2, "Datei", "Dateien"), "2 Dateie
 CheckEq("Null nimmt die Mehrzahl", VisPresenter.Count(0, "Datei", "Dateien"), "0 Dateien");
 CheckEq("Grosse Zahlen mit Tausenderpunkt",
         VisPresenter.Count(1234, "Datei", "Dateien"), "1.234 Dateien");
+
+// Regression zum Linux-Test vom 22.08.2026: Auf einem System ohne deutsche Spracheinstellung
+// stand in der Oberfläche "16,576" statt "16.576" — die Beschriftung deutsch, die Zahlen
+// englisch. Hier wird bewusst eine fremde Kultur gesetzt und geprüft, dass AppCulture sie
+// überstimmt. Ohne diese Prüfung fiele ein Rückbau erst wieder jemandem auf einem
+// nicht-deutschen Rechner auf, also frühestens nach der Auslieferung.
+CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("en-US");
+AppCulture.Apply();
+CheckEq("Zahlen bleiben deutsch, auch bei fremder Systemkultur",
+        VisPresenter.Count(1234, "Datei", "Dateien"), "1.234 Dateien");
+CheckEq("Zahlenformat direkt geprueft", 16576.ToString("N0"), "16.576");
 Check("Kein neuer Text traegt eine Klammerform",
       !VisPresenter.ZipIntro(1).Contains("(e)")
       && !VisPresenter.ZipIntro(3).Contains("(e)"),
@@ -2972,6 +3007,16 @@ Console.WriteLine();
 Console.WriteLine(new string('-', 60));
 Console.WriteLine($"Bestanden: {passed}   Fehlgeschlagen: {failed}" +
                   (skipped > 0 ? $"   Uebersprungen: {skipped} (ohne Referenzwert)" : ""));
+
+if (nichtGelaufen.Count > 0)
+{
+    // Bewusst nach der Ergebniszeile und nicht mittendrin: Was hier steht, ist nicht
+    // geprueft worden. Ein Lauf ohne Fehlschlag ist deshalb noch keine vollstaendige
+    // Verifikation, und wer ausliefert, soll das sehen, ohne die Ausgabe durchzublaettern.
+    Console.WriteLine();
+    Console.WriteLine($"Nicht geprueft ({nichtGelaufen.Count}):");
+    foreach (var luecke in nichtGelaufen) Console.WriteLine($"  - {luecke}");
+}
 return failed == 0 ? 0 : 1;
 
 // ---------------------------------------------------------------- Helfer
@@ -3030,3 +3075,58 @@ static string FindProjectRoot()
     return Directory.GetCurrentDirectory();
 }
 
+/// <summary>
+/// Liefert den Aufruf fuer bash, oder null, wenn auf diesem Rechner keine erreichbar ist.
+///
+/// Zuerst der schlichte Name: Auf Linux und macOS ist damit alles gesagt, und unter Windows
+/// greift er, wenn der Lauf aus einer Git-Bash kommt. Danach die ueblichen Orte einer
+/// Git-Installation.
+///
+/// <b>Warum der Umweg?</b> build.ps1 startet den Verifikationslauf aus pwsh heraus, und dort
+/// steht die Git-Bash nicht im Pfad. Die Ausfuehrungstests des Aufraeum-Skripts fielen
+/// dadurch bei jedem Build vor der Auslieferung aus — also ausgerechnet die Pruefungen, die
+/// belegen, dass das erzeugte Skript wirklich laeuft und ein kleines "j" nicht loescht. Der
+/// Lauf war nie rot, er war nur zwoelf Pruefungen kuerzer, und die Hinweiszeile ging in
+/// achthundert Zeilen Ausgabe unter.
+/// </summary>
+static string? FindeBash()
+{
+    var kandidaten = new List<string> { "bash" };
+
+    foreach (var variable in new[] { "ProgramFiles", "ProgramFiles(x86)", "LOCALAPPDATA" })
+    {
+        var wurzel = Environment.GetEnvironmentVariable(variable);
+        if (string.IsNullOrEmpty(wurzel)) continue;
+        kandidaten.Add(Path.Combine(wurzel, "Git", "bin", "bash.exe"));
+        kandidaten.Add(Path.Combine(wurzel, "Git", "usr", "bin", "bash.exe"));
+    }
+
+    foreach (var kandidat in kandidaten)
+    {
+        // Der schlichte Name laesst sich nicht vorab pruefen — er wird einfach versucht.
+        if (kandidat != "bash" && !File.Exists(kandidat)) continue;
+
+        try
+        {
+            var psi = new ProcessStartInfo(kandidat, "-c \"exit 0\"")
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false
+            };
+            using var p = Process.Start(psi);
+            if (p is null) continue;
+
+            // Eine bash, die auf "exit 0" nicht binnen zehn Sekunden antwortet, ist fuer
+            // diese Pruefungen unbrauchbar - dann lieber der naechste Kandidat.
+            if (!p.WaitForExit(10_000)) { try { p.Kill(true); } catch { /* schon weg */ } continue; }
+            if (p.ExitCode == 0) return kandidat;
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            // Diesen Kandidaten gibt es nicht oder er laesst sich nicht starten.
+        }
+    }
+
+    return null;
+}

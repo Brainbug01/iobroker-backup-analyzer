@@ -177,11 +177,16 @@ function New-UnixTarGz {
     $modeExec = [System.IO.UnixFileMode]'UserRead,UserWrite,UserExecute,GroupRead,GroupExecute,OtherRead,OtherExecute'  # 755
     $modeData = [System.IO.UnixFileMode]'UserRead,UserWrite,GroupRead,OtherRead'                                        # 644
 
-    # Ausfuehrbar muessen: der Apphost und createdump (beide ohne Endung) sowie die nativen
-    # Bibliotheken. Bei .dylib/.so ist das Bit nicht zwingend, aber auf Unix so ueblich.
+    # Ausfuehrbar muessen: der Apphost und createdump (beide ohne Endung), die nativen
+    # Bibliotheken und das Startskript des Linux-Pakets. Bei .dylib/.so ist das Bit nicht
+    # zwingend, aber auf Unix so ueblich.
+    #
+    # Das ".sh" steht hier bewusst mit drin: starte.sh hat einen Punkt im Namen und fiele
+    # sonst unter die Datei-Regel (644). Das Skript liesse sich dann nicht aufrufen - und
+    # ausgerechnet die Datei, die fehlende Rechte erklaeren soll, waere selbst gesperrt.
     $istAusfuehrbar = {
         param($name)
-        $name -notmatch '\.' -or $name -match '\.(dylib|so)(\.\d+)*$'
+        $name -notmatch '\.' -or $name -match '\.(dylib|so)(\.\d+)*$' -or $name -match '\.sh$'
     }
 
     $basis = (Resolve-Path $SourceDir).Path
@@ -356,6 +361,24 @@ if (-not (Test-Path $macReadme)) {
     Write-Warning "LIESMICH_macOS.txt fehlt - das macOS-Paket geht ohne Anleitung raus."
 }
 
+# Dasselbe fuer Linux, aus demselben Grund - nur ist die Huerde dort eine andere: nicht
+# Quarantaene und Signatur, sondern zwei Systembibliotheken (ICU und fontconfig), die auf
+# schlanken Systemen fehlen. Der erste echte Linux-Test am 22.08.2026 lief in genau diese
+# Wand: Das Programm bricht mit einem englischen .NET-Stapelabzug ab, aus dem niemand
+# schliessen kann, welches Paket fehlt.
+#
+# starte.sh prueft das vorab und nennt den passenden Befehl; die Anleitung erklaert es in
+# Ruhe nach. Beide liegen versioniert im Projekt, nicht hier im Skript - sie werden sich
+# mit den Rueckmeldungen der Linux-Nutzer weiterentwickeln.
+$linuxReadme = Join-Path $root 'LIESMICH_Linux.txt'
+$linuxStart = Join-Path $root 'starte.sh'
+if (-not (Test-Path $linuxReadme)) {
+    Write-Warning "LIESMICH_Linux.txt fehlt - das Linux-Paket geht ohne Anleitung raus."
+}
+if (-not (Test-Path $linuxStart)) {
+    Write-Warning "starte.sh fehlt - das Linux-Paket geht ohne Startskript raus."
+}
+
 foreach ($t in $targets) {
     Write-Host "  $($t.Rid) …" -ForegroundColor DarkGray
     # Der Publish landet in einem Unterordner mit sprechendem Namen, damit das Archiv
@@ -372,6 +395,11 @@ foreach ($t in $targets) {
             Compress-Archive -Path $stage -DestinationPath (Join-Path $xplat "$($t.Paket).zip") -Force
         }
         'targz' {
+            # Linux: Startskript und Anleitung wandern mit ins Archiv, direkt neben das
+            # Programm. Das Skript prueft die Systembibliotheken und startet dann erst.
+            if (Test-Path $linuxStart) { Copy-Item $linuxStart $stage -Force }
+            if (Test-Path $linuxReadme) { Copy-Item $linuxReadme $stage -Force }
+
             New-UnixTarGz -SourceDir $stage -Destination (Join-Path $xplat "$($t.Paket).tar.gz")
         }
         'app' {
@@ -487,7 +515,18 @@ macOS
 Linux
 -----
      tar -xzf ioBroker-Backup-Analyzer_Linux-x64.tar.gz
-     ./ioBroker-Backup-Analyzer/ioBroker-Backup-Analyzer
+     cd ioBroker-Backup-Analyzer
+     ./starte.sh
+
+   Das Startskript prueft zuerst, ob ICU und fontconfig vorhanden sind, und nennt sonst
+   den passenden apt-Befehl. Diese beiden Bibliotheken stellt das System, nicht das
+   Paket - auf einem Desktop-Linux sind sie da, auf einem schlanken System nicht:
+
+     sudo apt install libicu76 libfontconfig1      (Debian 13; andere Fassungen siehe
+                                                    LIESMICH_Linux.txt im Paket)
+
+   Ohne sie bricht das Programm mit einem englischen .NET-Stapelabzug ab. Der direkte
+   Aufruf ./ioBroker-Backup-Analyzer funktioniert weiterhin, nur ohne diese Vorpruefung.
 
 Windows
 -------
@@ -504,9 +543,10 @@ unter Windows bleibt die WinForms-Fassung die gepflegte Empfehlung.
 
 Copy-Item $license $xplat -Force
 
-# Dieselbe Anleitung zusaetzlich lose daneben - sie steckt bereits in beiden Mac-Archiven
-# (siehe oben), hier liegt sie nur zum Nachlesen ohne Entpacken.
+# Dieselben Anleitungen zusaetzlich lose daneben - sie stecken bereits in den jeweiligen
+# Archiven (siehe oben), hier liegen sie nur zum Nachlesen ohne Entpacken.
 if (Test-Path $macReadme) { Copy-Item $macReadme $xplat -Force }
+if (Test-Path $linuxReadme) { Copy-Item $linuxReadme $xplat -Force }
 
 # ---------------------------------------------------------------- Optionaler Defender-Scan
 

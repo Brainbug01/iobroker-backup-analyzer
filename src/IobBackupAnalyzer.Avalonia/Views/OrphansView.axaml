@@ -90,14 +90,14 @@
                     CanUserSortColumns="True" CanUserResizeColumns="True" AutoGenerateColumns="False">
             <DataGrid.Columns>
               <DataGridTextColumn Header="Datenpunkt-ID" Binding="{Binding Id}" Width="380" />
-              <DataGridTextColumn Header="Name"        Binding="{Binding Name}"          Width="170" />
-              <DataGridTextColumn Header="In Skripten" Binding="{Binding InScriptsText}" Width="100" />
+              <DataGridTextColumn Header="Name"        Binding="{Binding Name}"          Width="220" />
+              <DataGridTextColumn Header="In Skripten" Binding="{Binding InScriptsText}" Width="125" />
               <DataGridTextColumn Header="In VIS"      Binding="{Binding InVisText}"     Width="85" />
-              <DataGridTextColumn Header="Alias-Ziel"  Binding="{Binding AliasText}"     Width="90" />
-              <DataGridTextColumn Header="Logging"     Binding="{Binding LoggingText}"   Width="80" />
-              <DataGridTextColumn Header="In Chart"    Binding="{Binding InChartText}"   Width="80" />
+              <DataGridTextColumn Header="Alias-Ziel"  Binding="{Binding AliasText}"     Width="115" />
+              <DataGridTextColumn Header="Logging"     Binding="{Binding LoggingText}"   Width="95" />
+              <DataGridTextColumn Header="In Chart"    Binding="{Binding InChartText}"   Width="100" />
               <DataGridTextColumn Header="Zuletzt geändert" Binding="{Binding LastChangeText}"
-                                  SortMemberPath="LastChange" Width="180" />
+                                  SortMemberPath="LastChange" Width="215" />
               <DataGridTextColumn Header="Bewertung"   Binding="{Binding Verdict}"       Width="170" />
             </DataGrid.Columns>
           </DataGrid>
@@ -131,16 +131,16 @@
               <DataGridTextColumn Header="Datenpunkt-ID" Binding="{Binding Id}" Width="420" />
               <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="180" />
               <DataGridTextColumn Header="Zuletzt geändert" Binding="{Binding LastChangeText}"
-                                  SortMemberPath="LastChange" Width="190" />
+                                  SortMemberPath="LastChange" Width="215" />
               <!--
                 Aus common.write: unterscheidet reine Lieferanten (Sensoren) von
                 schreibbaren Datenpunkten — Rückfrage aus der Praxis zur Sicht
                 „Objekte ohne Wert".
               -->
-              <DataGridTextColumn Header="Schreibbar" Binding="{Binding WritableText}" Width="100" />
+              <DataGridTextColumn Header="Schreibbar" Binding="{Binding WritableText}" Width="115" />
               <DataGridTextColumn Header="Quelle"    Binding="{Binding From}"        Width="170" />
               <DataGridTextColumn Header="Qualität"  Binding="{Binding QualityText}" Width="180" />
-              <DataGridTextColumn Header="Quittiert" Binding="{Binding AckText}"     Width="90" />
+              <DataGridTextColumn Header="Quittiert" Binding="{Binding AckText}"     Width="105" />
             </DataGrid.Columns>
           </DataGrid>
         </Grid>

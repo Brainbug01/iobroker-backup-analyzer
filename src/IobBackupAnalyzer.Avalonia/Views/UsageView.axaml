@@ -68,10 +68,10 @@
             <DataGrid.Columns>
               <DataGridTextColumn Header="Skript"       Binding="{Binding DisplayPath}" Width="340" />
               <DataGridTextColumn Header="Typ"          Binding="{Binding EngineText}"  Width="130" />
-              <DataGridTextColumn Header="Status"       Binding="{Binding StatusText}"  Width="100" />
-              <DataGridTextColumn Header="Datenpunkte"  Binding="{Binding StateCount}"  Width="110" />
+              <DataGridTextColumn Header="Status"       Binding="{Binding StatusText}"  Width="120" />
+              <DataGridTextColumn Header="Datenpunkte"  Binding="{Binding StateCount}"  Width="125" />
               <DataGridTextColumn Header="liest"        Binding="{Binding ReadCount}"   Width="80" />
-              <DataGridTextColumn Header="schreibt"     Binding="{Binding WriteCount}"  Width="90" />
+              <DataGridTextColumn Header="schreibt"     Binding="{Binding WriteCount}"  Width="100" />
             </DataGrid.Columns>
           </DataGrid>
 
@@ -85,9 +85,9 @@
               <DataGridTextColumn Header="Skripte"       Binding="{Binding ScriptCount}"  Width="90" />
               <DataGridTextColumn Header="Adapter"       Binding="{Binding AdapterCount}" Width="90" />
               <DataGridTextColumn Header="liest"         Binding="{Binding Readers}"      Width="80" />
-              <DataGridTextColumn Header="schreibt"      Binding="{Binding Writers}"      Width="90" />
+              <DataGridTextColumn Header="schreibt"      Binding="{Binding Writers}"      Width="100" />
               <DataGridTextColumn Header="Zuletzt geändert"
-                                  Binding="{Binding LastChangeText}" Width="180" />
+                                  Binding="{Binding LastChangeText}" Width="215" />
             </DataGrid.Columns>
           </DataGrid>
         </Panel>
@@ -120,7 +120,7 @@
                 <DataGridTextColumn Header="Verwender"  Binding="{Binding SourceName}" Width="340" />
                 <DataGridTextColumn Header="Zugriff"    Binding="{Binding AccessText}" Width="130" />
                 <DataGridTextColumn Header="Fundstelle" Binding="{Binding HintText}"   Width="260" />
-                <DataGridTextColumn Header="Status"     Binding="{Binding StatusText}" Width="110" />
+                <DataGridTextColumn Header="Status"     Binding="{Binding StatusText}" Width="120" />
               </DataGrid.Columns>
             </DataGrid>
           </Panel>

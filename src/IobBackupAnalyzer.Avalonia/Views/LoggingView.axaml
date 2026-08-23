@@ -39,7 +39,7 @@
           <DataGridTextColumn Header="Adapter"          Binding="{Binding Adapter}"  Width="110" />
           <DataGridTextColumn Header="Aktiv"            Binding="{Binding EnabledText}"
                               SortMemberPath="Enabled" Width="70" />
-          <DataGridTextColumn Header="Nur bei Änderung" Binding="{Binding ChangesOnlyText}" Width="130" />
+          <DataGridTextColumn Header="Nur bei Änderung" Binding="{Binding ChangesOnlyText}" Width="175" />
           <DataGridTextColumn Header="Entprellung"      Binding="{Binding DebounceText}"
                               SortMemberPath="DebounceMs" Width="110" CellStyleClasses="zahl" />
           <DataGridTextColumn Header="Alias-Name"       Binding="{Binding AliasId}"  Width="160" />

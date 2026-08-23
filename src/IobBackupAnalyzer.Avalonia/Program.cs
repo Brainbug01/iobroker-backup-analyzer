@@ -18,6 +18,11 @@ internal static class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        // Deutsche Zahlendarstellung, unabhängig von der Spracheinstellung des Systems.
+        // Gerade hier wichtig: Diese Fassung läuft auch auf Linux und macOS, und dort ist
+        // Deutsch als Systemsprache eher die Ausnahme. Siehe AppCulture.
+        Core.AppCulture.Apply();
+
         // Selbsttest der Oberfläche, ohne ein Fenster zu zeigen. XAML-Fehler (Tippfehler
         // in Namen, unbekannte Eigenschaften, fehlende Ressourcen) schlagen erst beim
         // Laden zu — der Compiler sieht sie nicht. Gegenstück zum --selftest der

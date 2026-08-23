@@ -102,7 +102,7 @@
             <DataGridTextColumn Header="Widget-Set" Binding="{Binding WidgetSet}"    Width="140" />
             <DataGridTextColumn Header="Feld"       Binding="{Binding Field}"        Width="200" />
             <!-- Zeigt, ob das Widget den Wert liest oder ein Zustandsattribut. -->
-            <DataGridTextColumn Header="Zugriff"    Binding="{Binding AttributeText}" Width="80" />
+            <DataGridTextColumn Header="Zugriff"    Binding="{Binding AttributeText}" Width="95" />
           </DataGrid.Columns>
         </DataGrid>
       </Grid>

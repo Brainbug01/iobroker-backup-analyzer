@@ -34,12 +34,12 @@
             <DataGridTextColumn Header="Alias-ID"  Binding="{Binding Id}"   Width="300" />
             <DataGridTextColumn Header="Name"      Binding="{Binding Name}" Width="150" />
             <DataGridTextColumn Header="Lese-Ziel" Binding="{Binding ReadTarget}" Width="300" />
-            <DataGridTextColumn Header="Ziel vorhanden" Binding="{Binding ReadExistsText}" Width="110" />
+            <DataGridTextColumn Header="Ziel vorhanden" Binding="{Binding ReadExistsText}" Width="150" />
             <DataGridTextColumn Header="Schreib-Ziel (abweichend)"
                                 Binding="{Binding WriteTargetText}" Width="240" />
             <DataGridTextColumn Header="Schreib-Ziel vorhanden"
                                 Binding="{Binding WriteExistsText}" Width="150" />
-            <DataGridTextColumn Header="Konverter" Binding="{Binding ConverterText}" Width="90" />
+            <DataGridTextColumn Header="Konverter" Binding="{Binding ConverterText}" Width="110" />
           </DataGrid.Columns>
         </DataGrid>
 

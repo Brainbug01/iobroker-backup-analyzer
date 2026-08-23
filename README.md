@@ -109,7 +109,7 @@ portabel:
 | `plattformuebergreifend/…_Windows-x64.zip` (~43 MB) | plattformübergreifend | | entpacken, EXE starten |
 | `plattformuebergreifend/…_macOS-AppleSilicon.tar.gz` (~42 MB) | plattformübergreifend | für Apple Silicon | entpacken, `.app` starten |
 | `plattformuebergreifend/…_macOS-Intel.tar.gz` (~44 MB) | plattformübergreifend | für Intel-Macs | entpacken, `.app` starten |
-| `plattformuebergreifend/…_Linux-x64.tar.gz` (~41 MB) | plattformübergreifend | | entpacken, Datei ausführbar starten |
+| `plattformuebergreifend/…_Linux-x64.tar.gz` (~41 MB) | plattformübergreifend | | entpacken, `./starte.sh` aufrufen |
 
 Backup dann per Button auswählen oder auf das Fenster ziehen.
 
@@ -117,6 +117,15 @@ Backup dann per Button auswählen oder auf das Fenster ziehen.
 > `xattr -cr` löst die Quarantäne, `codesign --force --deep --sign -` signiert die App ad
 > hoc. Beides braucht kein Entwicklerkonto, auf Apple Silicon ist die Signatur aber Pflicht.
 > Das Ausführbar-Bit ist bereits im Archiv gesetzt.
+
+> **Linux:** Dem Paket liegen `starte.sh` und `LIESMICH_Linux.txt` bei. Start mit
+> `./starte.sh` — das Skript prüft vorab zwei Systembibliotheken, die das Paket nicht
+> mitbringen kann: **ICU** (Zahlen- und Sortierregeln) und **fontconfig**
+> (Schriftverwaltung). Auf einem Desktop-Linux sind beide vorhanden, auf einem schlanken
+> System nicht; dort genügt einmalig `sudo apt install libicu76 libfontconfig1` (die Zahl
+> hängt von der Distribution ab, das Skript nennt den passenden Namen). Ohne sie bricht das
+> Programm mit einem englischen .NET-Stapelabzug ab. Das Ausführbar-Bit ist im Archiv
+> gesetzt, ein `chmod` also nicht nötig.
 
 > **Nimm im Zweifel die ZIP-Variante.** Die Einzeldatei ist unter Windows **Smart App
 > Control** unzuverlässig: Jeder Single-File-Build bekommt einen anderen Datei-Hash, und SAC

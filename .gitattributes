@@ -1,0 +1,6 @@
+# Shell-Skripte brauchen Unix-Zeilenenden. Mit CRLF verweigert Linux den Start mit
+# "bad interpreter: /bin/sh^M" — ein Fehler, den man auf einem Windows-Rechner nie zu
+# sehen bekommt, weil er erst auf dem Zielsystem auftritt. Die Einstellung core.autocrlf
+# ist auf Windows-Rechnern üblicherweise aktiv und würde die Datei sonst beim Auschecken
+# umschreiben.
+*.sh text eol=lf

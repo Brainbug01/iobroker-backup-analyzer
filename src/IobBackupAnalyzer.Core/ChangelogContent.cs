@@ -23,6 +23,30 @@ public static class ChangelogContent
     /// <summary>Neueste Version zuerst.</summary>
     public static IReadOnlyList<ChangelogEntry> Entries { get; } = new ChangelogEntry[]
     {
+        new("1.21.1", "23.08.2026", new[]
+        {
+            "Die plattformübergreifende Fassung läuft jetzt tatsächlich unter Linux. " +
+            "Dem Paket liegt ein Startskript „starte.sh\" bei, das vor dem Start prüft, ob " +
+            "die beiden Systembibliotheken ICU und fontconfig vorhanden sind. Fehlen " +
+            "sie, nennt es den passenden Installationsbefehl mit dem auf diesem System " +
+            "gültigen Paketnamen. Vorher brach das Programm an dieser Stelle mit einem " +
+            "englischen Fehlerbericht ab, aus dem nicht hervorging, was fehlt. Fehlt " +
+            "eine Bildschirmoberfläche, wird auch das im Klartext gesagt.",
+
+            "Zahlen werden überall deutsch dargestellt, unabhängig von der " +
+            "Spracheinstellung des Rechners. Auf einem System ohne deutsche " +
+            "Spracheinstellung stand bisher „16,576\" statt „16.576\": die " +
+            "Beschriftung deutsch, die Zahlen englisch. Das betraf jede Bestandszahl " +
+            "und fiel erst beim ersten Test auf einem echten Linux auf.",
+
+            "Mehrere Tabellenspalten waren zu schmal für ihren Inhalt. In den Tabs " +
+            "„Verwaiste Datenpunkte\" und „Verwendung\" waren Spaltenköpfe " +
+            "abgeschnitten, die Angabe „Zuletzt geändert\" verlor bei vierstelligen " +
+            "Tageszahlen das Ende, und in der Verwendungsliste stand „Deaktivier\" " +
+            "statt „Deaktiviert\". Das war kein Linux-Problem: Es trat unter Windows " +
+            "genauso auf und ist dort nur nie jemandem aufgefallen."
+        }),
+
         new("1.21.0", "22.08.2026", new[]
         {
             "Der Tab „Skripte\" hat eine Spalte „Hinweise\". Sie meldet drei Muster im " +

@@ -1,0 +1,138 @@
+====================================================================
+  ioBroker Backup Analyzer — Installation unter Linux
+====================================================================
+
+Dieses Programm liest ein ioBroker-Backup und zeigt an, was darin
+steckt: Adapter, Skripte, VIS-Datenpunkte, Aliasse, Logging und
+verwaiste Datenpunkte.
+
+WICHTIG VORAB — das Programm ist harmlos:
+Es verbindet sich NICHT mit deinem ioBroker, es verändert nichts und
+es sendet nichts ins Internet. Es öffnet eine Backup-Datei und liest
+sie. Mehr nicht.
+
+Und noch etwas vorab: Das Programm ist ein Fenster-Programm. Es
+gehört auf einen Rechner mit Bildschirm, nicht auf den ioBroker-
+Server. Kopiere das Backup dorthin, wo du eine Oberfläche hast.
+
+
+--------------------------------------------------------------------
+  SCHRITT 1 — Entpacken
+--------------------------------------------------------------------
+
+    tar -xzf ioBroker-Backup-Analyzer_Linux-x64.tar.gz
+    cd ioBroker-Backup-Analyzer
+
+Im Ordner liegen dann unter anderem:
+
+    starte.sh                  (damit wird gestartet)
+    ioBroker-Backup-Analyzer   (das eigentliche Programm)
+    LIESMICH_Linux.txt         (diese Anleitung)
+    LICENSE
+
+Das Ausführbar-Recht ist im Archiv bereits gesetzt. Ein "chmod" ist
+nicht nötig.
+
+
+--------------------------------------------------------------------
+  SCHRITT 2 — Starten
+--------------------------------------------------------------------
+
+    ./starte.sh
+
+Fehlt noch etwas, sagt das Skript im Klartext, welcher Befehl fehlt,
+und bricht ab. Sonst geht das Fenster auf.
+
+Der Umweg über starte.sh ist Absicht: Das Skript prüft vorher nach,
+ob die zwei benötigten Systembibliotheken vorhanden sind. Ohne diese
+Prüfung bricht das Programm mit einer englischen Fehlermeldung ab,
+aus der nicht hervorgeht, was zu tun ist.
+
+Wer lieber direkt startet, kann auch das tun:
+
+    ./ioBroker-Backup-Analyzer
+
+
+--------------------------------------------------------------------
+  SCHRITT 3 — Was das System bereitstellen muss
+--------------------------------------------------------------------
+
+Das Programm bringt seine eigene Laufzeitumgebung mit. Zwei
+Bibliotheken muss das System aber stellen:
+
+    ICU          Zahlen-, Datums- und Sortierregeln
+    fontconfig   Schriftverwaltung
+
+Auf einem Linux mit Oberfläche sind beide fast immer schon da. Auf
+einem schlanken oder frisch aufgesetzten System fehlen sie:
+
+  Debian / Ubuntu    sudo apt install libicu76 libfontconfig1
+
+      Die Zahl im ICU-Paket hängt von der Version ab: Debian 13 hat
+      libicu76, Debian 12 hat libicu72, Ubuntu 24.04 hat libicu74.
+      Den passenden Namen findet man mit:
+          apt-cache search --names-only '^libicu[0-9]*$'
+      starte.sh ermittelt ihn selbst und nennt den fertigen Befehl.
+
+  Fedora             sudo dnf install libicu fontconfig
+  openSUSE           sudo zypper install libicu fontconfig
+  Arch Linux         sudo pacman -S icu fontconfig
+
+
+--------------------------------------------------------------------
+  SCHRITT 4 — Backup öffnen
+--------------------------------------------------------------------
+
+Oben links auf "Backup öffnen ..." klicken und die Backup-Datei
+auswählen — das ist die Datei mit der Endung .tar.gz, die ioBroker
+selbst erzeugt hat. Alternativ die Datei in das Feld daneben ziehen.
+
+Danach füllen sich die Reiter. Nichts davon verändert das Backup.
+
+
+--------------------------------------------------------------------
+  WENN ETWAS NICHT KLAPPT
+--------------------------------------------------------------------
+
+"Couldn't find a valid ICU package installed on the system"
+  ICU fehlt — siehe Schritt 3. Diese Meldung erscheint nur beim
+  direkten Start; über starte.sh kommt stattdessen ein Hinweis auf
+  Deutsch mit dem passenden Befehl.
+
+"Unable to load shared library 'libSkiaSharp'"
+  Dahinter steckt meistens fontconfig — siehe Schritt 3. Die Zeile
+  darunter nennt die tatsächlich fehlende Datei.
+
+"XOpenDisplay failed"
+  Es ist keine grafische Oberfläche vorhanden. Das passiert, wenn man
+  das Programm auf einem Server ohne Bildschirm startet. Entweder das
+  Backup auf einen Rechner mit Oberfläche kopieren oder sich per
+  "ssh -X benutzer@rechner" mit X-Weiterleitung verbinden.
+
+"Permission denied"
+  Dem Programm fehlt das Ausführbar-Recht. Das sollte nicht
+  vorkommen, weil das Archiv es mitbringt. Falls doch:
+      chmod +x starte.sh ioBroker-Backup-Analyzer
+
+"bad interpreter: /bin/sh^M"
+  Die Datei starte.sh hat Windows-Zeilenenden bekommen, etwa durch
+  einen Umweg über ein Windows-Werkzeug. Reparieren mit:
+      sed -i 's/\r$//' starte.sh
+
+Das Fenster bleibt leer
+  Es ist noch kein Backup geladen — siehe Schritt 4.
+
+
+--------------------------------------------------------------------
+  HINWEISE
+--------------------------------------------------------------------
+
+Das Paket ist für x86-64 gebaut. Auf einem Raspberry Pi oder einem
+anderen ARM-Rechner läuft es nicht.
+
+Die Oberfläche ist auf X11 ausgelegt. Unter Wayland läuft sie über
+die X11-Verträglichkeitsschicht, die auf allen gängigen Oberflächen
+vorhanden ist.
+
+Lizenz: MIT (siehe beiliegende Datei LICENSE). Das Programm ist
+kostenlos und darf weitergegeben werden.

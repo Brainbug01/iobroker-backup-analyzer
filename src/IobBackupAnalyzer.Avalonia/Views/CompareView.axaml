@@ -193,7 +193,7 @@
                   </Style>
                 </DataGrid.Styles>
                 <DataGrid.Columns>
-                  <DataGridTextColumn Header="Änderung"  Binding="{Binding Change}" Width="100" />
+                  <DataGridTextColumn Header="Änderung"  Binding="{Binding Change}" Width="115" />
                   <DataGridTextColumn Header="Objekt-ID" Binding="{Binding Id}" Width="600" />
                 </DataGrid.Columns>
               </DataGrid>
