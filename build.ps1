@@ -638,6 +638,21 @@ $webStage = Join-Path $dist '_web_publish'
 if (Test-Path $webStage) { Remove-Item $webStage -Recurse -Force }
 if (Test-Path $webZiel) { Remove-Item $webZiel -Recurse -Force }
 
+# Die Browser-Fassung wird nach WebAssembly uebersetzt statt interpretiert (siehe
+# RunAOTCompilation im csproj). Das braucht die Workload "wasm-tools". Fehlt sie, bricht
+# der Publish mitten im Lauf mit einer Meldung ab, die den Zusammenhang nicht nennt -
+# deshalb hier vorher nachsehen und sagen, was zu tun ist.
+$workloads = & $dotnet workload list 2>&1 | Out-String
+if ($workloads -notmatch 'wasm-tools') {
+    throw "Die Browser-Fassung braucht die Workload ""wasm-tools"". Einmalig nachholen mit:`n" +
+          "    dotnet workload install wasm-tools`n" +
+          "Ohne sie laesst sich nur ohne AOT bauen (im csproj RunAOTCompilation auf false)."
+}
+
+# Das Uebersetzen nach WebAssembly dauert rund zehn Minuten - ohne Ansage sieht es aus,
+# als haenge der Build.
+Write-Host "  uebersetzt nach WebAssembly (AOT), das dauert etwa zehn Minuten ..." -ForegroundColor DarkGray
+
 & $dotnet publish $web -c Release -o $webStage | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "Publish der Browser-Fassung fehlgeschlagen." }
 

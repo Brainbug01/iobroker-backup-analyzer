@@ -1,0 +1,109 @@
+# Browser-Fassung nach GitHub Pages veröffentlichen
+# =================================================
+#
+# Baut die Fassung für den Browser aus dem Quelltext dieses Repositories und legt sie auf
+# GitHub Pages. Ergebnis: https://brainbug01.github.io/iobroker-backup-analyzer/
+#
+# WARUM AUS DEM QUELLTEXT UND NICHT ALS FERTIGE DATEIEN IM REPOSITORY?
+#
+# Zwei Gründe. Der erste ist Platz: Ein Publish der Browser-Fassung sind rund 26 MB, und
+# committete Binärdateien bleiben für immer in der Historie — nach zehn Versionen wäre das
+# Repository grösser als alles, was je an Quelltext darin stand.
+#
+# Der zweite wiegt schwerer. Wer sein Backup in eine Seite zieht, die jemand anderes
+# betreibt, muss darauf vertrauen, dass dort genau das läuft, was im offenen Quelltext
+# steht. Baut ein Workflow die Seite bei jedem Lauf neu aus eben diesem Quelltext, ist
+# dieser Zusammenhang nachprüfbar: Zu jeder veröffentlichten Fassung gibt es einen Lauf,
+# und der Lauf nennt den Commit, aus dem sie entstanden ist.
+#
+# Das Backup selbst verlässt den Rechner des Betrachters ohnehin nicht — gerechnet wird im
+# Browser, der Server liefert nur Dateien aus. Aber „technisch unmöglich" und „nachprüfbar"
+# sind zweierlei, und bei einer öffentlich erreichbaren Instanz zählt beides.
+
+name: Browser-Fassung veröffentlichen
+
+on:
+  # Bei jedem veröffentlichten Release — die Seite zeigt dann dieselbe Fassung, die auch
+  # als ZIP zum Herunterladen bereitliegt.
+  release:
+    types: [published]
+
+  # Und von Hand, zum Ausprobieren oder für einen Nachtrag.
+  workflow_dispatch:
+    inputs:
+      ohne_aot:
+        description: >-
+          Ohne AOT bauen - nur für einen schnellen Testlauf. Die Seite ist dann rund
+          viermal langsamer beim Auswerten, der Build aber in einer Minute fertig
+          statt in zehn.
+        type: boolean
+        default: false
+
+# Pages braucht diese drei Rechte; mehr bekommt der Workflow nicht.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Zwei Läufe gleichzeitig würden sich beim Veröffentlichen in die Quere kommen. Ein
+# laufender wird nicht abgebrochen: Ein halb hochgeladener Stand wäre schlimmer als ein
+# überflüssiger Lauf.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  bauen:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Quelltext holen
+        uses: actions/checkout@v4
+
+      - name: .NET einrichten
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      # Das Projekt übersetzt nach WebAssembly (RunAOTCompilation im csproj), und dafür
+      # wird diese Workload gebraucht. Nur beim ausdrücklichen Testlauf ohne AOT ist sie
+      # entbehrlich — und der Schritt dauert einige Minuten, die man sich dann spart.
+      - name: WASM-Werkzeuge nachinstallieren
+        if: ${{ !inputs.ohne_aot }}
+        run: dotnet workload install wasm-tools
+
+      # Ohne Zusatz gilt, was im csproj steht: mit AOT. Der Schalter setzt das für einen
+      # einzelnen Lauf ausser Kraft; bei einem Release ist er nie gesetzt.
+      - name: Browser-Fassung übersetzen
+        run: |
+          dotnet publish src/IobBackupAnalyzer.Web \
+            -c Release \
+            -o ausgabe \
+            ${{ inputs.ohne_aot && '-p:RunAOTCompilation=false' || '' }}
+
+      # Ohne diese Datei lässt GitHub Pages jeden Ordner mit führendem Unterstrich weg —
+      # und genau so heisst der Ordner, in dem das ganze Programm liegt: _framework. Die
+      # Seite lädt dann eine leere Hülle und bleibt weiss.
+      - name: Jekyll abschalten
+        run: touch ausgabe/wwwroot/.nojekyll
+
+      # Die .htaccess richtet einen Apache ein und ist auf Pages wirkungslos. Sie
+      # mitzuliefern wäre nicht falsch, aber sie weckt den Eindruck, hier sei etwas
+      # einzustellen — auf Pages gibt es nichts einzustellen.
+      - name: Apache-Einstellungen entfernen
+        run: rm -f ausgabe/wwwroot/.htaccess
+
+      - name: Ergebnis für Pages einpacken
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ausgabe/wwwroot
+
+  veroeffentlichen:
+    needs: bauen
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.pages.outputs.page_url }}
+    steps:
+      - name: Auf Pages legen
+        id: pages
+        uses: actions/deploy-pages@v4

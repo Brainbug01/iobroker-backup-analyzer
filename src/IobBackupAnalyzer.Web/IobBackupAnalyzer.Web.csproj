@@ -55,6 +55,40 @@
     -->
     <TarSupport>true</TarSupport>
 
+    <!--
+      Übersetzt nach WebAssembly, statt die Zwischensprache zu interpretieren.
+
+      Ohne diese Zeile liefert Blazor den IL-Code aus, und im Browser arbeitet ihn ein
+      Interpreter Befehl für Befehl ab. Das ist für eine Oberfläche belanglos — hier wird
+      aber gerechnet: Ein Backup besteht aus Zehntausenden JSON-Zeilen, und die Analysen
+      gehen mehrfach über alles.
+
+      Gemessen an einem erzeugten Backup mit 190.000 Objekten (70 MB objects.jsonl,
+      27 MB states.jsonl), Chrome auf demselben Rechner:
+
+                              interpretiert     mit AOT
+          objects.jsonl lesen      14,4 s         2,9 s
+          states.jsonl lesen       10,7 s         2,1 s
+          Analysen                  3,8 s         2,1 s
+          ==================================================
+          insgesamt                29,4 s         7,4 s
+          Arbeitsspeicher           138 MB        138 MB
+
+      Vierfaches Tempo, gleicher Speicherbedarf. Bezahlt wird es an zwei Stellen: Die
+      Übertragung beim ersten Aufruf wächst von 7,5 auf 17,3 MB (Brotli, wie der Apache
+      sie ausliefert), und der Publish dauert rund zehn Minuten statt einer.
+
+      Beides wiegt hier leichter als die Wartezeit. Die Seite wird einmal geladen und
+      danach vom Browser zwischengespeichert; das Backup dagegen wird bei jedem Blick neu
+      eingelesen. Und wer eine große Anlage hat — der Fall, für den diese Zeilen zählen —,
+      wartet ohne AOT eine halbe Minute und länger vor einer stehenden Seite.
+
+      ACHTUNG: Dafür wird die Workload "wasm-tools" gebraucht. Fehlt sie, bricht der Build
+      ab. build.ps1 prüft das vorher und sagt, was zu tun ist:
+          dotnet workload install wasm-tools
+    -->
+    <RunAOTCompilation>true</RunAOTCompilation>
+
     <DebugType>none</DebugType>
     <SatelliteResourceLanguages>de;en</SatelliteResourceLanguages>
   </PropertyGroup>
