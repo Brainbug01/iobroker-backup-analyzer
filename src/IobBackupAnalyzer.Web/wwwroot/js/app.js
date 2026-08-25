@@ -237,6 +237,69 @@ window.iobAnalyzer = {
         }
 
         return 'unbekannter Browser';
+    },
+
+    // ---------------------------------------------------------------- Trennlinie ziehen
+
+    /**
+     * Macht die Linie zwischen zwei übereinanderliegenden Bereichen verschiebbar — das
+     * Gegenstück zum SplitContainer der Windows-Fassung und zum GridSplitter der
+     * Avalonia-Fassung.
+     *
+     * Der Griff nimmt sich seine Nachbarn selbst: darüber der eine Bereich, darunter der
+     * andere. Deshalb genügt es, die Komponente zwischen beide zu setzen.
+     *
+     * Die Untergrenzen sind kein Beiwerk. Ohne sie liesse sich der obere Bereich auf null
+     * ziehen — und dann käme der Sprung aus dem Reiter „Verwendung" zwar an der richtigen
+     * Zeile an, nur sähe man sie nicht. Beide Desktop-Fassungen setzen aus demselben Grund
+     * 120 Pixel als Minimum.
+     *
+     * Warum Zeigerereignisse und nicht Mausereignisse: Sie decken Maus, Finger und Stift
+     * ab. setPointerCapture sorgt dafür, dass das Ziehen weiterläuft, wenn der Zeiger den
+     * schmalen Griff verlässt — ohne das reisst es bei jeder schnellen Bewegung ab.
+     */
+    trennerEinrichten(griff, minOben, minUnten) {
+        const oben = griff.previousElementSibling;
+        const unten = griff.nextElementSibling;
+        if (!oben || !unten) return;
+
+        let startY = 0;
+        let startHoehe = 0;
+
+        griff.addEventListener('pointerdown', e => {
+            startY = e.clientY;
+            startHoehe = oben.getBoundingClientRect().height;
+            griff.setPointerCapture(e.pointerId);
+            griff.classList.add('zieht');
+            e.preventDefault();          // sonst markiert der Zug den Text daneben
+        });
+
+        griff.addEventListener('pointermove', e => {
+            if (!griff.hasPointerCapture(e.pointerId)) return;
+
+            // Die Gesamthöhe jedes Mal neu messen: Das Fenster kann sich zwischendurch
+            // geändert haben, und ein veralteter Wert liesse den unteren Bereich unter
+            // seine Grenze rutschen.
+            const gesamt = oben.getBoundingClientRect().height
+                         + unten.getBoundingClientRect().height;
+
+            let neu = startHoehe + (e.clientY - startY);
+            neu = Math.max(minOben, Math.min(neu, gesamt - minUnten));
+
+            // Erst hier wird aus dem Verhältnis (flex: 3 zu 2) eine feste Höhe. Solange
+            // niemand zieht, bleibt das ursprüngliche Layout unangetastet und passt sich
+            // der Fenstergrösse an.
+            oben.style.flex = '0 0 ' + Math.round(neu) + 'px';
+            unten.style.flex = '1 1 0';
+        });
+
+        const loslassen = e => {
+            if (griff.hasPointerCapture(e.pointerId)) griff.releasePointerCapture(e.pointerId);
+            griff.classList.remove('zieht');
+        };
+
+        griff.addEventListener('pointerup', loslassen);
+        griff.addEventListener('pointercancel', loslassen);
     }
 };
 

@@ -23,6 +23,33 @@ public static class ChangelogContent
     /// <summary>Neueste Version zuerst.</summary>
     public static IReadOnlyList<ChangelogEntry> Entries { get; } = new ChangelogEntry[]
     {
+        new("1.23.3", "25.08.2026", new[]
+        {
+            "Behoben: Die Browser-Fassung startete nicht, wenn der Browser auf eine andere " +
+            "Sprache als Deutsch eingestellt war. Statt des Programms erschien eine " +
+            "Fehlermeldung. Grund war die Zahlendarstellung — das Programm stellt sie auf " +
+            "Deutsch um, damit „16.576\" überall gleich aussieht, und ein Browser mit " +
+            "anderer Spracheinstellung brachte die dafür nötigen Daten nicht mit. Jetzt " +
+            "wird die Sprache gleich beim Start festgelegt. Wer einen deutschen Browser " +
+            "benutzt, hat davon nie etwas gemerkt.",
+
+            "In der Browser-Fassung lässt sich die Linie zwischen der Liste oben und den " +
+            "Einzelheiten unten jetzt verschieben — wie in den Programmen für Windows, " +
+            "macOS und Linux. Betroffen sind dieselben fünf Reiter: „Verwendung\", " +
+            "„Skripte\", „Aliasse\", „Vergleich\" und „VIS-Datenpunkte\". Wer die Liste " +
+            "grösser haben will als die Einzelheiten, zieht die Linie einfach nach unten.",
+
+            "Ganz zuziehen lässt sie sich nicht: Beide Bereiche behalten eine Mindesthöhe, " +
+            "so wie in den Programmen auch. Das ist kein Selbstzweck — sonst käme etwa der " +
+            "Doppelklick aus „Verwendung\" zwar beim richtigen Skript an, nur wäre die " +
+            "Zeile hinter dem zugezogenen Rand nicht mehr zu sehen.",
+
+            "Im Reiter „Aliasse\" waren die vier Konverter-Felder drei Zeilen hoch, auch " +
+            "wenn nichts darin stand — zwei grosse leere Kästen bei fast jedem Alias. Sie " +
+            "sind jetzt einzeilig wie in den Programmen; steht doch etwas darin, lässt es " +
+            "sich im Feld weiterrollen.",
+        }),
+
         new("1.23.2", "25.08.2026", new[]
         {
             "Die Fassung für den Browser wertet Backups jetzt rund viermal so schnell " +

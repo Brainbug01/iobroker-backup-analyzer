@@ -1,0 +1,41 @@
+@inject IJSRuntime JS
+
+@*
+    Die verschiebbare Linie zwischen zwei übereinanderliegenden Bereichen.
+
+    Gegenstück zum SplitContainer der Windows-Fassung und zum GridSplitter der
+    Avalonia-Fassung. Sie wird schlicht zwischen die beiden Bereiche gesetzt:
+
+        <div class="tabellenbereich oben"> ... </div>
+        <Trenner />
+        <div class="detailbereich"> ... </div>
+
+    Die Nachbarn sucht sich das Skript selbst — so bleibt hier nichts zu verdrahten, und
+    die Bereiche behalten ihre Klassen.
+*@
+
+<div class="trenner" @ref="_griff" title="Ziehen, um die Aufteilung zu ändern"></div>
+
+@code {
+    private ElementReference _griff;
+
+    /// <summary>
+    /// Wie klein der obere Bereich werden darf, in Pixeln. Beide Desktop-Fassungen setzen
+    /// 120 — das sind etwa vier Zeilen, genug um zu erkennen, wo in der Liste man steht.
+    /// Weniger wäre nicht nur unschön: Der Sprung aus dem Reiter „Verwendung" käme dann an
+    /// einer Zeile an, die man nicht mehr sieht.
+    /// </summary>
+    [Parameter] public int MinOben { get; set; } = 120;
+
+    /// <summary>Dasselbe für den unteren Bereich.</summary>
+    [Parameter] public int MinUnten { get; set; } = 120;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Nur einmal: Ein zweiter Durchlauf würde die Ereignisse ein weiteres Mal
+        // anmelden, und jeder Zug bewegte die Linie doppelt so weit.
+        if (!firstRender) return;
+
+        await JS.InvokeVoidAsync("iobAnalyzer.trennerEinrichten", _griff, MinOben, MinUnten);
+    }
+}

@@ -43,16 +43,18 @@ else
                        Selected="S.Selected" SelectedChanged="Gewaehlt" />
         </div>
 
+        <Trenner />
+
         @* ============ Detailbereich zur ausgewählten Zeile ============ *@
         <div class="detailbereich">
             <div class="ueberschrift klein-ueberschrift">@AliasPresenter.DetailHeader(S.Selected)</div>
 
             <div class="feldgitter">
                 <label>Konverter Lesen:</label>
-                <textarea class="code" readonly rows="3">@(S.Selected?.ConverterRead ?? "")</textarea>
+                <textarea class="code" readonly rows="1">@(S.Selected?.ConverterRead ?? "")</textarea>
 
                 <label>Konverter Schreiben:</label>
-                <textarea class="code" readonly rows="3">@(S.Selected?.ConverterWrite ?? "")</textarea>
+                <textarea class="code" readonly rows="1">@(S.Selected?.ConverterWrite ?? "")</textarea>
 
                 <span></span>
                 <div>
@@ -62,10 +64,10 @@ else
                 </div>
 
                 <label>Vorschlag Lesen:</label>
-                <textarea class="code" readonly rows="3">@(S.Generated?.Read ?? "")</textarea>
+                <textarea class="code" readonly rows="1">@(S.Generated?.Read ?? "")</textarea>
 
                 <label>Vorschlag Schreiben:</label>
-                <textarea class="code" readonly rows="3">@(S.Generated?.Write ?? "")</textarea>
+                <textarea class="code" readonly rows="1">@(S.Generated?.Write ?? "")</textarea>
 
                 <label class="gedaempft">Hinweis:</label>
                 <div class="@(S.Generated is { CanGenerate: false } ? "text-problem" : "")">

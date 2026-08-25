@@ -76,6 +76,35 @@
 </script>
 
 <script src="js/app.js"></script>
-<script src="_framework/blazor.webassembly.js"></script>
+
+<!--
+    Blazor wird von Hand gestartet, nur um ihm die Anzeigekultur mitzugeben.
+
+    WARUM DAS SEIN MUSS. Die Oberfläche ist durchgehend deutsch, und AppCulture stellt
+    deshalb in allen drei Fassungen de-DE ein, damit „16.576" überall gleich aussieht (die
+    Begründung steht dort). Auf einem Rechner ist das folgenlos. Im Browser gilt es als
+    Kulturwechsel während des Starts — und Blazor lädt von sich aus nur die Kulturdaten,
+    die der Browser selbst benutzt. Steht der auf Englisch, fehlen die deutschen Daten, und
+    die Anwendung bricht beim Start ab:
+
+        Blazor detected a change in the application's culture that is not supported
+        with the current project configuration.
+
+    Auf einem deutschen Rechner fällt das nie auf: Dort sind Browser- und Anwendungskultur
+    dieselbe, also wechselt nichts. Gemeldet wurde es aus dem Forum, von einem Browser mit
+    anderer Spracheinstellung.
+
+    Mit applicationCulture startet Blazor gleich in de-DE und lädt die passenden Daten.
+    Damit gibt es keinen Wechsel mehr, und AppCulture setzt anschliessend nur noch, was
+    ohnehin schon gilt.
+
+    Der naheliegende andere Weg wäre BlazorWebAssemblyLoadAllGlobalizationData im csproj —
+    der lädt die Daten *aller* Kulturen. Das behebt es ebenfalls, kostet aber jeden
+    Aufrufer zusätzliche Übertragung für Kulturen, die diese Anwendung nie braucht.
+-->
+<script src="_framework/blazor.webassembly.js" autostart="false"></script>
+<script>
+    Blazor.start({ applicationCulture: 'de-DE' });
+</script>
 </body>
 </html>

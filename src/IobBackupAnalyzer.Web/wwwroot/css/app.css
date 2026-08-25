@@ -347,10 +347,29 @@ html, body {
     background: var(--grund);
 }
 
-/* Aufteilung oben/unten wie die Trenner der Desktop-Fassungen — dort verschiebbar,
-   hier fest: Ein Ziehbalken wäre ein eigenes Steuerelement, und der Gewinn ist klein. */
+/* Aufteilung oben/unten wie die Trenner der Desktop-Fassungen. Die Werte gelten als
+   Ausgangslage; sobald jemand die Linie zieht, setzt das Skript eine feste Höhe. Solange
+   niemand zieht, bleibt es beim Verhältnis und passt sich der Fenstergröße an. */
 .tabellenbereich.oben  { flex: 3; }
 .tabellenbereich.unten { flex: 2; }
+
+/* Die Trennlinie selbst. Sie ist schmal, aber nicht so schmal, dass man sie nicht trifft:
+   Sechs Pixel sind auch mit dem Finger noch zu fassen. Angezeigt wird sie erst beim
+   Darüberfahren — eine dauerhaft sichtbare Leiste zwischen zwei ohnehin gerahmten
+   Bereichen wäre ein Strich zu viel. */
+.trenner {
+    flex: none;
+    height: 6px;
+    margin: -2px 0;
+    cursor: row-resize;
+    border-radius: 3px;
+    background: transparent;
+    transition: background-color 120ms;
+    touch-action: none;          /* sonst scrollt die Seite mit, statt zu ziehen */
+}
+
+.trenner:hover,
+.trenner.zieht { background: var(--rahmen); }
 .tabellenbereich.niedrig { flex: none; height: 150px; }
 .tabellenbereich.schmal { flex: none; width: 430px; }
 
