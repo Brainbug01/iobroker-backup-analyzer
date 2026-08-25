@@ -25,7 +25,10 @@ public partial class ScriptsView : UserControl
     private readonly Border _hintsBox;
     private readonly SelectableTextBlock _hints;
     private readonly TextBox _preview;
-    private readonly StackPanel _viewSwitch;
+    private readonly StackPanel _viewChoice;
+
+    /// <summary>Kopiert den Text, der gerade in der Vorschau steht.</summary>
+    private readonly Button _copyPreview;
     private readonly RadioButton _showXml;
     private readonly RadioButton _showJs;
     private readonly TextBlock _placeholder;
@@ -51,7 +54,8 @@ public partial class ScriptsView : UserControl
         _hintsBox = this.FindControl<Border>("HintsBox")!;
         _hints = this.FindControl<SelectableTextBlock>("Hints")!;
         _preview = this.FindControl<TextBox>("Preview")!;
-        _viewSwitch = this.FindControl<StackPanel>("ViewSwitch")!;
+        _viewChoice = this.FindControl<StackPanel>("ViewChoice")!;
+        _copyPreview = this.FindControl<Button>("CopyPreview")!;
         _showXml = this.FindControl<RadioButton>("ShowXml")!;
         _showJs = this.FindControl<RadioButton>("ShowJs")!;
         _placeholder = this.FindControl<TextBlock>("PlaceholderText")!;
@@ -82,6 +86,7 @@ public partial class ScriptsView : UserControl
         _exportAll = this.FindControl<Button>("ExportAll")!;
 
         this.FindControl<Button>("Clipboard")!.Click += async (_, _) => await CopyToClipboardAsync();
+        _copyPreview.Click += async (_, _) => await CopyToClipboardAsync();
         this.FindControl<Button>("ExportSelected")!.Click += async (_, _) => await ExportAsync(true);
         _exportAll.Click += async (_, _) => await ExportAsync(false);
         this.FindControl<Button>("ListCsv")!.Click += async (_, _) => await Dialogs.SaveCsvAsync(this,
@@ -120,7 +125,8 @@ public partial class ScriptsView : UserControl
             _list.ItemsSource = null;
             _preview.Text = "";
             _count.Text = "";
-            _viewSwitch.IsVisible = false;
+            _viewChoice.IsVisible = false;
+            _copyPreview.IsEnabled = false;
             _hintsBox.IsVisible = false;
             ShowPlaceholder(true);
             return;
@@ -226,8 +232,11 @@ public partial class ScriptsView : UserControl
         _hints.Text = details;
 
         var hasXml = ScriptsPresenter.HasXmlView(_current);
-        _viewSwitch.IsVisible = hasXml;
+        _viewChoice.IsVisible = hasXml;
         if (!hasXml && _showXml.IsChecked == true) _showJs.IsChecked = true;
+
+        _copyPreview.IsEnabled = true;
+        _copyPreview.Content = ScriptsPresenter.CopyLabel(_current, _showXml.IsChecked == true);
 
         _preview.Text = ScriptsPresenter.PreviewText(_current, _showXml.IsChecked == true);
     }
@@ -245,7 +254,7 @@ public partial class ScriptsView : UserControl
 
         await clipboard.SetTextAsync(_preview.Text);
         // Kurze Rückmeldung in der Zählzeile; wird beim nächsten Filtern überschrieben.
-        _count.Text = $"„{_current.Name}\" in die Zwischenablage kopiert.";
+        _count.Text = ScriptsPresenter.CopyDoneText(_current, _showXml.IsChecked == true);
     }
 
     private async Task ExportAsync(bool selectedOnly)

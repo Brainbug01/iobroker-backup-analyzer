@@ -22,6 +22,9 @@ public sealed class ScriptsTab : UserControl
     private readonly RadioButton _showJs = new();
     private readonly Panel _viewSwitch = new();
 
+    /// <summary>Kopiert den Text, der gerade in der Vorschau steht — siehe Aufbau unten.</summary>
+    private readonly Button _btnCopyPreview = new();
+
     private readonly Button _btnClipboard = new();
     private readonly Button _btnExportSelected = new();
     private readonly Button _btnExportAll = new();
@@ -203,10 +206,24 @@ public sealed class ScriptsTab : UserControl
         _showXml.Size = new Size(130, 22);
         _showXml.CheckedChanged += (_, _) => { if (_showXml.Checked) ShowPreview(); };
 
+        // Kopieren direkt an der Vorschau.
+        //
+        // Den Knopf gibt es oben in der Aktionsleiste bereits — dort sucht ihn aber
+        // niemand, der gerade einen Quelltext liest. Gemeldet wurde genau das: Man
+        // markiert erst alles von Hand und kopiert dann. Hier steht er, wo der Text ist,
+        // und seine Aufschrift nennt, was er mitnimmt.
+        _btnCopyPreview.Size = new Size(170, 24);
+        _btnCopyPreview.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+        _btnCopyPreview.Click += (_, _) => CopyToClipboard();
+
+        // Die Leiste bleibt immer sichtbar, weil der Kopierknopf immer gebraucht wird;
+        // aus- und eingeblendet werden nur die beiden Umschalter, die es allein bei
+        // Blockly gibt.
         _viewSwitch.Dock = DockStyle.Top;
         _viewSwitch.Height = 28;
-        _viewSwitch.Visible = false;
-        _viewSwitch.Controls.AddRange(new Control[] { _showJs, _showXml });
+        _viewSwitch.Controls.AddRange(new Control[] { _showJs, _showXml, _btnCopyPreview });
+        _viewSwitch.Resize += (_, _) =>
+            _btnCopyPreview.Location = new Point(_viewSwitch.Width - _btnCopyPreview.Width - 4, 2);
 
         split.Panel1.Controls.Add(_list);
         split.Panel2.Controls.Add(_preview);
@@ -336,7 +353,8 @@ public sealed class ScriptsTab : UserControl
         {
             _current = null;
             _preview.Text = "";
-            _viewSwitch.Visible = false;
+            _showJs.Visible = _showXml.Visible = false;
+            _btnCopyPreview.Enabled = false;
             _hints.Visible = false;
             return;
         }
@@ -349,8 +367,11 @@ public sealed class ScriptsTab : UserControl
         _hints.Text = details.Replace("\r\n", "\n").Replace("\n", "\r\n");
 
         var hasXml = ScriptsPresenter.HasXmlView(_current);
-        _viewSwitch.Visible = hasXml;
+        _showJs.Visible = _showXml.Visible = hasXml;
         if (!hasXml && _showXml.Checked) _showJs.Checked = true;
+
+        _btnCopyPreview.Enabled = true;
+        _btnCopyPreview.Text = ScriptsPresenter.CopyLabel(_current, _showXml.Checked);
 
         var text = ScriptsPresenter.PreviewText(_current, _showXml.Checked);
         _preview.Text = text.Replace("\r\n", "\n").Replace("\n", "\r\n");
@@ -386,7 +407,7 @@ public sealed class ScriptsTab : UserControl
             var text = _preview.Text;
             if (text.Length == 0) return;
             Clipboard.SetText(text);
-            ShowToast($"„{_current.Name}\" in die Zwischenablage kopiert.");
+            ShowToast(ScriptsPresenter.CopyDoneText(_current, _showXml.Checked));
         }
         catch (ExternalException ex)
         {

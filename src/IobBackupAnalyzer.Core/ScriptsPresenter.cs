@@ -189,6 +189,25 @@ public static class ScriptsPresenter
     public static bool HasXmlView(ScriptInfo? script) => script?.BlocklyXml is not null;
 
     /// <summary>
+    /// Aufschrift des Kopierknopfes an der Vorschau.
+    ///
+    /// Sie nennt, was wirklich in der Zwischenablage landet, und das ist bei Blockly kein
+    /// Detail: Je nach Umschaltung ist es der erzeugte Quelltext oder das XML — und nur
+    /// das XML lässt sich in ioBroker wieder als Blockly einfügen.
+    /// </summary>
+    public static string CopyLabel(ScriptInfo? script, bool showXml) =>
+        HasXmlView(script)
+            ? (showXml ? "XML kopieren" : "JavaScript kopieren")
+            : "Quelltext kopieren";
+
+    /// <summary>Rückmeldung nach dem Kopieren — dieselbe in allen drei Oberflächen.</summary>
+    public static string CopyDoneText(ScriptInfo script, bool showXml)
+    {
+        var was = HasXmlView(script) && showXml ? "XML" : "Quelltext";
+        return $"{was} von „{script.Name}\" in die Zwischenablage kopiert.";
+    }
+
+    /// <summary>
     /// Meldungstext nach einem Export — samt Fehlern, falls welche auftraten.
     /// Genannt wird der angelegte Überordner, nicht der gewählte Zielordner.
     /// </summary>

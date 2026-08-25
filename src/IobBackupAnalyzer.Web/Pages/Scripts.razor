@@ -142,15 +142,8 @@ else
 
     private string Vorschau => ScriptsPresenter.PreviewText(S.Selected, S.ShowXml);
 
-    /// <summary>
-    /// Beschriftung des Kopierknopfes — sie nennt, was wirklich in der Zwischenablage
-    /// landet. Bei einem Blockly-Skript ist das je nach Umschaltung der erzeugte
-    /// Quelltext oder das XML, und der Unterschied ist erheblich.
-    /// </summary>
-    private string KopierLabel =>
-        ScriptsPresenter.HasXmlView(S.Selected)
-            ? (S.ShowXml ? "XML kopieren" : "JavaScript kopieren")
-            : "Quelltext kopieren";
+    /// <summary>Beschriftung des Kopierknopfes — aus dem Presenter, wie in allen Fassungen.</summary>
+    private string KopierLabel => ScriptsPresenter.CopyLabel(S.Selected, S.ShowXml);
 
     /// <summary>
     /// Zeile, zu der die Liste rollen soll — gesetzt vom Sprung aus dem Reiter
@@ -247,10 +240,8 @@ else
         var text = Vorschau;
         if (text.Length == 0) return;
 
-        var was = ScriptsPresenter.HasXmlView(S.Selected) && S.ShowXml ? "XML" : "Quelltext";
-
         _rueckmeldung = await Io.CopyAsync(text)
-            ? $"{was} von „{S.Selected.Name}“ in die Zwischenablage kopiert."
+            ? ScriptsPresenter.CopyDoneText(S.Selected, S.ShowXml)
             : "Der Browser hat den Zugriff auf die Zwischenablage abgelehnt. " +
               "Ersatzweise: in die Vorschau klicken, Strg+A, Strg+C.";
     }

@@ -615,9 +615,15 @@ versehentlich in einem Export auftauchen.
 
 ## Browser-Fassung
 
-Dieselbe Auswertung, ausgeliefert vom eigenen Webserver. Gedacht für den Apache, der auf
-vielen ioBroker-Hosts ohnehin läuft: einmal hochladen, danach von jedem Rechner im Netz
-aufrufen — ohne Installation, ohne Aktualisierung auf jedem einzelnen Gerät.
+Dieselbe Auswertung, ausgeliefert vom eigenen Webserver: einmal hochladen, danach von
+jedem Rechner im Netz aufrufen — ohne Installation, ohne Aktualisierung auf jedem
+einzelnen Gerät. Wo der Webserver läuft, spielt keine Rolle — NAS, Raspberry Pi oder
+jede andere Maschine im Netz.
+
+Anleitung und Einstellungen (`.htaccess`, Prüfseite) sind auf **Apache** zugeschnitten.
+Auf einem ioBroker-Host läuft der nicht von sich aus — er ist dort wie überall sonst
+nachzuinstallieren. Mit nginx oder einem anderen Server funktioniert die Fassung ebenso,
+die Einstellungen weiter unten sind dann aber sinngemäß von Hand zu übertragen.
 
 **Das Backup wird nicht hochgeladen.** Der Server liefert das Programm aus, sonst nichts.
 Gelesen, entpackt und ausgewertet wird im Browser des Anwenders; auf dem Server landet

@@ -23,11 +23,31 @@ public static class ChangelogContent
     /// <summary>Neueste Version zuerst.</summary>
     public static IReadOnlyList<ChangelogEntry> Entries { get; } = new ChangelogEntry[]
     {
+        new("1.23.1", "25.08.2026", new[]
+        {
+            "Im Reiter „Skripte\" steht der Kopierknopf jetzt direkt über der Vorschau — " +
+            "dort, wo man den Quelltext liest. Bisher gab es ihn nur oben in der " +
+            "Aktionsleiste, wo ihn beim Lesen niemand sucht; wer den Text brauchte, hat " +
+            "ihn von Hand markiert.",
+
+            "Seine Aufschrift sagt, was er mitnimmt: Bei einem Blockly-Skript steht dort " +
+            "je nach Umschaltung „XML kopieren\" oder „JavaScript kopieren\", sonst " +
+            "„Quelltext kopieren\". Der Unterschied ist keiner der Form — nur das XML " +
+            "lässt sich in ioBroker wieder als Blockly einfügen.",
+
+            "In der Browser-Fassung funktioniert das Kopieren jetzt auch dann, wenn die " +
+            "Seite über http statt https ausgeliefert wird. Browser sperren dort den " +
+            "üblichen Weg zur Zwischenablage; es gibt deshalb einen zweiten. Betroffen " +
+            "war praktisch jeder, der die Seite im eigenen Netz betreibt.",
+        }),
+
         new("1.23.0", "24.08.2026", new[]
         {
-            "Neu: eine Fassung für den Browser. Sie wird einmal auf den eigenen Webserver " +
-            "gelegt — etwa den Apache, der auf vielen ioBroker-Hosts ohnehin läuft — und " +
-            "ist danach von jedem Rechner im Netz aufrufbar, ohne Installation.",
+            "Neu: eine Fassung für den Browser. Sie wird einmal auf einen Webserver im " +
+            "eigenen Netz gelegt — ein NAS, ein Raspberry Pi, was schon da ist — und ist " +
+            "danach von jedem Rechner im Netz aufrufbar, ohne Installation. Mitgeliefert " +
+            "sind Anleitung und Einstellungen für den Apache; wer keinen betreibt, " +
+            "richtet ihn dafür ein.",
 
             "Das Backup wird dabei NICHT hochgeladen. Der Server liefert nur das Programm " +
             "aus; gelesen und ausgewertet wird es im Browser, auf dem Rechner davor. Wer " +

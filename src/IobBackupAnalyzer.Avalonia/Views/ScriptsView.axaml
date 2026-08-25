@@ -74,12 +74,24 @@
           </ScrollViewer>
         </Border>
 
-        <!-- Nur bei Blockly-Skripten sichtbar. -->
-        <StackPanel Name="ViewSwitch" Grid.Row="3" Orientation="Horizontal"
-                    Spacing="16" Margin="0,2,0,4" IsVisible="False">
-          <RadioButton Name="ShowJs"  GroupName="Ansicht" Content="Generiertes JavaScript" IsChecked="True" />
-          <RadioButton Name="ShowXml" GroupName="Ansicht" Content="Blockly-XML" />
-        </StackPanel>
+        <!--
+          Die Leiste über der Vorschau. Sie bleibt immer stehen, weil der Kopierknopf
+          immer gebraucht wird; die beiden Umschalter daneben gibt es nur bei Blockly.
+
+          Den Knopf gibt es oben in der Aktionsleiste zwar schon — dort sucht ihn aber
+          niemand, der gerade einen Quelltext liest. Seine Aufschrift kommt aus dem
+          Presenter und nennt, was er mitnimmt: bei Blockly je nach Umschaltung das XML
+          oder den erzeugten Quelltext.
+        -->
+        <Grid Name="ViewSwitch" Grid.Row="3" ColumnDefinitions="Auto,*,Auto" Margin="0,2,0,4">
+          <StackPanel Name="ViewChoice" Grid.Column="0" Orientation="Horizontal"
+                      Spacing="16" IsVisible="False">
+            <RadioButton Name="ShowJs"  GroupName="Ansicht" Content="Generiertes JavaScript" IsChecked="True" />
+            <RadioButton Name="ShowXml" GroupName="Ansicht" Content="Blockly-XML" />
+          </StackPanel>
+
+          <Button Name="CopyPreview" Grid.Column="2" IsEnabled="False" />
+        </Grid>
 
         <TextBox Name="Preview" Grid.Row="4" IsReadOnly="True"
                  AcceptsReturn="True" TextWrapping="NoWrap"
