@@ -107,6 +107,11 @@ public sealed class OverviewTab : UserControl
         _list.Columns.Add("Version", 110);
         _list.Columns.Add("Aktiviert", 90);
         _list.Columns.Add("Objekte", 100, HorizontalAlignment.Right);
+        // Zwei Einstellungen, die im Admin nur im Expertenmodus stehen. Die Reihenfolge
+        // muss zu OverviewPresenter.InstanceColumns passen — dieselbe Liste wird für den
+        // CSV-Export benutzt.
+        _list.Columns.Add("Protokoll", 100);
+        _list.Columns.Add("Neustart", 130);
         _list.MultiSelect = true;
         _list.ColumnClick += OnColumnClick;
         ListViewCopy.Attach(_list);

@@ -97,7 +97,13 @@ else
                 Text = i => i.ObjectCount.ToString("N0"), SortKey = i => i.ObjectCount,
                 // Hervorgehoben wird allein die Objektzahl, nicht die ganze Zeile: Die
                 // Instanz ist in Ordnung, allein ihr Objektbestand ist zu groß.
-                CellClassOf = i => i.OverObjectLimit ? "ueberlimit" : null }
+                CellClassOf = i => i.OverObjectLimit ? "ueberlimit" : null },
+
+        // Zwei Einstellungen, die der Admin nur im Expertenmodus zeigt. Leer heißt bei der
+        // Protokollstufe „nicht gesetzt" — dann gilt die Vorgabe des js-controllers, und
+        // die steht nicht im Backup.
+        new() { Header = "Protokoll", Width = 100, Text = i => i.LogLevelText },
+        new() { Header = "Neustart",  Width = 130, Text = i => i.RestartSchedule }
     };
 
     private static readonly TableColumn<AdapterWithoutInstance>[] OhneInstanzSpalten =

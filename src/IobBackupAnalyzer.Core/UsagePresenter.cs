@@ -6,7 +6,12 @@ public enum UsageDirection
     /// <summary>Ein Skript oben, seine Datenpunkte unten.</summary>
     ByScript,
     /// <summary>Ein Datenpunkt oben, die Skripte dazu unten.</summary>
-    ByState
+    ByState,
+    /// <summary>
+    /// IDs aus Skripten, zu denen es kein Objekt gibt — die Gegenrichtung der beiden
+    /// anderen Sichten: nicht wer benutzt was, sondern wer greift ins Leere.
+    /// </summary>
+    DeadRefs
 }
 
 /// <summary>Vorfilter der Datenpunkt-Sicht — die Fragen, die man hier wirklich stellt.</summary>
@@ -55,7 +60,7 @@ public static class UsagePresenter
         "Doppelklick auf ein Skript öffnet es im Tab „Skripte\" mit seinem Quelltext.";
 
     public static readonly string[] ViewLabels =
-        { "Skript → Datenpunkte", "Datenpunkt → Skripte" };
+        { "Skript → Datenpunkte", "Datenpunkt → Skripte", "Verweise ins Leere" };
 
     /// <summary>
     /// Farblegende der Datenpunkt-Sicht: erst die Befunde, dann der Normalfall.
@@ -251,4 +256,58 @@ public static class UsagePresenter
 
     public static string CsvName(UsageDirection view) =>
         view == UsageDirection.ByScript ? "skripte-datenpunkte.csv" : "datenpunkte-skripte.csv";
+
+    // ------------------------------------------------------------------ Sicht: Verweise ins Leere
+
+    public static readonly string[] ColumnsDeadRefs =
+        { "Skript", "Status", "Datenpunkt-ID", "Befund" };
+
+    public static string[] RowDeadRef(DeadRefRow r) =>
+        new[] { r.ScriptName, r.StatusText, r.StateId, r.VerdachtText };
+
+    /// <summary>
+    /// Rot, wo der Verdacht belastbar ist: Den Namensraum gibt es, den Datenpunkt nicht.
+    /// Fehlt der ganze Namensraum, bleibt die Zeile unauffällig — dort ist ebenso gut ein
+    /// Skript für eine andere Anlage denkbar.
+    /// </summary>
+    public static RowEmphasis EmphasisDeadRef(DeadRefRow r) =>
+        r.NamespaceExists ? RowEmphasis.Problem : RowEmphasis.None;
+
+    public static readonly (RowEmphasis Emphasis, string Text)[] DeadRefLegend =
+    {
+        (RowEmphasis.Problem, "■ Adapter vorhanden, Datenpunkt fehlt"),
+        (RowEmphasis.None, "■ Namensraum fehlt ganz")
+    };
+
+    /// <summary>
+    /// Der Warntext dieser Sicht. Er nennt zwei Grenzen, ohne die die Liste falsch gelesen
+    /// würde: Gesucht wird im erzeugten JavaScript — ein abgeschalteter Blockly-Baustein
+    /// läuft nicht, seine Datenpunkte fehlen dann zu Recht. Und eine ID, die erst zur
+    /// Laufzeit entsteht, ist nicht prüfbar.
+    /// </summary>
+    public const string DeadRefWarning =
+        "Gesucht wird im erzeugten JavaScript, nicht im Blockly-XML: Ein abgeschalteter "
+      + "Baustein läuft nicht, seine Datenpunkte fehlen dann zu Recht. Rot sind die "
+      + "deutlichen Fälle — den Namensraum gibt es, den Datenpunkt nicht. Fehlt der "
+      + "Namensraum ganz, kann es ebenso ein Skript für eine andere Anlage sein. IDs, die "
+      + "ein Skript zur Laufzeit zusammensetzt, sind nicht erkennbar; über sie sagt diese "
+      + "Liste nichts.";
+
+    /// <summary>Kennzahlenzeile dieser Sicht — dieselbe Aufgabe wie <see cref="Stats"/>.</summary>
+    public static string StatsDeadRefs(IReadOnlyList<DeadRefRow> rows)
+    {
+        var stark = rows.Count(r => r.NamespaceExists);
+        var skripte = rows.Select(r => r.ScriptId).Distinct(StringComparer.Ordinal).Count();
+        var aktiv = rows.Where(r => r.ScriptEnabled)
+                        .Select(r => r.ScriptId).Distinct(StringComparer.Ordinal).Count();
+
+        if (rows.Count == 0)
+            return "Kein Skript greift auf einen Datenpunkt zu, den es im Backup nicht gibt.";
+
+        return $"{rows.Count:N0} Verweise auf Datenpunkte, die es im Backup nicht gibt · "
+             + $"{stark:N0} davon mit vorhandenem Namensraum · aus {skripte:N0} Skripten "
+             + $"({aktiv:N0} davon aktiv)";
+    }
+
+    public static string CountDeadRefs(int shown) => $"{shown:N0} Verweise";
 }

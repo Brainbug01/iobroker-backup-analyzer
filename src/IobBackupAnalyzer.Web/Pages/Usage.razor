@@ -20,8 +20,8 @@ else
     <div class="reiter-inhalt">
 
         <div class="kopfbereich">
-            <div>@UsagePresenter.Stats(Bericht)</div>
-            <Warnkasten Text="@UsagePresenter.Warning" />
+            <div>@(ToteSicht ? UsagePresenter.StatsDeadRefs(ToteVerweise) : UsagePresenter.Stats(Bericht))</div>
+            <Warnkasten Text="@(ToteSicht ? UsagePresenter.DeadRefWarning : UsagePresenter.Warning)" />
 
             <div class="leiste">
                 <label for="verw-sicht">Sicht:</label>
@@ -32,7 +32,11 @@ else
                     }
                 </select>
 
-                @if (NachSkript)
+                @if (ToteSicht)
+                {
+                    <span class="dehnen"></span>
+                }
+                else if (NachSkript)
                 {
                     <label class="haken">
                         <input type="checkbox" checked="@S.OnlyWithStates"
@@ -50,20 +54,25 @@ else
                     </select>
                 }
 
-                <label for="verw-filter">Filter:</label>
-                <input id="verw-filter" class="feld" placeholder="Skript oder Datenpunkt …"
-                       value="@S.Filter" @oninput="e => S.Filter = e.Value?.ToString() ?? string.Empty" />
+                @if (!ToteSicht)
+                {
+                    <label for="verw-filter">Filter:</label>
+                    <input id="verw-filter" class="feld" placeholder="Skript oder Datenpunkt …"
+                           value="@S.Filter" @oninput="e => S.Filter = e.Value?.ToString() ?? string.Empty" />
 
-                <span class="zaehler">@Zaehler</span>
-                <span class="dehnen"></span>
-                <button class="knopf" @onclick="AlsCsv">Als CSV exportieren</button>
+                    <span class="zaehler">@Zaehler</span>
+                    <span class="dehnen"></span>
+                    <button class="knopf" @onclick="AlsCsv">Als CSV exportieren</button>
+                }
             </div>
 
             @* Farblegende in den echten Zeilenfarben, je Sicht neu gefüllt. *@
             <div class="legende">
-                @foreach (var (einstufung, text) in NachSkript
-                                                    ? UsagePresenter.ScriptLegend
-                                                    : UsagePresenter.StateLegend)
+                @foreach (var (einstufung, text) in ToteSicht
+                                                    ? UsagePresenter.DeadRefLegend
+                                                    : NachSkript
+                                                        ? UsagePresenter.ScriptLegend
+                                                        : UsagePresenter.StateLegend)
                 {
                     <span class="@EmphasisClass.Of(einstufung)">@text</span>
                 }
@@ -72,7 +81,13 @@ else
         </div>
 
         <div class="tabellenbereich oben">
-            @if (NachSkript)
+            @if (S.Direction == UsageDirection.DeadRefs)
+            {
+                <DataTable TItem="DeadRefRow" Items="ToteVerweise" Columns="ToteSpalten"
+                           Emphasis="UsagePresenter.EmphasisDeadRef"
+                           OnRowDoubleClick="r => OnScriptRequested.InvokeAsync(r.ScriptId)" />
+            }
+            else if (NachSkript)
             {
                 <DataTable TItem="ScriptUsage" Items="Skripte" Columns="SkriptSpalten"
                            Emphasis="UsagePresenter.EmphasisScript"
@@ -87,6 +102,8 @@ else
             }
         </div>
 
+        @if (!ToteSicht)
+        {
         <Trenner />
 
         <div class="detailbereich">
@@ -106,6 +123,7 @@ else
                 }
             </div>
         </div>
+        }
 
     </div>
 }
@@ -121,6 +139,36 @@ else
     private UiState.UsageTab S => Bedienung.Usage;
 
     private bool NachSkript => S.Direction == UsageDirection.ByScript;
+    private bool ToteSicht => S.Direction == UsageDirection.DeadRefs;
+
+    /// <summary>
+    /// IDs aus Skripten ohne zugehöriges Objekt. Einmal je geladenem Backup gerechnet —
+    /// die Suche geht durch jeden Skriptquelltext und gehört nicht in jeden Tastendruck.
+    /// </summary>
+    private List<DeadRefRow> _tote = new();
+    private BackupData? _toteFuer;
+
+    private List<DeadRefRow> ToteVerweise
+    {
+        get
+        {
+            if (!ReferenceEquals(_toteFuer, Daten))
+            {
+                _tote = Daten is null ? new List<DeadRefRow>() : ExtraAnalyzer.Analyze(Daten);
+                _toteFuer = Daten;
+            }
+
+            return _tote;
+        }
+    }
+
+    private static readonly TableColumn<DeadRefRow>[] ToteSpalten =
+    {
+        new() { Header = "Skript",        Width = 240, Text = r => r.ScriptName },
+        new() { Header = "Status",        Width = 100, Text = r => r.StatusText, SortKey = r => r.ScriptEnabled },
+        new() { Header = "Datenpunkt-ID", Width = 380, Text = r => r.StateId },
+        new() { Header = "Befund",        Width = 260, Text = r => r.VerdachtText, SortKey = r => r.NamespaceExists }
+    };
 
     private UsageReport? _bericht;
     private BackupData? _berechnetFuer;

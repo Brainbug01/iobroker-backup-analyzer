@@ -31,6 +31,20 @@ public sealed class IobObject
     /// <summary>Nur bei type=instance gesetzt (common.version).</summary>
     public string? Version { get; init; }
 
+    /// <summary>
+    /// Cron-Ausdruck aus common.restartSchedule: wann ioBroker diese Instanz planmäßig neu
+    /// startet. Im Admin nur im Expertenmodus sichtbar und sonst nirgends auf einen Blick
+    /// zu sehen. null, wenn kein Neustart geplant ist (der Regelfall).
+    /// </summary>
+    public string? RestartSchedule { get; init; }
+
+    /// <summary>
+    /// Protokollstufe der Instanz aus common.loglevel (debug/info/warn/error). null, wenn
+    /// nicht gesetzt — dann gilt die Vorgabe des js-controllers, die im Backup nicht steht.
+    /// Deshalb wird in dem Fall nichts behauptet.
+    /// </summary>
+    public string? LogLevel { get; init; }
+
     /// <summary>Bei Skripten und Instanzen relevant. Fehlendes Feld gilt als aktiv.</summary>
     public bool Enabled { get; init; } = true;
 
@@ -88,6 +102,13 @@ public sealed class IobObject
     /// sql/eigen). null bei allen anderen Objekten.
     /// </summary>
     public IReadOnlyList<string>? ChartRefs { get; init; }
+
+    /// <summary>
+    /// Bei Aufzählungen (<c>enum.rooms.*</c>, <c>enum.functions.*</c>) die zugeordneten
+    /// Objekt-IDs aus common.members. null bei allen anderen Objekten; eine leere Liste
+    /// heißt „Aufzählung ohne Mitglieder".
+    /// </summary>
+    public IReadOnlyList<string>? EnumMembers { get; init; }
 
     /// <summary>
     /// Bei type=instance die ID-förmigen Zeichenketten aus dem native-Abschnitt samt
@@ -341,6 +362,39 @@ public sealed class AdapterInstance
     public string Version { get; init; } = "";
     public bool Enabled { get; init; }
     public int ObjectCount { get; set; }
+
+    /// <summary>
+    /// Geplanter Neustart als Cron-Ausdruck; leer, wenn keiner eingerichtet ist. Im Admin
+    /// steht das nur im Expertenmodus.
+    /// </summary>
+    public string RestartSchedule { get; init; } = "";
+
+    /// <summary>
+    /// Protokollstufe der Instanz; leer, wenn nicht gesetzt. Leer heißt nicht „kein
+    /// Protokoll", sondern „Vorgabe des js-controllers" — und die steht nicht im Backup.
+    /// </summary>
+    public string LogLevel { get; init; } = "";
+
+    /// <summary>
+    /// Die Protokollstufe so beschriftet, wie der Admin sie zur Auswahl stellt.
+    ///
+    /// Die fünf gültigen Werte stehen im js-controller, packages/types-dev/index.d.ts:
+    /// <c>type LogLevel = 'silly' | 'debug' | 'info' | 'warn' | 'error';</c> — mehr gibt
+    /// es nicht. Im Backup
+    /// stehen die englischen Rohwerte; wer im Admin „Warnung" gewählt hat, soll hier nicht
+    /// „warn" lesen müssen. Ein unbekannter Wert bleibt unverändert stehen, statt still
+    /// zu verschwinden.
+    /// </summary>
+    public string LogLevelText => LogLevel switch
+    {
+        "" => "",
+        "silly" => "Alles",
+        "debug" => "Debug",
+        "info" => "Info",
+        "warn" => "Warnung",
+        "error" => "Fehler",
+        var anderes => anderes
+    };
 
     /// <summary>
     /// Ab wie vielen Objekten der js-controller diese Instanz beanstandet. ioBroker legt den

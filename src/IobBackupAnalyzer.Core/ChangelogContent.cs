@@ -23,6 +23,37 @@ public static class ChangelogContent
     /// <summary>Neueste Version zuerst.</summary>
     public static IReadOnlyList<ChangelogEntry> Entries { get; } = new ChangelogEntry[]
     {
+        new("1.24.0", "25.08.2026", new[]
+        {
+            "Neu im Reiter „Verwendung\": die Sicht „Verweise ins Leere\". Sie zeigt " +
+            "Datenpunkte, die ein Skript anspricht, die es im Backup aber nicht gibt — " +
+            "ein Tippfehler in einer ID, ein gelöschter Datenpunkt, ein Gerät, das nicht " +
+            "mehr da ist. Anders als die übrigen Listen sucht diese keine Altlasten, " +
+            "sondern Fehler: Ein Skript, das ins Leere schreibt, tut das unbemerkt — " +
+            "im Log steht bestenfalls eine Warnung, die niemand liest.",
+
+            "Rot stehen die deutlichen Fälle — den Namensraum gibt es, den Datenpunkt " +
+            "nicht. Fehlt der Namensraum ganz, kann es ebenso gut ein Skript für eine " +
+            "andere Anlage sein; solche Zeilen bleiben unauffällig. Gesucht wird im " +
+            "erzeugten JavaScript und nicht im Blockly-XML: Ein abgeschalteter Baustein " +
+            "läuft nicht, seine Datenpunkte fehlen dann zu Recht.",
+
+            "Die Hinweise zum Aufbau von Blockly-Skripten sagen jetzt dazu, wenn der " +
+            "betroffene Baustein im Editor abgeschaltet ist. Der Befund verschwindet " +
+            "nicht — er greift ja, sobald jemand den Baustein wieder einschaltet —, wird " +
+            "aber als Möglichkeit formuliert statt als Tatsache.",
+
+            "Die Adapterliste in der Übersicht hat zwei neue Spalten: „Protokoll\" und " +
+            "„Neustart\". Ein Adapter auf „Debug\" schreibt das Protokoll voll, ein " +
+            "geplanter Neustart erklärt, warum eine Instanz immer zur selben Uhrzeit " +
+            "aussetzt. Beides steht im Backup und war dort bisher nicht zu sehen.",
+
+            "Beide Spalten bleiben leer, wo nichts eingestellt ist. Bei der Protokollstufe " +
+            "heißt leer ausdrücklich nicht „kein Protokoll\", sondern „Vorgabe des " +
+            "js-controllers\" — und die steht nicht im Backup. Behauptet wird deshalb " +
+            "nichts.",
+        }),
+
         new("1.23.4", "25.08.2026", new[]
         {
             "Die Browser-Fassung ruft die Serverprüfung nicht mehr von selbst auf. Sie " +

@@ -14,7 +14,7 @@ public static class OverviewPresenter
 {
     /// <summary>Spaltenreihenfolge der Instanztabelle — Index wie in der Anzeige.</summary>
     public static readonly string[] InstanceColumns =
-        { "Adapter", "Instanz", "Version", "Aktiviert", "Objekte" };
+        { "Adapter", "Instanz", "Version", "Aktiviert", "Objekte", "Protokoll", "Neustart" };
 
     /// <summary>Spaltenreihenfolge der Tabelle „Adapter ohne eigene Instanz".</summary>
     public static readonly string[] NoInstanceColumns = { "Adapter", "Version" };
@@ -122,6 +122,12 @@ public static class OverviewPresenter
                 : list.OrderByDescending(i => i.Version, StringComparer.OrdinalIgnoreCase),
             3 => ascending ? list.OrderBy(i => i.Enabled) : list.OrderByDescending(i => i.Enabled),
             4 => ascending ? list.OrderBy(i => i.ObjectCount) : list.OrderByDescending(i => i.ObjectCount),
+            5 => ascending
+                ? list.OrderBy(i => i.LogLevelText, StringComparer.OrdinalIgnoreCase)
+                : list.OrderByDescending(i => i.LogLevelText, StringComparer.OrdinalIgnoreCase),
+            6 => ascending
+                ? list.OrderBy(i => i.RestartSchedule, StringComparer.Ordinal)
+                : list.OrderByDescending(i => i.RestartSchedule, StringComparer.Ordinal),
             _ => ascending
                 ? list.OrderBy(i => i.Adapter, StringComparer.OrdinalIgnoreCase)
                 : list.OrderByDescending(i => i.Adapter, StringComparer.OrdinalIgnoreCase)
@@ -157,7 +163,8 @@ public static class OverviewPresenter
     /// Die Objektzahl bekommt Tausenderpunkte, weil sie in der Tabelle gelesen wird.
     /// </summary>
     public static string[] DisplayRow(AdapterInstance i) =>
-        new[] { i.Adapter, i.Instance.ToString(), i.Version, i.EnabledText, i.ObjectCount.ToString("N0") };
+        new[] { i.Adapter, i.Instance.ToString(), i.Version, i.EnabledText, i.ObjectCount.ToString("N0"),
+                i.LogLevelText, i.RestartSchedule };
 
     /// <summary>
     /// Dieselbe Instanz für den <b>CSV-Export</b> — bewusst ohne Tausenderpunkte: die
@@ -165,7 +172,8 @@ public static class OverviewPresenter
     /// Tabellenkalkulationen unbrauchbar machen.
     /// </summary>
     public static string[] Row(AdapterInstance i) =>
-        new[] { i.Adapter, i.Instance.ToString(), i.Version, i.EnabledText, i.ObjectCount.ToString() };
+        new[] { i.Adapter, i.Instance.ToString(), i.Version, i.EnabledText, i.ObjectCount.ToString(),
+                i.LogLevelText, i.RestartSchedule };
 
     /// <summary>Ein instanzloser Adapter als Zeile, Reihenfolge wie <see cref="NoInstanceColumns"/>.</summary>
     public static string[] Row(AdapterWithoutInstance a) => new[] { a.Adapter, a.Version };

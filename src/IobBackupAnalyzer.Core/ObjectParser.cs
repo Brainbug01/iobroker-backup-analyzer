@@ -84,6 +84,44 @@ internal static class ObjectParser
         }
         var hasCustom = customLogging is { Count: > 0 };
 
+        // Zwei Instanz-Einstellungen, die der Admin nur im Expertenmodus zeigt: der
+        // geplante Neustart und die Protokollstufe. Beide stehen im Backup und sind sonst
+        // nirgends auf einen Blick zu sehen.
+        string? restartSchedule = null, logLevel = null;
+        if (hasCommon)
+        {
+            if (common.TryGetProperty("restartSchedule", out var rs) && rs.ValueKind == JsonValueKind.String)
+            {
+                var wert = rs.GetString();
+                if (!string.IsNullOrWhiteSpace(wert)) restartSchedule = wert;
+            }
+
+            if (common.TryGetProperty("loglevel", out var ll) && ll.ValueKind == JsonValueKind.String)
+            {
+                var wert = ll.GetString();
+                if (!string.IsNullOrWhiteSpace(wert)) logLevel = wert;
+            }
+        }
+
+        // Aufzählungen: common.members führt die zugeordneten Objekte eines Raums oder
+        // einer Funktion. Nur bei enum.* überhaupt vorhanden — die Abfrage vorweg spart
+        // den Blick in die common-Struktur bei allen übrigen Objekten, und das sind fast
+        // alle.
+        List<string>? enumMembers = null;
+        if (hasCommon
+            && id.StartsWith("enum.", StringComparison.Ordinal)
+            && common.TryGetProperty("members", out var membersEl)
+            && membersEl.ValueKind == JsonValueKind.Array)
+        {
+            enumMembers = new List<string>();
+            foreach (var m in membersEl.EnumerateArray())
+            {
+                if (m.ValueKind != JsonValueKind.String) continue;
+                var wert = m.GetString();
+                if (!string.IsNullOrWhiteSpace(wert)) enumMembers.Add(wert);
+            }
+        }
+
         // Alias: common.alias.id ist entweder ein String (Lesen = Schreiben) oder ein
         // Objekt { read, write }. Beide Ziele werden getrennt geführt; AliasTarget bleibt
         // das Lese-Ziel (bzw. ersatzweise das Schreib-Ziel) für die bestehenden Analysen.
@@ -224,6 +262,9 @@ internal static class ObjectParser
             CommonType = commonType,
             ChartRefs = chartRefs,
             NativeRefs = nativeRefs,
+            EnumMembers = enumMembers,
+            RestartSchedule = restartSchedule,
+            LogLevel = logLevel,
             Script = script
         };
     }

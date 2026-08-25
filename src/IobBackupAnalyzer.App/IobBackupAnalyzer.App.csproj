@@ -23,7 +23,7 @@
       danach zwei verschiedene Stände (Produkt 1.8.1, Datei 1.8.0). AppInfo.Version liest
       die AssemblyVersion — die Titelleiste zeigte also die alte Nummer.
     -->
-    <Version>1.23.4</Version>
+    <Version>1.24.0</Version>
     <Copyright>Copyright (c) 2026 ioBroker Backup Analyzer — MIT-Lizenz</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <NeutralLanguage>de-DE</NeutralLanguage>

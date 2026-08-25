@@ -44,6 +44,29 @@ public sealed class UsageTab : UserControl
 
     private UsageDirection CurrentView => (UsageDirection)_view.SelectedIndex;
 
+    /// <summary>
+    /// Die Verweise ins Leere, einmal je geladenem Backup. Die Suche geht durch jeden
+    /// Skriptquelltext; sie bei jedem Umschalten der Sicht zu wiederholen wäre Verschwendung.
+    /// </summary>
+    private List<DeadRefRow> _deadRefs = new();
+    private BackupData? _deadRefsFor;
+    private BackupData? _data;
+    private Label _hint = new();
+
+    private List<DeadRefRow> DeadRefs
+    {
+        get
+        {
+            if (!ReferenceEquals(_deadRefsFor, _data))
+            {
+                _deadRefs = _data is null ? new List<DeadRefRow>() : ExtraAnalyzer.Analyze(_data);
+                _deadRefsFor = _data;
+            }
+
+            return _deadRefs;
+        }
+    }
+
     private void BuildUi()
     {
         Padding = new Padding(8);
@@ -54,7 +77,7 @@ public sealed class UsageTab : UserControl
         _summary.Size = new Size(1100, 34);
         _summary.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
 
-        var hint = new Label
+        _hint = new Label
         {
             Location = new Point(0, 36),
             Size = new Size(1100, 34),
@@ -114,7 +137,7 @@ public sealed class UsageTab : UserControl
         _legend.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
 
         head.Controls.AddRange(new Control[]
-            { _summary, hint, lblView, _view, _stateFilter, _onlyWithStates, lblFilter, _filter,
+            { _summary, _hint, lblView, _view, _stateFilter, _onlyWithStates, lblFilter, _filter,
               _count, _legend, _csv });
 
         // ---------- obere Liste ----------
@@ -222,6 +245,8 @@ public sealed class UsageTab : UserControl
 
     public void SetData(BackupData data, AnalysisResults? fertig = null)
     {
+        _data = data.Kind == BackupKind.Full ? data : null;
+
         if (data.Kind != BackupKind.Full)
         {
             _report = null;
@@ -257,15 +282,32 @@ public sealed class UsageTab : UserControl
     /// <summary>Spalten und Zusatzfilter an die gewählte Richtung anpassen.</summary>
     private void SwitchView()
     {
+        var tote = CurrentView == UsageDirection.DeadRefs;
         var byScript = CurrentView == UsageDirection.ByScript;
 
+        // In der Sicht „Verweise ins Leere" gibt es keine Gegenseite zum Anklicken und
+        // nichts zu filtern: Die Liste ist die vollständige Aussage.
         _onlyWithStates.Visible = byScript;
-        _stateFilter.Visible = !byScript;
+        _stateFilter.Visible = !byScript && !tote;
+        _filter.Visible = !tote;
+        _detail.Visible = !tote;
+        _detailHeader.Visible = !tote;
 
-        SetColumns(_master, byScript ? UsagePresenter.ColumnsScripts : UsagePresenter.ColumnsStates);
-        SetColumns(_detail, byScript ? UsagePresenter.ColumnsScriptDetail : UsagePresenter.ColumnsStateDetail);
+        SetColumns(_master, tote ? UsagePresenter.ColumnsDeadRefs
+                                 : byScript ? UsagePresenter.ColumnsScripts : UsagePresenter.ColumnsStates);
 
-        ShowLegend(byScript ? UsagePresenter.ScriptLegend : UsagePresenter.StateLegend);
+        if (!tote)
+            SetColumns(_detail, byScript ? UsagePresenter.ColumnsScriptDetail : UsagePresenter.ColumnsStateDetail);
+
+        // Kennzahlenzeile und Warntext gehören zur Sicht, nicht zum Backup.
+        _hint.Text = tote ? UsagePresenter.DeadRefWarning : UsagePresenter.Warning;
+
+        if (_report is not null)
+            _summary.Text = (tote ? UsagePresenter.StatsDeadRefs(DeadRefs) : UsagePresenter.Stats(_report))
+                            .Replace("\n", "\r\n");
+
+        ShowLegend(tote ? UsagePresenter.DeadRefLegend
+                        : byScript ? UsagePresenter.ScriptLegend : UsagePresenter.StateLegend);
 
         Fill();
     }
@@ -296,7 +338,18 @@ public sealed class UsageTab : UserControl
         _master.BeginUpdate();
         _master.Items.Clear();
 
-        if (CurrentView == UsageDirection.ByScript)
+        if (CurrentView == UsageDirection.DeadRefs)
+        {
+            foreach (var r in DeadRefs)
+                _master.Items.Add(new ListViewItem(UsagePresenter.RowDeadRef(r))
+                {
+                    Tag = r,
+                    ForeColor = ColorOf(UsagePresenter.EmphasisDeadRef(r))
+                });
+
+            _count.Text = UsagePresenter.CountDeadRefs(DeadRefs.Count);
+        }
+        else if (CurrentView == UsageDirection.ByScript)
         {
             var rows = UsagePresenter.FilterScripts(_report.Scripts, _onlyWithStates.Checked, _filter.Text);
             foreach (var s in rows)

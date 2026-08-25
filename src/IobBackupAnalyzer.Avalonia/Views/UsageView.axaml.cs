@@ -28,6 +28,29 @@ public partial class UsageView : UserControl
 
     private readonly DataGrid _scriptRows;
     private readonly DataGrid _stateRows;
+    private readonly DataGrid _deadRefRows;
+
+    /// <summary>
+    /// Die Verweise ins Leere, einmal je geladenem Backup. Die Suche geht durch jeden
+    /// Skriptquelltext und gehört nicht in jedes Umschalten der Sicht.
+    /// </summary>
+    private List<DeadRefRow> _deadRefs = new();
+    private BackupData? _deadRefsFor;
+    private BackupData? _data;
+
+    private List<DeadRefRow> DeadRefs
+    {
+        get
+        {
+            if (!ReferenceEquals(_deadRefsFor, _data))
+            {
+                _deadRefs = _data is null ? new List<DeadRefRow>() : ExtraAnalyzer.Analyze(_data);
+                _deadRefsFor = _data;
+            }
+
+            return _deadRefs;
+        }
+    }
     private readonly DataGrid _scriptDetail;
     private readonly DataGrid _stateDetail;
     private readonly StackPanel _legend;
@@ -60,6 +83,7 @@ public partial class UsageView : UserControl
 
         _scriptRows = this.FindControl<DataGrid>("ScriptRows")!;
         _stateRows = this.FindControl<DataGrid>("StateRows")!;
+        _deadRefRows = this.FindControl<DataGrid>("DeadRefRows")!;
         _scriptDetail = this.FindControl<DataGrid>("ScriptDetail")!;
         _stateDetail = this.FindControl<DataGrid>("StateDetail")!;
         _legend = this.FindControl<StackPanel>("Legend")!;
@@ -107,6 +131,7 @@ public partial class UsageView : UserControl
         if (data is null || data.Kind != BackupKind.Full)
         {
             _report = null;
+            _data = null;
             _summary.Text = "";
             _count.Text = "";
             _scriptRows.ItemsSource = null;
@@ -124,6 +149,7 @@ public partial class UsageView : UserControl
 
         // Im Regelfall im Hintergrund vorberechnet; nur ohne Vorberechnung (Selbsttest,
         // Bildschirmfotos) wird hier gerechnet.
+        _data = data;
         _report = fertig?.Usage ?? UsageAnalyzer.Analyze(data);
         _summary.Text = UsagePresenter.Stats(_report);
         ShowPlaceholder(false);
@@ -138,16 +164,27 @@ public partial class UsageView : UserControl
 
     private void SwitchView()
     {
+        var tote = CurrentDirection == Core.UsageDirection.DeadRefs;
         var byScript = CurrentDirection == Core.UsageDirection.ByScript;
 
         _scriptRows.IsVisible = byScript;
-        _stateRows.IsVisible = !byScript;
-        _scriptDetail.IsVisible = byScript;
-        _stateDetail.IsVisible = !byScript;
-        _onlyWithStates.IsVisible = byScript;
-        _stateFilter.IsVisible = !byScript;
+        _stateRows.IsVisible = !byScript && !tote;
+        _deadRefRows.IsVisible = tote;
 
-        ShowLegend(byScript ? UsagePresenter.ScriptLegend : UsagePresenter.StateLegend);
+        // In der Sicht „Verweise ins Leere" gibt es keine Gegenseite und nichts zu filtern:
+        // Die Liste ist die vollständige Aussage.
+        _scriptDetail.IsVisible = byScript;
+        _stateDetail.IsVisible = !byScript && !tote;
+        _onlyWithStates.IsVisible = byScript;
+        _stateFilter.IsVisible = !byScript && !tote;
+        _filter.IsVisible = !tote;
+
+        _warning.Text = tote ? UsagePresenter.DeadRefWarning : UsagePresenter.Warning;
+        if (_report is not null)
+            _summary.Text = tote ? UsagePresenter.StatsDeadRefs(DeadRefs) : UsagePresenter.Stats(_report);
+
+        ShowLegend(tote ? UsagePresenter.DeadRefLegend
+                        : byScript ? UsagePresenter.ScriptLegend : UsagePresenter.StateLegend);
 
         Fill();
     }
@@ -163,7 +200,12 @@ public partial class UsageView : UserControl
     {
         if (_report is null) return;
 
-        if (CurrentDirection == Core.UsageDirection.ByScript)
+        if (CurrentDirection == Core.UsageDirection.DeadRefs)
+        {
+            _deadRefRows.ItemsSource = DeadRefs;
+            _count.Text = UsagePresenter.CountDeadRefs(DeadRefs.Count);
+        }
+        else if (CurrentDirection == Core.UsageDirection.ByScript)
         {
             var rows = CurrentScripts();
             _scriptRows.ItemsSource = rows;

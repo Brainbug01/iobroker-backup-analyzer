@@ -36,11 +36,31 @@ public enum ScriptHintKind
 /// Zusatzangabe, die erst den Befund greifbar macht — bei den ack-Befunden die Datenpunkt-ID.
 /// Leer, wo der Blocktyp schon alles sagt.
 /// </param>
+/// <param name="Disabled">
+/// true, wenn der Baustein selbst oder einer seiner übergeordneten Bausteine im Blockly-
+/// Editor abgeschaltet ist (<c>disabled="true"</c>).
+///
+/// Der Befund bleibt trotzdem stehen, wird aber als Möglichkeit formuliert statt als
+/// Tatsache: Ein abgeschalteter Baustein richtet heute keinen Schaden an — er tut es in dem
+/// Augenblick, in dem jemand ihn wieder einschaltet. Ihn zu verschweigen hieße, genau diese
+/// Falle zuzudecken; ihn wie einen laufenden zu melden, wäre schlicht unwahr.
+/// </param>
 public sealed record ScriptHint(ScriptHintKind Kind, string BlockType, string BlockId,
-                                string Detail = "")
+                                string Detail = "", bool Disabled = false)
 {
+    /// <summary>Vorsatz für abgeschaltete Bausteine — sonst leer.</summary>
+    private string Vorsatz => Disabled ? "Abgeschalteter Baustein — " : "";
+
+    /// <summary>Nachsatz, der den Unterschied benennt. Nur bei abgeschalteten Bausteinen.</summary>
+    private string Nachsatz => Disabled
+        ? " Der Baustein ist im Editor abgeschaltet und läuft derzeit nicht; der Befund "
+        + "greift, sobald er wieder eingeschaltet wird."
+        : "";
+
     /// <summary>Kurzform für die Listenspalte.</summary>
-    public string ShortText => Kind switch
+    public string ShortText => Vorsatz + KurzRoh;
+
+    private string KurzRoh => Kind switch
     {
         ScriptHintKind.DebugMode => "Debug-Modus aktiv",
         ScriptHintKind.TriggerInTrigger => "Trigger im Trigger",
@@ -52,7 +72,9 @@ public sealed record ScriptHint(ScriptHintKind Kind, string BlockType, string Bl
     };
 
     /// <summary>Der ausformulierte Befund samt Begründung — für die Anzeige unter der Liste.</summary>
-    public string LongText => Kind switch
+    public string LongText => LangRoh + Nachsatz;
+
+    private string LangRoh => Kind switch
     {
         ScriptHintKind.DebugMode =>
             "Debug-Modus aktiv: Am Skript ist der Haken „Debuggen\" gesetzt. Das ist kein "
@@ -451,25 +473,33 @@ public static class ScriptQualityAnalyzer
     /// der Normalfall und hängen über <c>&lt;next&gt;</c> aneinander. In den Testdaten dieses
     /// Projekts erzeugt die ungenaue Prüfung 78 Treffer, die genaue null.
     /// </summary>
-    private static void Walk(XmlNode node, bool insideTrigger, List<ScriptHint> hints)
+    private static void Walk(XmlNode node, bool insideTrigger, List<ScriptHint> hints,
+                             bool insideDisabled = false)
     {
         var isTrigger = false;
+
+        // Abgeschaltet wird vererbt: Steht der äußere Baustein auf disabled, läuft auch
+        // nichts, was in ihm steckt. Blockly setzt das Attribut nur am obersten Baustein
+        // einer abgeschalteten Gruppe.
+        var disabled = insideDisabled;
 
         if (node.NodeType == XmlNodeType.Element && node.LocalName == "block")
         {
             var type = node.Attributes?["type"]?.Value ?? "";
             var id = node.Attributes?["id"]?.Value ?? "";
 
+            if (node.Attributes?["disabled"]?.Value == "true") disabled = true;
+
             isTrigger = TriggerBlocks.Contains(type);
 
             if (isTrigger && insideTrigger)
-                hints.Add(new ScriptHint(ScriptHintKind.TriggerInTrigger, type, id));
+                hints.Add(new ScriptHint(ScriptHintKind.TriggerInTrigger, type, id, "", disabled));
 
             if (isTrigger && !HasBody(node))
-                hints.Add(new ScriptHint(ScriptHintKind.TriggerWithoutBody, type, id));
+                hints.Add(new ScriptHint(ScriptHintKind.TriggerWithoutBody, type, id, "", disabled));
 
             if (DeprecatedBlocks.Contains(type))
-                hints.Add(new ScriptHint(ScriptHintKind.DeprecatedBlock, type, id));
+                hints.Add(new ScriptHint(ScriptHintKind.DeprecatedBlock, type, id, "", disabled));
         }
 
         foreach (XmlNode child in node.ChildNodes)
@@ -480,7 +510,14 @@ public static class ScriptQualityAnalyzer
                 ? insideTrigger
                 : insideTrigger || isTrigger;
 
-            Walk(child, childInside, hints);
+            // Der Abschaltzustand folgt derselben Regel wie der Rumpf-Zustand: Über <next>
+            // geht es zum Nachbarn, und der kann sehr wohl eingeschaltet sein, während
+            // dieser Baustein aus ist.
+            var childDisabled = child.NodeType == XmlNodeType.Element && child.LocalName == "next"
+                ? insideDisabled
+                : disabled;
+
+            Walk(child, childInside, hints, childDisabled);
         }
     }
 

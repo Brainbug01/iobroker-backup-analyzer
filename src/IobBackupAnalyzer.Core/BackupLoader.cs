@@ -1045,7 +1045,9 @@ public static class BackupLoader
                 Adapter = adapter,
                 Instance = nr,
                 Version = o.Version ?? "",
-                Enabled = o.Enabled
+                Enabled = o.Enabled,
+                RestartSchedule = o.RestartSchedule ?? "",
+                LogLevel = o.LogLevel ?? ""
             };
             list.Add(inst);
             byNamespace[inst.Namespace] = inst;

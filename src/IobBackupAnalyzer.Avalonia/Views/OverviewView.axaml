@@ -95,6 +95,10 @@
                               Binding="{Binding ObjectCount, StringFormat={}{0:N0}}"
                               SortMemberPath="ObjectCount" Width="110"
                               CellStyleClasses="zahl objekte" />
+
+          <!-- Nur im Expertenmodus des Admins sichtbar; leer heißt „nicht gesetzt". -->
+          <DataGridTextColumn Header="Protokoll" Binding="{Binding LogLevelText}" Width="100" />
+          <DataGridTextColumn Header="Neustart"  Binding="{Binding RestartSchedule}" Width="130" />
         </DataGrid.Columns>
       </DataGrid>
 
