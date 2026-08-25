@@ -617,8 +617,8 @@ versehentlich in einem Export auftauchen.
 
 Dieselbe Auswertung, ausgeliefert vom eigenen Webserver: einmal hochladen, danach von
 jedem Rechner im Netz aufrufen — ohne Installation, ohne Aktualisierung auf jedem
-einzelnen Gerät. Wo der Webserver läuft, spielt keine Rolle — NAS, Raspberry Pi oder
-jede andere Maschine im Netz.
+einzelnen Gerät. Der Server muss dafür nichts können außer statische Dateien ausliefern —
+gerechnet wird im Browser des Anwenders.
 
 Anleitung und Einstellungen (`.htaccess`, Prüfseite) sind auf **Apache** zugeschnitten.
 Auf einem ioBroker-Host läuft der nicht von sich aus — er ist dort wie überall sonst

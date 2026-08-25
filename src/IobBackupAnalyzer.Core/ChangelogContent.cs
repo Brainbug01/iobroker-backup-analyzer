@@ -44,10 +44,10 @@ public static class ChangelogContent
         new("1.23.0", "24.08.2026", new[]
         {
             "Neu: eine Fassung für den Browser. Sie wird einmal auf einen Webserver im " +
-            "eigenen Netz gelegt — ein NAS, ein Raspberry Pi, was schon da ist — und ist " +
-            "danach von jedem Rechner im Netz aufrufbar, ohne Installation. Mitgeliefert " +
-            "sind Anleitung und Einstellungen für den Apache; wer keinen betreibt, " +
-            "richtet ihn dafür ein.",
+            "eigenen Netz gelegt und ist danach von jedem Rechner im Netz aufrufbar, " +
+            "ohne Installation. Der Server muss dafür nichts können außer statische " +
+            "Dateien ausliefern — gerechnet wird im Browser. Mitgeliefert sind Anleitung " +
+            "und Einstellungen für den Apache; wer keinen betreibt, richtet ihn dafür ein.",
 
             "Das Backup wird dabei NICHT hochgeladen. Der Server liefert nur das Programm " +
             "aus; gelesen und ausgewertet wird es im Browser, auf dem Rechner davor. Wer " +

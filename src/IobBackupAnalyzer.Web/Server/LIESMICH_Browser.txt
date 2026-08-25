@@ -2,8 +2,15 @@ ioBroker Backup Analyzer - Browser-Fassung
 ==========================================
 
 Dieselbe Auswertung wie die Programme fuer Windows, macOS und Linux, nur im Browser.
-Gedacht fuer den eigenen Apache: einmal hochladen, danach von jedem Rechner im Netz
-aufrufen - ohne Installation.
+Einmal auf einen Webserver im eigenen Netz gelegt, danach von jedem Rechner im Netz
+aufrufen - ohne Installation. Der Server muss dafuer nichts koennen ausser statische
+Dateien ausliefern: Gerechnet wird im Browser des Anwenders.
+
+Diese Anleitung beschreibt den Apache: Die mitgelieferte .htaccess und die Pruefseite
+sind auf ihn zugeschnitten. Auf einem ioBroker-Host laeuft er nicht von sich aus - er
+ist dort wie ueberall sonst nachzuinstallieren (Debian/Ubuntu: sudo apt install
+apache2). Mit nginx oder einem anderen Server laeuft die Fassung ebenso; die
+Einstellungen weiter unten sind dann sinngemaess von Hand zu uebertragen.
 
 Wichtig vorweg: Das Backup wird NICHT hochgeladen. Es wird vom Browser gelesen und im
 Speicher des Browser-Reiters ausgewertet. Der Server liefert nur das Programm aus; er
@@ -71,7 +78,7 @@ statische Seite. Gebraucht werden nur:
              Programmdatei liegen. Das spart beim ersten Aufruf rund zwei Drittel der
              Uebertragung. Ohne sie laeuft das Programm genauso, nur laedt es langsamer.
 
-Module einschalten (Debian/Ubuntu, also auch auf den meisten ioBroker-Hosts):
+Module einschalten (Debian/Ubuntu):
 
      sudo a2enmod headers rewrite deflate expires
      sudo systemctl restart apache2
@@ -150,6 +157,6 @@ HERKUNFT
 
 Diese Software wurde vollstaendig mit KI erstellt (Claude, Anthropic). Vor jeder
 Auslieferung laeuft ein Verifikationslauf gegen echte ioBroker-Backups - derzeit rund
-700 Pruefungen. Was er prueft, steht in der README des Projekts.
+630 Pruefungen. Was er prueft, steht in der README des Projekts.
 
 MIT-Lizenz, siehe LICENSE.
