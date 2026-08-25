@@ -99,6 +99,20 @@ jobs:
       - name: Apache-Einstellungen entfernen
         run: rm -f ausgabe/wwwroot/.htaccess
 
+      # ABSICHT, kein Versehen: Veröffentlicht wird allein wwwroot. Die Beilagen aus
+      # src/IobBackupAnalyzer.Web/Server (servertest.html samt Ordner, LIESMICH_Browser.txt)
+      # bleiben weg — build.ps1 legt sie ins ZIP für den eigenen Server, hierher gehören
+      # sie nicht: Die Prüfseite misst einen Apache durch (AllowOverride, Brotli aus den
+      # vorkomprimierten Dateien, MIME-Typ für .wasm). Auf Pages gibt es davon nichts
+      # einzustellen; sie meldete lauter Fehlbefunde und nennte Befehle, die dort niemand
+      # ausführen kann.
+      #
+      # Folge, und die ist harmlos: index.html fragt beim ersten Aufruf per HEAD nach
+      # servertest.html, um bei Bedarf dorthin umzuleiten. Auf Pages antwortet der Server
+      # mit 404, es wird nicht umgeleitet, das Programm startet normal. In der Konsole des
+      # Browsers steht dann ein 404 zu servertest.html. Das ist der erwartete Verlauf -
+      # wer ihn "repariert", indem er die Prüfseite mitliefert, macht es schlechter.
+
       - name: Ergebnis für Pages einpacken
         uses: actions/upload-pages-artifact@v3
         with:
