@@ -65,11 +65,18 @@ jobs:
           dotnet-version: '8.0.x'
 
       # Das Projekt übersetzt nach WebAssembly (RunAOTCompilation im csproj), und dafür
-      # wird diese Workload gebraucht. Nur beim ausdrücklichen Testlauf ohne AOT ist sie
-      # entbehrlich — und der Schritt dauert einige Minuten, die man sich dann spart.
+      # werden die WASM-Werkzeuge gebraucht. Nur beim ausdrücklichen Testlauf ohne AOT
+      # sind sie entbehrlich — und der Schritt dauert einige Minuten, die man sich dann
+      # spart.
+      #
+      # "restore" statt "install wasm-tools": Wie die Workload heisst, hängt vom SDK ab.
+      # Ein 10er-SDK verlangt für ein net8.0-Projekt "wasm-tools-net8", ein 8er schlicht
+      # "wasm-tools" — ein fest eingetragener Name geht beim nächsten SDK-Wechsel kaputt
+      # (erlebt: NETSDK1147, weil der Runner inzwischen 10.0.400 mitbringt). "restore"
+      # liest, was das Projekt braucht, und holt genau das.
       - name: WASM-Werkzeuge nachinstallieren
         if: ${{ !inputs.ohne_aot }}
-        run: dotnet workload install wasm-tools
+        run: dotnet workload restore src/IobBackupAnalyzer.Web/IobBackupAnalyzer.Web.csproj
 
       # Ohne Zusatz gilt, was im csproj steht: mit AOT. Der Schalter setzt das für einen
       # einzelnen Lauf ausser Kraft; bei einem Release ist er nie gesetzt.

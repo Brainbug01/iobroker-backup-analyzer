@@ -1,0 +1,21 @@
+{
+  "$comment": [
+    "Legt fest, mit welchem .NET-SDK gebaut wird.",
+    "",
+    "Ohne diese Datei nimmt 'dotnet' immer das neueste installierte SDK. Auf einem",
+    "GitHub-Runner ist das inzwischen 10.0.400 - und ein 10er-SDK verlangt fuer ein",
+    "net8.0-Projekt die Workload 'wasm-tools-net8' statt 'wasm-tools'. Der Build der",
+    "Browser-Fassung scheiterte daran mit NETSDK1147.",
+    "",
+    "Wichtiger noch: Die Browser-Fassung wird auf GitHub Pages aus dem Quelltext gebaut,",
+    "damit nachpruefbar ist, dass dort genau dieses Programm laeuft. Das ergibt nur Sinn,",
+    "wenn nicht bei jedem Lauf ein anderes SDK zum Einsatz kommt.",
+    "",
+    "rollForward 'latestFeature' laesst jede 8.0.4xx-Fassung zu - der Rechner des Autors",
+    "hat 8.0.423, der Runner installiert 8.0.4xx ueber setup-dotnet."
+  ],
+  "sdk": {
+    "version": "8.0.400",
+    "rollForward": "latestFeature"
+  }
+}
