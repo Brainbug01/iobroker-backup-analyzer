@@ -23,6 +23,28 @@ public static class ChangelogContent
     /// <summary>Neueste Version zuerst.</summary>
     public static IReadOnlyList<ChangelogEntry> Entries { get; } = new ChangelogEntry[]
     {
+        new("1.23.2", "25.08.2026", new[]
+        {
+            "Die Fassung für den Browser wertet Backups jetzt rund viermal so schnell " +
+            "aus. Ein eigens erzeugtes Testarchiv mit 190.000 Datenpunkten brauchte " +
+            "vorher 29 Sekunden und jetzt 7. Bei kleinen Anlagen merkt man es kaum, bei " +
+            "grossen entscheidet es darüber, ob das Warten zumutbar ist.",
+
+            "Der Grund liegt darin, wie das Programm in den Browser kommt. Bisher lag es " +
+            "in einer Zwischensprache vor, die der Browser Schritt für Schritt las — für " +
+            "eine Oberfläche belanglos, teuer aber bei einem Programm, das Zehntausende " +
+            "JSON-Zeilen durchgeht. Jetzt wird es schon beim Erstellen in die Sprache " +
+            "des Browsers übersetzt.",
+
+            "Bezahlt wird das beim ersten Aufruf: Die Seite lädt nun 17,3 statt 7,5 " +
+            "Megabyte. Danach liegt sie im Zwischenspeicher des Browsers, während ein " +
+            "Backup bei jedem Blick neu eingelesen wird — deshalb ist der Tausch die " +
+            "Sache wert.",
+
+            "Am Arbeitsspeicher ändert sich nichts. Dasselbe Testarchiv belegte vorher " +
+            "wie nachher 138 Megabyte; die Grenze von 512 MB je Backup bleibt bestehen.",
+        }),
+
         new("1.23.1", "25.08.2026", new[]
         {
             "Im Reiter „Skripte\" steht der Kopierknopf jetzt direkt über der Vorschau — " +
