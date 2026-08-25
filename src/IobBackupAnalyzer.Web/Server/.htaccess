@@ -1,0 +1,133 @@
+# ioBroker Backup Analyzer — Browser-Fassung
+# ==========================================
+#
+# Diese Datei gehört in denselben Ordner wie index.html. Sie richtet den Apache so ein,
+# dass die Seite lädt und dabei nicht mehr Daten überträgt als nötig.
+#
+# Damit sie überhaupt gelesen wird, muss der Apache "AllowOverride" für dieses Verzeichnis
+# erlauben. Ob das der Fall ist, sagt die beiliegende Testseite servertest.html — sie
+# prüft auch alles Weitere hier.
+#
+# PHP wird nicht gebraucht. Es wird nichts gerechnet, nichts gespeichert und nichts
+# entgegengenommen: Der Server liefert Dateien aus, alles andere macht der Browser.
+
+# ---------------------------------------------------------------- Dateitypen
+#
+# Ohne die richtige Angabe für .wasm lehnt der Browser das Programm ab, noch bevor etwas
+# davon läuft ("Incorrect response MIME type"). Neuere Apache-Fassungen bringen den Typ
+# schon mit; ein zweites Mal zu setzen schadet nicht.
+<IfModule mod_mime.c>
+    AddType application/wasm            .wasm
+    AddType application/octet-stream    .dat .blat .bin
+    AddType application/javascript      .js .mjs
+    AddType application/json            .json
+    AddType application/font-woff2      .woff2
+    AddType image/svg+xml               .svg
+
+    # Die vorkomprimierten Fassungen tragen die Endung der Kompression VOR ihrer eigenen
+    # (beispiel.wasm.br). Ohne diese Zeilen hielte Apache ".br" für den Dateityp.
+    AddEncoding br   .br
+    AddEncoding gzip .gz
+</IfModule>
+
+# ---------------------------------------------------------------- Vorkomprimiert ausliefern
+#
+# Neben jeder Datei liegt eine .br- und eine .gz-Fassung. Sie auszuliefern spart beim
+# ersten Aufruf rund zwei Drittel der Übertragung — bei einem Programm dieser Größe sind
+# das etliche Sekunden auf einer langsamen Leitung.
+#
+# Ist mod_rewrite nicht da, passiert hier nichts: Die Seite lädt dann unkomprimiert und
+# funktioniert genauso.
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # KEIN RewriteBase — und das ist der wichtigste Satz in dieser Datei.
+    #
+    # Ohne die Angabe ergänzt Apache von sich aus das Verzeichnis, in dem diese Datei
+    # liegt. Die Regeln stimmen damit in der Wurzel wie in jedem Unterordner.
+    #
+    # Mit „RewriteBase /" dagegen zeigt jede umgeschriebene Anfrage auf die Wurzel des
+    # Servers. Liegt die Seite unter /analyzer/, wird aus der Anfrage nach
+    # /analyzer/_framework/x.wasm plötzlich /x.wasm.br — und der Server antwortet mit
+    # 404. Das trifft ausgerechnet die Dateien, die das Programm ausmachen, und es fällt
+    # erst auf, wenn Apache die .htaccess überhaupt liest: Solange AllowOverride auf None
+    # steht, läuft alles, und mit dem Einschalten geht scheinbar alles kaputt.
+
+    # Brotli, wenn der Browser es annimmt und die Datei existiert.
+    RewriteCond %{HTTP:Accept-Encoding} br
+    RewriteCond %{REQUEST_FILENAME}.br -f
+    RewriteRule ^(.*)$ $1.br [QSA,L]
+
+    # Sonst gzip.
+    RewriteCond %{HTTP:Accept-Encoding} gzip
+    RewriteCond %{REQUEST_FILENAME}.gz -f
+    RewriteRule ^(.*)$ $1.gz [QSA,L]
+
+    # Prüfpfad für die Testseite: Sie ruft „htaccess-pruefung-rewrite" ab und weiß am
+    # Ergebnis, ob mod_rewrite arbeitet.
+    RewriteRule ^htaccess-pruefung-rewrite$ servertest/probe.txt [L]
+</IfModule>
+
+<IfModule mod_headers.c>
+    # Die umgeschriebenen Dateien tragen die falsche Endung — hier wird geradegerückt,
+    # was sie wirklich sind. Ohne diese Zeilen lädt der Browser eine „.wasm.br" als
+    # unbekannten Typ und bricht ab.
+    <FilesMatch "\.wasm\.(br|gz)$">
+        Header set Content-Type "application/wasm"
+    </FilesMatch>
+    <FilesMatch "\.js\.(br|gz)$">
+        Header set Content-Type "application/javascript"
+    </FilesMatch>
+    <FilesMatch "\.json\.(br|gz)$">
+        Header set Content-Type "application/json"
+    </FilesMatch>
+    <FilesMatch "\.css\.(br|gz)$">
+        Header set Content-Type "text/css"
+    </FilesMatch>
+    <FilesMatch "\.dat\.(br|gz)$">
+        Header set Content-Type "application/octet-stream"
+    </FilesMatch>
+
+    # Zwischenspeicher richten sich sonst nach der Adresse allein und liefern einem
+    # Browser ohne Brotli die Brotli-Fassung.
+    Header append Vary Accept-Encoding
+
+    # Woran die Testseite erkennt, dass diese Datei überhaupt gelesen wird.
+    Header set X-Iob-Analyzer "htaccess-aktiv"
+</IfModule>
+
+# ---------------------------------------------------------------- Komprimieren, was übrig ist
+#
+# Für alles, wozu keine vorkomprimierte Fassung existiert.
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/css text/plain application/javascript application/json image/svg+xml
+</IfModule>
+
+# ---------------------------------------------------------------- Zwischenspeicher
+#
+# Der Grat ist schmal: Zu kurz gespeichert heißt, dass jeder Aufruf wieder Megabyte zieht.
+# Zu lang heißt, dass nach einem Update wochenlang die alte Fassung erscheint — und der
+# Anwender das nicht einmal merkt.
+#
+# Deshalb zweigeteilt: Die Einstiegsdateien werden jedes Mal nachgefragt, das Programm
+# selbst darf liegen bleiben. Beim Update ändert sich die Prüfsumme in blazor.boot.json,
+# und der Browser holt genau die Teile neu, die sich geändert haben.
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresDefault "access plus 1 hour"
+    ExpiresByType application/wasm "access plus 30 days"
+    ExpiresByType application/octet-stream "access plus 30 days"
+</IfModule>
+
+<IfModule mod_headers.c>
+    <FilesMatch "^(index\.html|blazor\.boot\.json|service-worker\.js)$">
+        Header set Cache-Control "no-cache, must-revalidate"
+    </FilesMatch>
+</IfModule>
+
+# ---------------------------------------------------------------- Verzeichnis
+#
+# Ohne diese Zeile listet Apache bei einem Aufruf ohne Dateinamen den Ordnerinhalt auf,
+# statt das Programm zu starten.
+DirectoryIndex index.html
+Options -Indexes

@@ -1,0 +1,21 @@
+@*
+    Der gelbe Hinweiskasten über den Analysen — „Prüfliste, keine Löschliste" und
+    Verwandtes. Feste Farben wie in den Desktop-Fassungen: Der Hinweis muss in hellem wie
+    dunklem Thema gleich deutlich bleiben.
+*@
+@if (!string.IsNullOrEmpty(Text) || ChildContent is not null)
+{
+    <div class="warnkasten @Class">
+        @if (!string.IsNullOrEmpty(Text))
+        {
+            @Text
+        }
+        @ChildContent
+    </div>
+}
+
+@code {
+    [Parameter] public string? Text { get; set; }
+    [Parameter] public string? Class { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

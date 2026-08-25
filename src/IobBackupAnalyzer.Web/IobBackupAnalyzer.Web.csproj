@@ -1,0 +1,67 @@
+<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
+
+  <ItemGroup>
+    <ProjectReference Include="..\IobBackupAnalyzer.Core\IobBackupAnalyzer.Core.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <AssemblyName>ioBroker-Backup-Analyzer-Web</AssemblyName>
+    <RootNamespace>IobBackupAnalyzer.Web</RootNamespace>
+    <Product>ioBroker Backup Analyzer</Product>
+    <AssemblyTitle>ioBroker Backup Analyzer (Browser)</AssemblyTitle>
+    <Company>ioBroker Backup Analyzer</Company>
+
+    <!--
+      Einziger Pflegeort für die Versionsnummer — gleiche Begründung wie in den beiden
+      anderen Oberflächen. Alle drei tragen dieselbe Nummer; 1.23.0 ist die Fassung, mit
+      der diese hier dazugekommen ist. AppInfo liest die AssemblyVersion, die .NET
+      hieraus ableitet.
+    -->
+    <Version>1.23.0</Version>
+    <Copyright>Copyright (c) 2026 ioBroker Backup Analyzer — MIT-Lizenz</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <NeutralLanguage>de-DE</NeutralLanguage>
+
+    <!--
+      Der Trimmer bleibt aus. Die Auswertung ruft ihre Presenter zwar direkt auf, das
+      Modell wird aber über System.Text.Json gelesen und geschrieben (Analysedaten-Paket,
+      Einstellungen) — dabei entscheidet die Laufzeit über Reflexion, was der Trimmer
+      statisch nicht sehen kann. Der Preis sind rund 3 MB mehr Erstladung; die Alternative
+      wäre ein Programm, das an einer beliebigen Stelle mit einer fehlenden Eigenschaft
+      abbricht. Wer die Größe braucht, misst vorher mit dem vollständigen Selbsttest nach.
+    -->
+    <PublishTrimmed>false</PublishTrimmed>
+
+    <!--
+      Ein Blazor-WASM-Publish erzeugt zu jeder Datei zusätzlich eine .br- und eine
+      .gz-Fassung. Apache liefert sie über die mitgelieferte .htaccess aus; ohne sie
+      lädt die Seite dieselben Dateien unkomprimiert und damit rund dreimal so groß.
+    -->
+    <CompressionEnabled>true</CompressionEnabled>
+
+    <!--
+      Ohne diese Zeile lädt kein einziges Backup.
+
+      .NET schaltet System.Formats.Tar im Browser-Profil ab: Jeder Aufruf wirft dann
+      „System.Formats.Tar is not supported on this platform". Das ist keine technische
+      Grenze — der Tar-Leser ist reiner verwalteter Code und läuft in WebAssembly
+      einwandfrei —, sondern eine Voreinstellung zugunsten der Downloadgröße. Da ein
+      Backitup-Archiv genau ein Tar in einer Gzip-Hülle ist, wäre die ganze Fassung ohne
+      ihn zwecklos.
+    -->
+    <TarSupport>true</TarSupport>
+
+    <DebugType>none</DebugType>
+    <SatelliteResourceLanguages>de;en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="8.0.29" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="8.0.29" PrivateAssets="all" />
+  </ItemGroup>
+
+</Project>

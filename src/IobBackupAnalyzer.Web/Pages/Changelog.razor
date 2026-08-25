@@ -1,0 +1,61 @@
+@*
+    Der Änderungsverlauf — aber nur bis zu dem Stand, den diese Fassung wirklich hat.
+
+    Der Core wird von allen drei Oberflächen geteilt und trägt deshalb auch Einträge zu
+    Fassungen, die es hier noch nicht gibt. Sie stehen zu lassen hieße, Funktionen zu
+    versprechen, die kein Reiter anbietet.
+*@
+
+<div class="blatt">
+    <HelpBlocks Blocks="Bloecke" />
+</div>
+
+@code {
+    /// <summary>
+    /// Die Blockliste des Änderungsverlaufs, gefiltert auf die eigene Version und alles
+    /// Ältere. Aufbau und Wortlaut folgen <c>ChangelogContent.BuildBlocks</c>.
+    ///
+    /// Derzeit tragen alle drei Fassungen dieselbe Nummer, der Filter lässt also alles
+    /// durch. Er bleibt trotzdem stehen: Fällt die Browser-Fassung einmal zurück, zeigte
+    /// sie sonst Einträge zu Funktionen, die es in ihr nicht gibt.
+    /// </summary>
+    private static IReadOnlyList<HelpBlock> Bloecke { get; } = Aufbauen();
+
+    private static HelpBlock[] Aufbauen()
+    {
+        var eigene = Nummer(AppInfo.Version);
+
+        var bloecke = new List<HelpBlock>
+        {
+            new(HelpBlockKind.Title, "Änderungsverlauf"),
+            new(HelpBlockKind.Text,
+                "Was sich von Fassung zu Fassung geändert hat, neueste zuerst. Aufgeführt ist " +
+                "nur, was für die Benutzung einen Unterschied macht. Die laufende Fassung steht " +
+                "unten rechts in der Statusleiste.")
+        };
+
+        foreach (var e in ChangelogContent.Entries.Where(e => Nummer(e.Version) <= eigene))
+        {
+            bloecke.Add(new(HelpBlockKind.Heading, $"Version {e.Version}  ({e.Date})"));
+            bloecke.Add(new(HelpBlockKind.Text, string.Join("\n", e.Changes.Select(c => "• " + c))));
+        }
+
+        return bloecke.ToArray();
+    }
+
+    /// <summary>
+    /// „1.22.2" als vergleichbare Zahl. Bewusst kein <see cref="Version"/>: Ein Eintrag mit
+    /// einer Nummer, die sich nicht zerlegen lässt, soll nicht die ganze Liste leeren,
+    /// sondern schlicht mitkommen.
+    /// </summary>
+    private static long Nummer(string version)
+    {
+        var teile = version.Split('.');
+        long wert = 0;
+
+        for (var i = 0; i < 3; i++)
+            wert = wert * 1000 + (i < teile.Length && int.TryParse(teile[i], out var n) ? n : 0);
+
+        return wert;
+    }
+}

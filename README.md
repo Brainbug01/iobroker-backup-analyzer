@@ -14,16 +14,21 @@ Reines Lesewerkzeug: Es schreibt nichts in ein ioBroker-System und löscht nicht
 > Hinweis steht auch in der App: in der Titelleiste, in der Statusleiste, in der Hilfe und
 > in jeder Datei, die das Werkzeug erzeugt.
 
-Es gibt das Werkzeug in **zwei Oberflächen** mit gemeinsamer Kernlogik:
+Es gibt das Werkzeug in **drei Oberflächen** mit gemeinsamer Kernlogik:
 
 | Fassung | Läuft unter | Grundlage |
 |---|---|---|
 | **Windows-Fassung** | Windows | WinForms |
 | **plattformübergreifende Fassung** | Windows, macOS, Linux | Avalonia |
+| **Browser-Fassung** | jeder Browser, ausgeliefert vom eigenen Webserver | Blazor WebAssembly |
 
-Beide zeigen dieselben Auswertungen — die Analysen liegen in `Core` und können deshalb
+Alle drei zeigen dieselben Auswertungen — die Analysen liegen in `Core` und können deshalb
 nicht je Oberfläche auseinanderlaufen. Unterschiede gibt es nur dort, wo die
 Bedienoberflächen selbst welche vorgeben; sie sind unten jeweils genannt.
+
+Auch bei der Browser-Fassung wird **nichts hochgeladen**: Der Server liefert nur das
+Programm aus, gelesen und gerechnet wird im Browser des Anwenders. Siehe
+[Browser-Fassung](#browser-fassung).
 
 ---
 
@@ -608,6 +613,94 @@ versehentlich in einem Export auftauchen.
 
 ---
 
+## Browser-Fassung
+
+Dieselbe Auswertung, ausgeliefert vom eigenen Webserver. Gedacht für den Apache, der auf
+vielen ioBroker-Hosts ohnehin läuft: einmal hochladen, danach von jedem Rechner im Netz
+aufrufen — ohne Installation, ohne Aktualisierung auf jedem einzelnen Gerät.
+
+**Das Backup wird nicht hochgeladen.** Der Server liefert das Programm aus, sonst nichts.
+Gelesen, entpackt und ausgewertet wird im Browser des Anwenders; auf dem Server landet
+kein Byte der Anlage. Nachprüfbar in den Entwicklerwerkzeugen: Nach dem Laden der Seite
+ist unter „Netzwerk" keine weitere Übertragung zu sehen.
+
+### Hochladen
+
+Das fertige Paket liegt nach `build.ps1` unter `dist/web/` und zusätzlich als
+`dist/ioBroker-Backup-Analyzer_Browser.zip` (rund 27 MB). Der gesamte Inhalt gehört in ein
+Verzeichnis unterhalb des Web-Wurzelverzeichnisses, etwa `/var/www/html/analyzer/`.
+
+Wie das Verzeichnis heißt, spielt keine Rolle: Alle Adressen im Programm sind relativ, es
+läuft in jedem Unterordner ebenso wie direkt in der Wurzel.
+
+Zwei Fallen bei FTP-Programmen: Die `.htaccess` beginnt mit einem Punkt und wird oft
+ausgeblendet, und Ordner mit führendem Unterstrich (`_framework`) überspringen manche
+Programme. Nach der Übertragung die Dateizahl vergleichen — es sind 618.
+
+Beim ersten Aufruf leitet `index.html` einmalig auf `servertest.html` um. Diese Seite misst
+den Server durch — Dateityp für `.wasm`, ob die `.htaccess` gelesen wird, mod_rewrite,
+Kompression, Vollständigkeit — und nennt zu jedem Fehlbefund den Befehl, der ihn behebt.
+Danach geht es per Knopf weiter ins Programm; die Umleitung kommt nicht wieder.
+
+### Was der Apache können muss
+
+**Kein PHP, keine Datenbank** — es ist eine statische Seite. Pflicht ist allein der
+Dateityp `application/wasm`; ohne ihn lehnt der Browser das Programm ab, bevor es startet.
+Empfohlen sind `mod_headers`, `mod_rewrite`, `mod_deflate` und `mod_expires`: Damit werden
+die vorkomprimierten Dateien ausgeliefert, die neben jeder Programmdatei liegen — 7,5 statt
+25 MB beim ersten Aufruf. Ohne sie läuft alles genauso, nur langsamer.
+
+```bash
+sudo a2enmod headers rewrite deflate expires
+sudo systemctl restart apache2
+```
+
+Damit die beiliegende `.htaccess` überhaupt gelesen wird, muss für das Verzeichnis
+`AllowOverride All` gesetzt sein (in `/etc/apache2/apache2.conf` steht dort oft `None`).
+
+Die `.htaccess` kommt bewusst **ohne `RewriteBase`** aus. Mit einer festen Angabe zeigte
+jede umgeschriebene Anfrage auf die Wurzel des Servers; liegt die Seite in einem
+Unterverzeichnis, antwortet er dann mit 404 — ausgerechnet für die Dateien, die das
+Programm ausmachen. Aufgefallen ist das erst beim Einschalten von `AllowOverride`: Vorher
+wurde die Datei gar nicht gelesen, und alles lief.
+
+### Grenzen gegenüber den Desktop-Fassungen
+
+| | Browser | Desktop |
+|---|---|---|
+| Backup-Größe | bis 512 MB | unbegrenzt |
+| Während des Ladens | Seite steht still | Fortschrittsanzeige |
+| Skript- und Dateiexport | ZIP zum Herunterladen | Ordner nach Wahl |
+| Zwischenablage | über `http` nur mit Ersatzweg | immer |
+
+Die Größengrenze hat einen technischen Grund: Die WebAssembly-Laufzeit ist 32-bittig, ein
+Browser-Reiter kommt bei rund 2 GB Speicher an seine Grenze. Gemessen an einem Archiv von
+14,6 MB (16.748 Objekte, 13.724 Werte): 11 Sekunden Ladezeit, 261 MB Spitze — reichlich
+Luft. Der belegte Speicher steht in der Fußzeile, soweit der Browser ihn preisgibt
+(Chrome und Edge).
+
+Dass die Seite während des Ladens stillsteht, liegt daran, dass WebAssembly auf demselben
+Faden rechnet, auf dem auch gezeichnet wird. Ein `Task.Run` läuft dort nicht nebenher.
+
+### Der eigene Tar-Leser
+
+Ein Befund, der beim Bauen dieser Fassung auffiel: .NET liefert für WebAssembly nur eine
+**Attrappe** von `System.Formats.Tar` aus — jeder Aufruf wirft „System.Formats.Tar is not
+supported on this platform". Das ist keine technische Grenze, sondern eine Voreinstellung
+zugunsten der Downloadgröße, und einen Schalter dagegen gibt es nicht. Da ein
+Backitup-Archiv genau ein Tar in einer Gzip-Hülle ist, wäre die Browser-Fassung damit
+zwecklos gewesen.
+
+`TarSource` in `Core` ist die Antwort: Auf dem Rechner arbeitet unverändert der eingebaute
+Leser, im Browser ein eigener, der genau so viel kann, wie ein Backitup-Archiv verlangt.
+Dass beide dasselbe liefern, prüft der Verifikationslauf an den echten Testarchiven —
+Eintrag für Eintrag, samt Prüfsumme des Inhalts. Genau dieser Vergleich hat auch prompt
+einen Fehler gefunden: Die 155 Bytes, die im ustar-Format den Namensvorspann tragen,
+enthalten bei GNU-Tar zwei Zeitstempel; wer sie ungeprüft voranstellt, macht aus `backup/`
+ein `15236273373 15236273374/backup/`.
+
+---
+
 ## Projektaufbau
 
 ```
@@ -630,6 +723,8 @@ src/IobBackupAnalyzer.Core/     Kernlogik und Darstellungslogik, ohne GUI testba
   ScriptExporter.cs             Skript- und CSV-Export
   BackupNaming.cs               Exportordner mit dem Namen der Backup-Datei
   AppIdentity.cs                Programmname und KI-Herkunftshinweis, an einer Stelle
+  TarSource.cs                  Tar lesen — eingebaut auf dem Rechner, eigener Leser im
+                                Browser (siehe Abschnitt „Browser-Fassung")
   HelpContent.cs                Text der In-App-Hilfe, für beide Oberflächen
   ChangelogContent.cs           Änderungsverlauf samt Blöcken für den Tab „Änderungen"
   UserSettings.cs               Fenstergröße, zuletzt geöffnete Datei, Darstellung
@@ -640,6 +735,12 @@ src/IobBackupAnalyzer.App/      Windows-Fassung (WinForms)
   ListViewAutoFit.cs            Spaltenbreite per Rechtsklick auf den Spaltenkopf
 src/IobBackupAnalyzer.Avalonia/ plattformübergreifende Fassung (Windows, macOS, Linux)
   TableLayout.cs                Spaltenbreiten, Abschlussspalte, Rechtsklick-Anpassung
+src/IobBackupAnalyzer.Web/      Browser-Fassung (Blazor WebAssembly)
+  Shared/DataTable.razor        die Tabelle aller Reiter, virtualisiert und sortierbar
+  Services/BrowserIo.cs         Datei herein ins virtuelle Dateisystem, Ergebnis heraus
+                                als Download — der Ersatz für Datei- und Speicherdialog
+  Services/UiState.cs           Bedienzustand aller Reiter (nur der sichtbare existiert)
+  Server/                       Beilagen für den Webserver: .htaccess, Prüfseite, Anleitung
 src/IobBackupAnalyzer.Verify/   Verifikationslauf gegen echte Backups
 testdaten/                      echte Backups — durch .gitignore ausgeschlossen
 ```

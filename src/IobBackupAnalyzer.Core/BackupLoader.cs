@@ -108,9 +108,9 @@ public static class BackupLoader
         // Ohne gzip-Huelle wird direkt aus der Datei gelesen; der Rest des Ablaufs ist
         // identisch, weil ein Tar in beiden Faellen nur vorwaerts gelesen wird.
         using (Stream source = compressed ? new GZipStream(fs, CompressionMode.Decompress) : fs)
-        using (var tar = new TarReader(source))
+        using (var tar = TarSource.Open(source))
         {
-            TarEntry? entry;
+            TarItem? entry;
             var geprueft = 0;
 
             // Wurde die jeweilige Pflichtdatei bereits OBEN im Archiv gefunden? Ein späterer
@@ -348,10 +348,9 @@ public static class BackupLoader
     /// Beschreibt einen Archiveintrag als Datei des Admin-Dateibereichs — oder gibt null
     /// zurück, wenn er keine ist (Verzeichnis, Symlink, alles außerhalb von files/).
     /// </summary>
-    private static BackupFileInfo? DescribeFileEntry(string name, TarEntry entry)
+    private static BackupFileInfo? DescribeFileEntry(string name, TarItem entry)
     {
-        if (entry.EntryType is not (TarEntryType.RegularFile or TarEntryType.V7RegularFile))
-            return null;
+        if (!entry.IsRegularFile) return null;
 
         var rest = FilesRelativePath(name);
         if (rest is null) return null;
@@ -430,7 +429,7 @@ public static class BackupLoader
     /// dabei das reguläre Ende des Archivs von einem Abbruch mitten darin: Nur Letzteres
     /// bedeutet, dass Daten fehlen.
     /// </summary>
-    private static TarEntry? ReadNextEntrySafe(TarReader tar, out bool readFailed)
+    private static TarItem? ReadNextEntrySafe(TarSource tar, out bool readFailed)
     {
         readFailed = false;
         try

@@ -1,0 +1,227 @@
+@inherits TabBase
+
+@*
+    Auflistung der in VIS verwendeten Datenpunkte, getrennt nach VIS 1 (vis.0) und
+    VIS 2 (vis-2.0), mit den Fundstellen des gewählten Datenpunkts darunter.
+    Zusammenfassung, Filter, Sortierung und Spalten kommen aus VisPresenter.
+*@
+
+@if (Daten is null || Daten.Kind != BackupKind.Full)
+{
+    <Platzhalter Text="@PlatzhalterText(
+        "Für die VIS-Auswertung wird ein Voll-Backup benötigt.\n\n" +
+        "Die geladene Datei enthält nur Skripte.")" />
+}
+else
+{
+    <div class="reiter-inhalt">
+
+        <div class="kopfbereich">
+            <div>@VisPresenter.SummaryText(Alle, Daten)</div>
+
+            <div class="leiste">
+                <label for="vis-filter">Filter:</label>
+                <input id="vis-filter" class="feld breit" placeholder="Datenpunkt-ID oder View …"
+                       value="@S.Filter" @oninput="FilterGeaendert" />
+
+                <select class="feld weit" @onchange="BereichGewaehlt">
+                    @for (var i = 0; i < VisPresenter.ScopeLabels.Length; i++)
+                    {
+                        <option value="@i" selected="@((int)S.Scope == i)">@VisPresenter.ScopeLabels[i]</option>
+                    }
+                </select>
+
+                <span class="zaehler">@VisPresenter.CountText(Gefiltert.Count, Alle.Count)</span>
+                <span class="dehnen"></span>
+                <button class="knopf" @onclick="AlsCsv">Als CSV exportieren</button>
+            </div>
+
+            @* Zweite Zeile: ein ganzes VIS-Projekt als ZIP, wie sie „Tools → Projektimport"
+               erwartet. Damit lässt sich eine gelöschte View zurückholen, ohne das Backup
+               einzuspielen. *@
+            <div class="leiste">
+                <span class="gedaempft">@VisPresenter.ZipIntro(Projekte.Count)</span>
+
+                <select class="feld weit" disabled="@(Projekte.Count == 0)" @onchange="ProjektGewaehlt">
+                    @for (var i = 0; i < Projekte.Count; i++)
+                    {
+                        <option value="@i" selected="@(S.ProjectIndex == i)">@Projekte[i].Label</option>
+                    }
+                </select>
+
+                <label class="haken">
+                    <input type="checkbox" checked="@S.WithAssets"
+                           disabled="@(GewaehltesProjekt is not { } p || p.Assets.Count == 0)"
+                           @onchange="e => S.WithAssets = (bool?)e.Value == true" />
+                    @VisPresenter.ZipAssetsLabel
+                </label>
+
+                <span class="dehnen"></span>
+                <button class="knopf" disabled="@(GewaehltesProjekt is null || _packt)"
+                        @onclick="AlsZipAsync">
+                    @VisPresenter.ZipButtonLabel
+                </button>
+            </div>
+        </div>
+
+        <div class="tabellenbereich oben">
+            <DataTable TItem="VisDatapoint" Items="Gefiltert" Columns="PunktSpalten"
+                       Emphasis="Einstufung"
+                       Selected="S.Selected" SelectedChanged="d => S.Selected = d" />
+        </div>
+
+        <div class="detailbereich">
+            <div class="ueberschrift klein-ueberschrift">
+                @VisPresenter.UsageHeader(S.Selected, "")
+            </div>
+
+            <div class="tabellenbereich unten">
+                <DataTable TItem="VisUsage" Items="Fundstellen" Columns="FundstellenSpalten" />
+            </div>
+        </div>
+
+    </div>
+}
+
+@code {
+    private UiState.VisTab S => Bedienung.Vis;
+
+    private bool _packt;
+
+    private List<VisDatapoint> _alle = new();
+    private List<VisProjectExporter.VisProject> _projekte = new();
+    private BackupData? _berechnetFuer;
+
+    /// <summary>
+    /// Die VIS-Auswertung. Im Regelfall beim Laden vorberechnet; nur wenn das fehlt, wird
+    /// hier gerechnet — dieselbe Aufteilung wie in der Avalonia-Fassung.
+    /// </summary>
+    private List<VisDatapoint> Alle
+    {
+        get
+        {
+            if (!ReferenceEquals(_berechnetFuer, Daten))
+            {
+                _alle = Daten is null
+                    ? new List<VisDatapoint>()
+                    : Analysen?.Vis ?? VisAnalyzer.Analyze(Daten);
+
+                _projekte = Daten is null
+                    ? new List<VisProjectExporter.VisProject>()
+                    : VisProjectExporter.FindProjects(Daten);
+
+                _berechnetFuer = Daten;
+            }
+
+            return _alle;
+        }
+    }
+
+    private List<VisProjectExporter.VisProject> Projekte
+    {
+        get { _ = Alle; return _projekte; }
+    }
+
+    private VisProjectExporter.VisProject? GewaehltesProjekt =>
+        S.ProjectIndex >= 0 && S.ProjectIndex < Projekte.Count ? Projekte[S.ProjectIndex] : null;
+
+    private List<VisDatapoint> Gefiltert => VisPresenter.Filter(Alle, S.Scope, S.Filter);
+
+    private List<VisUsage> Fundstellen =>
+        S.Selected is null ? new List<VisUsage>() : VisPresenter.SortedUsages(S.Selected);
+
+    private void FilterGeaendert(ChangeEventArgs e) => S.Filter = e.Value?.ToString() ?? "";
+
+    private void BereichGewaehlt(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var i)) S.Scope = (VisScope)i;
+    }
+
+    private void ProjektGewaehlt(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var i)) S.ProjectIndex = i;
+    }
+
+    /// <summary>
+    /// Fehlender Datenpunkt = totes Widget. Ein Alias, dessen Ziel fehlt, ist genauso
+    /// kaputt — nur eine Ebene tiefer.
+    /// </summary>
+    private static RowEmphasis Einstufung(VisDatapoint d) =>
+        !d.ExistsInBackup || d.AliasTargetMissing ? RowEmphasis.Problem : RowEmphasis.None;
+
+    private static readonly TableColumn<VisDatapoint>[] PunktSpalten =
+    {
+        new() { Header = "Datenpunkt-ID", Width = 360, Text = d => d.Id },
+        new() { Header = "Name",          Width = 170, Text = d => d.Name },
+        new() { Header = "VIS 1",         Width = 65,  Text = d => d.Vis1Text, SortKey = d => d.InVis1 },
+        new() { Header = "VIS 2",         Width = 65,  Text = d => d.Vis2Text, SortKey = d => d.InVis2 },
+        new() { Header = "Widgets",       Width = 85,  Number = true,
+                Text = d => d.WidgetCount.ToString("N0"), SortKey = d => d.WidgetCount },
+        new() { Header = "Vorhanden",     Width = 95,  Text = d => d.ExistsText,
+                SortKey = d => d.ExistsInBackup },
+        // Bei Aliassen ist die ID allein nichtssagend — erst das Ziel zeigt das echte Gerät.
+        new() { Header = "Alias → Ziel",  Width = 280, Text = d => d.AliasTargetText },
+        new() { Header = "Widget-Typen",  Width = 190, Text = d => d.WidgetsText },
+        new() { Header = "Views",         Width = 620, Text = d => d.ViewsText }
+    };
+
+    private static readonly TableColumn<VisUsage>[] FundstellenSpalten =
+    {
+        new() { Header = "VIS",        Width = 70,  Text = u => u.VersionText },
+        // Eine Installation kann mehrere VIS-Projekte haben — ohne diese Spalte wäre nicht
+        // erkennbar, in welchem eine View liegt.
+        new() { Header = "Projekt",    Width = 120, Text = u => u.Project },
+        new() { Header = "View",       Width = 220, Text = u => u.View },
+        new() { Header = "Widget",     Width = 150, Text = u => u.WidgetLabel },
+        new() { Header = "Widget-Typ", Width = 220, Text = u => u.Template },
+        new() { Header = "Widget-Set", Width = 140, Text = u => u.WidgetSet },
+        new() { Header = "Feld",       Width = 200, Text = u => u.Field },
+        new() { Header = "Zugriff",    Width = 95,  Text = u => u.AttributeText }
+    };
+
+    private async Task AlsCsv() =>
+        await Io.SaveCsvAsync("vis-datenpunkte.csv", VisPresenter.CsvColumns,
+                              VisPresenter.CsvRows(Gefiltert));
+
+    /// <summary>
+    /// Schreibt das gewählte VIS-Projekt als ZIP, wie sie der Projektimport von VIS
+    /// erwartet: der Inhalt des Projektordners flach in der Wurzel.
+    ///
+    /// Der Exporter schreibt in eine Datei — hier in das virtuelle Dateisystem, von wo aus
+    /// sie der Browser als Download übernimmt.
+    /// </summary>
+    private async Task AlsZipAsync()
+    {
+        if (Daten is null || GewaehltesProjekt is not { } projekt) return;
+
+        _packt = true;
+        StateHasChanged();
+
+        var name = projekt.SuggestedFileName(Daten.CreatedAt);
+        var pfad = Path.Combine(BrowserIo.WorkDir, name);
+
+        try
+        {
+            var ergebnis = VisProjectExporter.Export(Daten, projekt, pfad, S.WithAssets);
+
+            // Der Meldungstext nennt den Schreibort. Im Browser wäre das ein Pfad im
+            // virtuellen Dateisystem, den es auf keiner Platte gibt — an seiner Stelle
+            // steht deshalb der Name, unter dem die Datei im Download-Ordner landet.
+            var text = VisPresenter.ZipSummary(Daten, projekt, ergebnis)
+                                   .Replace(pfad, name, StringComparison.Ordinal);
+
+            await Io.SaveVirtualFileAsync(pfad, name, "application/zip");
+            await Dialoge.MessageAsync("VIS-Projekt exportiert", text);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+                                      or NotSupportedException or OutOfMemoryException)
+        {
+            await Dialoge.MessageAsync("Fehler", "Der Export ist fehlgeschlagen:\n\n" + ex.Message);
+        }
+        finally
+        {
+            _packt = false;
+            StateHasChanged();
+        }
+    }
+}

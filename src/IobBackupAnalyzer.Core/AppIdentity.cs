@@ -25,7 +25,24 @@ public static class AppIdentity
     /// nicht an, aus welcher Fassung sie stammt — und ältere Fassungen verhalten sich
     /// anders (bis v1.17.0 löschte dort auch ein kleines „j").
     /// </summary>
-    public static string Version => ChangelogContent.Entries[0].Version;
+    public static string Version => _laufende ?? ChangelogContent.Entries[0].Version;
+
+    private static string? _laufende;
+
+    /// <summary>
+    /// Setzt die Nummer der laufenden Fassung, wenn sie nicht die neueste im Verlauf ist.
+    ///
+    /// Gedacht für eine Oberfläche, die hinter den anderen zurückliegt. Derzeit tragen alle
+    /// drei dieselbe Nummer; sobald eine davon einen Sprung nicht mitmacht, schriebe sie
+    /// ohne diesen Aufruf in jedes erzeugte Aufräum-Skript eine Versionsnummer, die sie gar
+    /// nicht ist — und einer Datei, die auf dem ioBroker-Host weiterlebt, sieht man das
+    /// später nicht mehr an.
+    ///
+    /// Wer die Nummer nicht setzt, bekommt weiterhin die neueste aus dem Verlauf — für die
+    /// beiden Desktop-Fassungen ändert sich damit nichts.
+    /// </summary>
+    public static void SetRunningVersion(string version) =>
+        _laufende = string.IsNullOrWhiteSpace(version) ? null : version;
 
     /// <summary>Kurzform für Titel- und Statusleiste.</summary>
     public const string AiNoticeShort = "mit KI erstellt";

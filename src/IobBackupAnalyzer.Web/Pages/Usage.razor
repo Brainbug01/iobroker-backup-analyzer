@@ -1,0 +1,253 @@
+@inherits TabBase
+
+@*
+    Kreuzreferenz zwischen Skripten und Datenpunkten, in beiden Richtungen — inhaltlich
+    gleich zu beiden Desktop-Fassungen.
+
+    Je Richtung ein eigenes Tabellenpaar: oben die gewählte Seite, unten die Gegenseite des
+    angeklickten Eintrags.
+*@
+
+@if (Bericht is null)
+{
+    <Platzhalter Text="@PlatzhalterText(
+        "Für die Verwendungsübersicht wird ein Voll-Backup benötigt.\n\n" +
+        "Ohne Objektbestand lässt sich nicht entscheiden, ob eine Zeichenkette im " +
+        "Skript wirklich ein Datenpunkt ist.")" />
+}
+else
+{
+    <div class="reiter-inhalt">
+
+        <div class="kopfbereich">
+            <div>@UsagePresenter.Stats(Bericht)</div>
+            <Warnkasten Text="@UsagePresenter.Warning" />
+
+            <div class="leiste">
+                <label for="verw-sicht">Sicht:</label>
+                <select id="verw-sicht" class="feld weit" @onchange="SichtGewaehlt">
+                    @for (var i = 0; i < UsagePresenter.ViewLabels.Length; i++)
+                    {
+                        <option value="@i" selected="@((int)S.Direction == i)">@UsagePresenter.ViewLabels[i]</option>
+                    }
+                </select>
+
+                @if (NachSkript)
+                {
+                    <label class="haken">
+                        <input type="checkbox" checked="@S.OnlyWithStates"
+                               @onchange="e => S.OnlyWithStates = (bool?)e.Value == true" />
+                        Nur Skripte mit Datenpunkten
+                    </label>
+                }
+                else
+                {
+                    <select class="feld sehr-weit" @onchange="VorfilterGewaehlt">
+                        @for (var i = 0; i < UsagePresenter.StateFilterLabels.Length; i++)
+                        {
+                            <option value="@i" selected="@((int)S.StateFilter == i)">@UsagePresenter.StateFilterLabels[i]</option>
+                        }
+                    </select>
+                }
+
+                <label for="verw-filter">Filter:</label>
+                <input id="verw-filter" class="feld" placeholder="Skript oder Datenpunkt …"
+                       value="@S.Filter" @oninput="e => S.Filter = e.Value?.ToString() ?? string.Empty" />
+
+                <span class="zaehler">@Zaehler</span>
+                <span class="dehnen"></span>
+                <button class="knopf" @onclick="AlsCsv">Als CSV exportieren</button>
+            </div>
+
+            @* Farblegende in den echten Zeilenfarben, je Sicht neu gefüllt. *@
+            <div class="legende">
+                @foreach (var (einstufung, text) in NachSkript
+                                                    ? UsagePresenter.ScriptLegend
+                                                    : UsagePresenter.StateLegend)
+                {
+                    <span class="@EmphasisClass.Of(einstufung)">@text</span>
+                }
+                <span class="gedaempft">@UsagePresenter.JumpHint</span>
+            </div>
+        </div>
+
+        <div class="tabellenbereich oben">
+            @if (NachSkript)
+            {
+                <DataTable TItem="ScriptUsage" Items="Skripte" Columns="SkriptSpalten"
+                           Emphasis="UsagePresenter.EmphasisScript"
+                           Selected="S.SelectedScript" SelectedChanged="s => S.SelectedScript = s"
+                           OnRowDoubleClick="s => OnScriptRequested.InvokeAsync(s.ScriptId)" />
+            }
+            else
+            {
+                <DataTable TItem="StateUsage" Items="Datenpunkte" Columns="DatenpunktSpalten"
+                           Emphasis="UsagePresenter.EmphasisState"
+                           Selected="S.SelectedState" SelectedChanged="s => S.SelectedState = s" />
+            }
+        </div>
+
+        <div class="detailbereich">
+            <div class="ueberschrift klein-ueberschrift">@DetailTitel</div>
+
+            <div class="tabellenbereich unten">
+                @if (NachSkript)
+                {
+                    <DataTable TItem="UsageLink" Items="Verbindungen" Columns="SkriptDetailSpalten" />
+                }
+                else
+                {
+                    @* In der Datenpunkt-Sicht stehen die Skripte unten — der Doppelklick
+                       gehört deshalb hier auf die Detailtabelle. *@
+                    <DataTable TItem="UsageLink" Items="Verbindungen" Columns="DatenpunktDetailSpalten"
+                               OnRowDoubleClick="ZumSkript" />
+                }
+            </div>
+        </div>
+
+    </div>
+}
+
+@code {
+    /// <summary>
+    /// Doppelklick auf ein Skript — übergeben wird dessen ioBroker-ID. Das Hauptlayout
+    /// wechselt daraufhin in den Skripte-Reiter und wählt es dort aus; gleiche Verdrahtung
+    /// wie in beiden Desktop-Fassungen.
+    /// </summary>
+    [Parameter] public EventCallback<string> OnScriptRequested { get; set; }
+
+    private UiState.UsageTab S => Bedienung.Usage;
+
+    private bool NachSkript => S.Direction == UsageDirection.ByScript;
+
+    private UsageReport? _bericht;
+    private BackupData? _berechnetFuer;
+
+    /// <summary>
+    /// Im Regelfall beim Laden vorberechnet; nur ohne Vorberechnung wird hier gerechnet —
+    /// dieselbe Aufteilung wie in der Avalonia-Fassung.
+    /// </summary>
+    private UsageReport? Bericht
+    {
+        get
+        {
+            if (!ReferenceEquals(_berechnetFuer, Daten))
+            {
+                _bericht = Daten is null || Daten.Kind != BackupKind.Full
+                    ? null
+                    : Analysen?.Usage ?? UsageAnalyzer.Analyze(Daten);
+                _berechnetFuer = Daten;
+            }
+
+            return _bericht;
+        }
+    }
+
+    private List<ScriptUsage> Skripte =>
+        Bericht is null
+            ? new List<ScriptUsage>()
+            : UsagePresenter.FilterScripts(Bericht.Scripts, S.OnlyWithStates, S.Filter);
+
+    private List<StateUsage> Datenpunkte =>
+        Bericht is null
+            ? new List<StateUsage>()
+            : UsagePresenter.FilterStates(Bericht.States, S.StateFilter, S.Filter);
+
+    private List<UsageLink> Verbindungen =>
+        (NachSkript ? S.SelectedScript?.Links : S.SelectedState?.Links) ?? new List<UsageLink>();
+
+    private string Zaehler =>
+        Bericht is null
+            ? ""
+            : NachSkript
+                ? UsagePresenter.CountScripts(Skripte.Count, Bericht)
+                : UsagePresenter.CountStates(Datenpunkte.Count, Bericht.States.Count, Bericht);
+
+    private string DetailTitel =>
+        NachSkript
+            ? UsagePresenter.DetailTitle(UsageDirection.ByScript, S.SelectedScript?.DisplayPath)
+            : UsagePresenter.DetailTitle(UsageDirection.ByState, S.SelectedState?.Id);
+
+    private void SichtGewaehlt(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var i)) S.Direction = (UsageDirection)i;
+    }
+
+    private void VorfilterGewaehlt(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var i)) S.StateFilter = (UsageStateFilter)i;
+    }
+
+    /// <summary>
+    /// Meldet das angeklickte Skript nach außen. Zeilen ohne Skriptbezug — Adapter-Instanzen
+    /// in der unteren Liste — lösen bewusst nichts aus.
+    /// </summary>
+    private async Task ZumSkript(UsageLink link)
+    {
+        if (link.Source == UsageSource.Skript)
+            await OnScriptRequested.InvokeAsync(link.SourceId);
+    }
+
+    // ------------------------------------------------------------------ Spalten
+
+    private static readonly TableColumn<ScriptUsage>[] SkriptSpalten =
+    {
+        new() { Header = "Skript",      Width = 340, Text = s => s.DisplayPath },
+        new() { Header = "Typ",         Width = 130, Text = s => s.EngineText },
+        new() { Header = "Status",      Width = 120, Text = s => s.StatusText, SortKey = s => s.Enabled },
+        new() { Header = "Datenpunkte", Width = 125, Number = true,
+                Text = s => s.StateCount.ToString("N0"), SortKey = s => s.StateCount },
+        new() { Header = "liest",       Width = 80,  Number = true,
+                Text = s => s.ReadCount.ToString("N0"), SortKey = s => s.ReadCount },
+        new() { Header = "schreibt",    Width = 100, Number = true,
+                Text = s => s.WriteCount.ToString("N0"), SortKey = s => s.WriteCount }
+    };
+
+    private static readonly TableColumn<StateUsage>[] DatenpunktSpalten =
+    {
+        new() { Header = "Datenpunkt-ID",    Width = 360, Text = s => s.Id },
+        new() { Header = "Name",             Width = 180, Text = s => s.Name },
+        new() { Header = "Art",              Width = 130, Text = s => s.KindText },
+        new() { Header = "Skripte",          Width = 90,  Number = true,
+                Text = s => s.ScriptCount.ToString("N0"), SortKey = s => s.ScriptCount },
+        new() { Header = "Adapter",          Width = 90,  Number = true,
+                Text = s => s.AdapterCount.ToString("N0"), SortKey = s => s.AdapterCount },
+        new() { Header = "liest",            Width = 80,  Number = true,
+                Text = s => s.Readers.ToString("N0"), SortKey = s => s.Readers },
+        new() { Header = "schreibt",         Width = 100, Number = true,
+                Text = s => s.Writers.ToString("N0"), SortKey = s => s.Writers },
+        new() { Header = "Zuletzt geändert", Width = 215, Text = s => s.LastChangeText,
+                SortKey = s => s.LastChange }
+    };
+
+    private static readonly TableColumn<UsageLink>[] SkriptDetailSpalten =
+    {
+        new() { Header = "Datenpunkt-ID", Width = 380, Text = l => l.StateId },
+        new() { Header = "Name",          Width = 180, Text = l => l.StateName },
+        new() { Header = "Zugriff",       Width = 130, Text = l => l.AccessText },
+        new() { Header = "Fundstelle",    Width = 240, Text = l => l.HintText }
+    };
+
+    private static readonly TableColumn<UsageLink>[] DatenpunktDetailSpalten =
+    {
+        new() { Header = "Art",        Width = 90,  Text = l => l.SourceText },
+        new() { Header = "Verwender",  Width = 340, Text = l => l.SourceName },
+        new() { Header = "Zugriff",    Width = 130, Text = l => l.AccessText },
+        new() { Header = "Fundstelle", Width = 260, Text = l => l.HintText },
+        new() { Header = "Status",     Width = 120, Text = l => l.StatusText }
+    };
+
+    private async Task AlsCsv()
+    {
+        if (Bericht is null) return;
+
+        if (NachSkript)
+            await Io.SaveCsvAsync(UsagePresenter.CsvName(UsageDirection.ByScript),
+                                  UsagePresenter.ColumnsScripts,
+                                  Skripte.Select(UsagePresenter.RowScript).ToList());
+        else
+            await Io.SaveCsvAsync(UsagePresenter.CsvName(UsageDirection.ByState),
+                                  UsagePresenter.CsvColumnsStates,
+                                  Datenpunkte.Select(UsagePresenter.CsvRowState).ToList());
+    }
+}

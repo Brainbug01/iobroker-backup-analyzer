@@ -59,9 +59,9 @@ public static class BackupFileExporter
         using (Stream source = BackupLoader.LooksLikeGzip(data.SourceFile)
                    ? new GZipStream(fs, CompressionMode.Decompress)
                    : fs)
-        using (var tar = new TarReader(source))
+        using (var tar = TarSource.Open(source))
         {
-            TarEntry? entry;
+            TarItem? entry;
             while ((entry = ReadNextSafe(tar)) is not null)
             {
                 ct.ThrowIfCancellationRequested();
@@ -128,7 +128,7 @@ public static class BackupFileExporter
     /// zu lassen — was bis dahin gelesen wurde, ist geschrieben. Was fehlt, steht danach
     /// in <c>Missing</c>.
     /// </summary>
-    private static TarEntry? ReadNextSafe(TarReader tar)
+    private static TarItem? ReadNextSafe(TarSource tar)
     {
         try
         {

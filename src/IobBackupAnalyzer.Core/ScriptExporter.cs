@@ -138,14 +138,27 @@ public static class ScriptExporter
     /// <summary>Schreibt eine Tabelle als CSV mit Semikolon — so öffnet Excel sie direkt korrekt.</summary>
     public static void WriteCsv(string path, IEnumerable<string> headers, IEnumerable<string[]> rows)
     {
+        // UTF-8 mit BOM, damit Excel Umlaute richtig darstellt.
+        File.WriteAllText(path, CsvText(headers, rows), new UTF8Encoding(true));
+    }
+
+    /// <summary>
+    /// Dieselbe Tabelle als Zeichenkette, ohne sie zu schreiben.
+    ///
+    /// Für die Browser-Fassung: Dort gibt es keinen Pfad, in den man schreiben könnte —
+    /// der Text geht als Download an den Browser. Die Trennzeichen und die Maskierung
+    /// stehen bewusst nur hier, damit alle drei Oberflächen zeichengleiche Dateien
+    /// erzeugen.
+    /// </summary>
+    public static string CsvText(IEnumerable<string> headers, IEnumerable<string[]> rows)
+    {
         var sb = new StringBuilder();
         sb.AppendLine(string.Join(";", headers.Select(EscapeCsv)));
 
         foreach (var row in rows)
             sb.AppendLine(string.Join(";", row.Select(EscapeCsv)));
 
-        // UTF-8 mit BOM, damit Excel Umlaute richtig darstellt.
-        File.WriteAllText(path, sb.ToString(), new UTF8Encoding(true));
+        return sb.ToString();
     }
 
     private static string EscapeCsv(string value)

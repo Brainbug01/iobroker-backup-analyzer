@@ -1,0 +1,29 @@
+@*
+    Die In-App-Hilfe. Derselbe Text wie in beiden Desktop-Fassungen — er kommt aus dem
+    Core. Vorangestellt ist ein Absatz, der nur die Browser-Fassung betrifft.
+*@
+
+<div class="blatt">
+    <div class="hilfe">
+        <h2>Diese Fassung läuft im Browser</h2>
+        <p>
+            Das Backup wird nicht hochgeladen. Es wird vom Browser gelesen und im Speicher
+            dieses Reiters ausgewertet; auf den Server geht dabei nichts — der liefert nur
+            das Programm aus. Wer das nachprüfen möchte: In den Entwicklerwerkzeugen unter
+            „Netzwerk“ ist nach dem Laden der Seite keine weitere Übertragung zu sehen.
+        </p>
+        <p>
+            Was hier fehlt, kann der Browser nicht: In einen Ordner schreiben darf eine
+            Seite nicht. Wo die Fassung für Windows, macOS und Linux einen Zielordner
+            anbietet — beim Export von Skripten und Dateien —, lädt diese Fassung
+            stattdessen ein ZIP mit denselben Dateien darin herunter.
+        </p>
+        <p>
+            Sehr große Backups gehören auf den Rechner: Die WebAssembly-Laufzeit ist
+            32-bittig, ein Browser-Reiter kommt bei rund 2 GB an seine Grenze. Der
+            belegte Speicher steht unten rechts, sofern der Browser ihn preisgibt.
+        </p>
+    </div>
+
+    <HelpBlocks Blocks="HelpContent.Blocks" />
+</div>

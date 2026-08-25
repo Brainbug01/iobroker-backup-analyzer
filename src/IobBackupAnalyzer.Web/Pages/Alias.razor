@@ -1,0 +1,152 @@
+@inherits TabBase
+
+@*
+    Alias-Übersicht samt Detailbereich: zeigt Lese- und Schreibziel je Alias, ob das Ziel
+    existiert, und erzeugt auf Wunsch ein Konverter-Gerüst für den gewählten Alias.
+    Zusammenfassung, Filter und Spalten kommen aus AliasPresenter.
+*@
+
+@if (Daten is null || Daten.Kind != BackupKind.Full)
+{
+    <Platzhalter Text="@PlatzhalterText(
+        "Für die Alias-Übersicht wird ein Voll-Backup benötigt.\n\n" +
+        "Die geladene Datei enthält nur Skripte.")" />
+}
+else
+{
+    <div class="reiter-inhalt">
+
+        <div class="kopfbereich">
+            <div>@AliasPresenter.SummaryText(Alle)</div>
+
+            <div class="leiste">
+                <label for="alias-filter">Filter:</label>
+                <input id="alias-filter" class="feld breit" placeholder="Alias-ID oder Ziel …"
+                       value="@S.Filter" @oninput="FilterGeaendert" />
+
+                <select class="feld weit" @onchange="BereichGewaehlt">
+                    @for (var i = 0; i < AliasPresenter.ScopeLabels.Length; i++)
+                    {
+                        <option value="@i" selected="@((int)S.Scope == i)">@AliasPresenter.ScopeLabels[i]</option>
+                    }
+                </select>
+
+                <span class="zaehler">@AliasPresenter.CountText(Zeilen.Count, Alle.Count)</span>
+                <span class="dehnen"></span>
+                <button class="knopf" @onclick="AlsCsv">Als CSV exportieren</button>
+            </div>
+        </div>
+
+        <div class="tabellenbereich oben">
+            <DataTable TItem="AliasRow" Items="Zeilen" Columns="Spalten"
+                       Emphasis="a => a.Broken ? RowEmphasis.Problem : RowEmphasis.None"
+                       Selected="S.Selected" SelectedChanged="Gewaehlt" />
+        </div>
+
+        @* ============ Detailbereich zur ausgewählten Zeile ============ *@
+        <div class="detailbereich">
+            <div class="ueberschrift klein-ueberschrift">@AliasPresenter.DetailHeader(S.Selected)</div>
+
+            <div class="feldgitter">
+                <label>Konverter Lesen:</label>
+                <textarea class="code" readonly rows="3">@(S.Selected?.ConverterRead ?? "")</textarea>
+
+                <label>Konverter Schreiben:</label>
+                <textarea class="code" readonly rows="3">@(S.Selected?.ConverterWrite ?? "")</textarea>
+
+                <span></span>
+                <div>
+                    <button class="knopf" disabled="@(S.Selected is null)" @onclick="Erzeugen">
+                        Konverter-Vorschlag erzeugen
+                    </button>
+                </div>
+
+                <label>Vorschlag Lesen:</label>
+                <textarea class="code" readonly rows="3">@(S.Generated?.Read ?? "")</textarea>
+
+                <label>Vorschlag Schreiben:</label>
+                <textarea class="code" readonly rows="3">@(S.Generated?.Write ?? "")</textarea>
+
+                <label class="gedaempft">Hinweis:</label>
+                <div class="@(S.Generated is { CanGenerate: false } ? "text-problem" : "")">
+                    @(S.Generated?.Note ?? "")
+                </div>
+            </div>
+        </div>
+
+    </div>
+}
+
+@code {
+    private UiState.AliasTab S => Bedienung.Alias;
+
+    private List<AliasRow> _alle = new();
+    private Dictionary<string, IobObject> _nachId = new(StringComparer.Ordinal);
+    private BackupData? _berechnetFuer;
+
+    /// <summary>
+    /// Alias-Auswertung und Nachschlagetabelle der Ziele, einmal je geladenem Backup.
+    /// Die Tabelle ist die Grundlage des Konverter-Generators.
+    /// </summary>
+    private List<AliasRow> Alle
+    {
+        get
+        {
+            if (!ReferenceEquals(_berechnetFuer, Daten))
+            {
+                _alle = Daten is null ? new List<AliasRow>() : AliasAnalyzer.Analyze(Daten);
+
+                _nachId = new Dictionary<string, IobObject>(StringComparer.Ordinal);
+                if (Daten is not null)
+                    foreach (var o in Daten.Objects) _nachId[o.Id] = o;
+
+                _berechnetFuer = Daten;
+            }
+
+            return _alle;
+        }
+    }
+
+    private List<AliasRow> Zeilen => AliasPresenter.Filter(Alle, S.Scope, S.Filter);
+
+    private void FilterGeaendert(ChangeEventArgs e) => S.Filter = e.Value?.ToString() ?? "";
+
+    private void BereichGewaehlt(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var i)) S.Scope = (AliasScope)i;
+    }
+
+    private void Gewaehlt(AliasRow zeile)
+    {
+        S.Selected = zeile;
+
+        // Vorschlagsfelder erst nach Knopfdruck füllen — wie in beiden Desktop-Fassungen.
+        S.Generated = null;
+    }
+
+    private void Erzeugen()
+    {
+        if (S.Selected is null) return;
+
+        // Der Lese-Konverter bezieht sich auf das Lese-Ziel — von dort kommt die Wertetabelle.
+        _nachId.TryGetValue(S.Selected.ReadTarget, out var ziel);
+        S.Generated = ConverterGenerator.Generate(ziel);
+    }
+
+    private static readonly TableColumn<AliasRow>[] Spalten =
+    {
+        new() { Header = "Alias-ID",                     Width = 300, Text = a => a.Id },
+        new() { Header = "Name",                         Width = 150, Text = a => a.Name },
+        new() { Header = "Lese-Ziel",                    Width = 300, Text = a => a.ReadTarget },
+        new() { Header = "Ziel vorhanden",               Width = 150, Text = a => a.ReadExistsText,
+                SortKey = a => a.ReadExists },
+        new() { Header = "Schreib-Ziel (abweichend)",    Width = 240, Text = a => a.WriteTargetText },
+        new() { Header = "Schreib-Ziel vorhanden",       Width = 150, Text = a => a.WriteExistsText },
+        new() { Header = "Konverter",                    Width = 110, Text = a => a.ConverterText,
+                SortKey = a => a.HasConverter }
+    };
+
+    private async Task AlsCsv() =>
+        await Io.SaveCsvAsync("alias-uebersicht.csv", AliasPresenter.CsvColumns,
+                              Zeilen.Select(AliasPresenter.Row).ToList());
+}

@@ -1,0 +1,101 @@
+@inherits TabBase
+
+@*
+    Backup-Prüfung: validiert die JSON-Dateien im Backup nach dem Vorbild des
+    js-controllers. Zahlen und Zeilen kommen aus BackupCheckPresenter; hier steht nur
+    Anzeige-Code.
+*@
+
+@if (Daten is null || Daten.Kind != BackupKind.Full)
+{
+    <Platzhalter Text="@PlatzhalterText(
+        "Für die Backup-Prüfung wird ein Voll-Backup (objects.jsonl) benötigt.\n\n" +
+        "Die geladene Datei enthält nur Skripte.")" />
+}
+else
+{
+    <div class="reiter-inhalt">
+
+        <div class="kopfbereich">
+            <div class="urteil @UrteilKlasse">@BackupCheckPresenter.VerdictText(Daten)</div>
+            <div class="gedaempft">@BackupCheckPresenter.SummaryText(Daten)</div>
+
+            <div class="leiste">
+                <label class="haken">
+                    <input type="checkbox" checked="@S.OnlyProblems"
+                           @onchange="e => S.OnlyProblems = (bool?)e.Value == true" />
+                    Nur Probleme anzeigen
+                </label>
+                <span class="dehnen"></span>
+                <button class="knopf" @onclick="AlsCsv">Als CSV exportieren</button>
+            </div>
+        </div>
+
+        <div class="tabellenbereich">
+            <DataTable TItem="CheckRow" Items="Zeilen" Columns="Spalten" Emphasis="Einstufung" />
+        </div>
+
+        @if (Reparaturhinweis is { } hinweis)
+        {
+            @* Auswählbar und in fester Schrift: Man will die Befehle daraus in die Shell
+               übernehmen. Der Hinweis bezieht sich immer auf alle Befunde, nicht auf die
+               gefilterte Sicht. *@
+            <Warnkasten Class="befehle">@hinweis</Warnkasten>
+        }
+
+    </div>
+}
+
+@code {
+    private UiState.BackupCheckTab S => Bedienung.BackupCheck;
+
+    private static readonly TableColumn<CheckRow>[] Spalten =
+    {
+        new() { Header = "Datei",    Width = 380, Text = r => r.File },
+        new() { Header = "Art",      Width = 90,  Text = r => r.Kind },
+        new() { Header = "Ergebnis", Width = 120, Text = r => r.Result },
+        new() { Header = "Details",  Width = 760, Text = r => r.Detail }
+    };
+
+    private List<CheckRow> AlleZeilen =>
+        Daten is null ? new List<CheckRow>() : BackupCheckPresenter.BuildRows(Daten);
+
+    /// <summary>Die Zeilen, wie sie gerade in der Liste stehen — Grundlage auch für die CSV.</summary>
+    private List<CheckRow> Zeilen
+    {
+        get
+        {
+            var alle = AlleZeilen;
+            return S.OnlyProblems ? BackupCheckPresenter.OnlyProblems(alle) : alle;
+        }
+    }
+
+    private string? Reparaturhinweis =>
+        Daten is null
+            ? null
+            : BackupCheckPresenter.RepairHint(AlleZeilen, Daten.Validation.ArchiveTruncated,
+                                              Daten.CreatedAt);
+
+    private static RowEmphasis Einstufung(CheckRow r) => r.Severity switch
+    {
+        CheckSeverity.Problem => RowEmphasis.Problem,
+        CheckSeverity.Info => RowEmphasis.Muted,
+        _ => RowEmphasis.None
+    };
+
+    /// <summary>
+    /// Eigene Töne statt der Standardfarben: Diese sind auf hellem wie dunklem Hintergrund
+    /// lesbar — die Seite folgt der Einstellung des Anwenders.
+    /// </summary>
+    private string UrteilKlasse => Daten?.Validation.Health switch
+    {
+        BackupHealth.Valid => "gut",
+        BackupHealth.Warnings => "achtung",
+        BackupHealth.Invalid => "schlecht",
+        _ => ""
+    };
+
+    private async Task AlsCsv() =>
+        await Io.SaveCsvAsync("backup-pruefung.csv", BackupCheckPresenter.Columns,
+                              Zeilen.Select(BackupCheckPresenter.Row).ToList());
+}

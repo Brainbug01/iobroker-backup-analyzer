@@ -1,0 +1,137 @@
+@inherits TabBase
+
+@*
+    Die Dateien aus dem files/-Baum des Backups — der Admin-Dateibereich. Liste mit Filter
+    und Export; Zusammenfassung, Filter und Spalten kommen aus FilesPresenter.
+
+    Beim Export weicht diese Fassung von den Desktop-Fassungen ab: Statt eines Zielordners,
+    den eine Webseite nicht bekommen darf, entsteht ein ZIP mit genau demselben
+    Ordneraufbau darin. Gefüllt wird es von BackupFileExporter — demselben Exporter, den
+    auch Windows, macOS und Linux benutzen.
+*@
+
+@if (Daten is null || Daten.Files.Count == 0)
+{
+    <Platzhalter Text="@PlatzhalterText(
+        "Die geladene Datei enthält keinen Dateibereich.\n\n" +
+        "Dateien liegen nur in einem vollständigen Backitup-Archiv.")" />
+}
+else
+{
+    <div class="reiter-inhalt">
+
+        <div class="kopfbereich">
+            <div>@FilesPresenter.SummaryText(Daten)</div>
+
+            <div class="leiste">
+                <label for="dat-filter">Filter:</label>
+                <input id="dat-filter" class="feld breit" placeholder="Dateiname oder Pfad …"
+                       value="@S.Filter" @oninput="FilterGeaendert" />
+
+                <select class="feld" @onchange="NamensraumGewaehlt">
+                    @foreach (var ns in Namensraeume)
+                    {
+                        <option value="@ns" selected="@(S.Namespace == ns)">@ns</option>
+                    }
+                </select>
+
+                <span class="zaehler">@FilesPresenter.CountText(Gefiltert.Count, Daten.Files.Count)</span>
+                <span class="dehnen"></span>
+                <button class="knopf" @onclick="AlsCsv">Liste als CSV</button>
+                <button class="knopf" @onclick="() => ExportierenAsync(true)">Ausgewählte exportieren</button>
+                <button class="knopf" @onclick="() => ExportierenAsync(false)">
+                    @FilesPresenter.ExportAllLabel(Gefiltert.Count, Daten.Files.Count)
+                </button>
+            </div>
+
+            <div class="klein gedaempft">
+                Mehrere Zeilen wählen: mit Strg einzeln dazu, mit Umschalt einen Bereich.
+            </div>
+        </div>
+
+        <div class="tabellenbereich">
+            <DataTable TItem="BackupFileInfo" Items="Gefiltert" Columns="Spalten"
+                       Multiple="true" SelectedMany="S.Marked"
+                       SelectedManyChanged="a => S.Marked = a"
+                       Selected="S.Selected" SelectedChanged="f => S.Selected = f" />
+        </div>
+
+    </div>
+}
+
+@code {
+    private UiState.FilesTab S => Bedienung.Files;
+
+    private List<string> Namensraeume =>
+        Daten is null ? new List<string>() : FilesPresenter.NamespaceChoices(Daten.Files);
+
+    private List<BackupFileInfo> Gefiltert =>
+        Daten is null
+            ? new List<BackupFileInfo>()
+            : FilesPresenter.Filter(Daten.Files, S.Namespace, S.Filter);
+
+    private void FilterGeaendert(ChangeEventArgs e) => S.Filter = e.Value?.ToString() ?? "";
+
+    private void NamensraumGewaehlt(ChangeEventArgs e) =>
+        S.Namespace = e.Value?.ToString() ?? FilesPresenter.AllNamespaces;
+
+    private static readonly TableColumn<BackupFileInfo>[] Spalten =
+    {
+        new() { Header = "Namensraum", Width = 170, Text = f => f.Namespace },
+        new() { Header = "Pfad",       Width = 560, Text = f => f.Path },
+        new() { Header = "Größe",      Width = 100, Number = true, Text = f => f.SizeText,
+                SortKey = f => f.Size },
+        new() { Header = "Typ",        Width = 110, Text = f => f.KindText }
+    };
+
+    private async Task AlsCsv() =>
+        await Io.SaveCsvAsync("dateien.csv", FilesPresenter.Columns,
+                              Gefiltert.Select(FilesPresenter.Row).ToList());
+
+    private async Task ExportierenAsync(bool nurAusgewaehlte)
+    {
+        if (Daten is null || Daten.Files.Count == 0) return;
+
+        // Bei „Alle" bewusst die gefilterte Liste: Wer nach einem Namensraum filtert,
+        // erwartet auch nur diesen im Export.
+        var zuExportieren = nurAusgewaehlte ? S.Marked.ToList() : Gefiltert;
+
+        if (nurAusgewaehlte && zuExportieren.Count == 0)
+        {
+            await Dialoge.MessageAsync("Hinweis",
+                "Bitte zuerst mindestens eine Datei in der Liste auswählen.");
+            return;
+        }
+
+        if (zuExportieren.Count == 0) return;
+
+        try
+        {
+            BackupFileExporter.ExportResult? ergebnis = null;
+            var zwischenordner = "";
+
+            await Io.SaveFolderAsZipAsync("ioBroker-Dateien.zip", ordner =>
+            {
+                zwischenordner = ordner;
+                ergebnis = BackupFileExporter.Export(Daten, zuExportieren, ordner);
+            });
+
+            if (ergebnis is not null)
+                await Dialoge.MessageAsync("Export abgeschlossen",
+                    // Der volle Pfad in der Zusammenfassung liegt im virtuellen
+                    // Dateisystem; übrig bleiben soll der Ordnername innerhalb der ZIP.
+                    FilesPresenter.ExportSummary(ergebnis)
+                                  .Replace(zwischenordner + "/", "", StringComparison.Ordinal) +
+                    "\n\nDie Dateien stecken im heruntergeladenen ZIP „ioBroker-Dateien.zip“.");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+                                      or OutOfMemoryException)
+        {
+            // OutOfMemoryException gehört ausdrücklich dazu: Ein Dateibereich mit vielen
+            // großen Bildern wird im Browser-Reiter zweimal gehalten — einmal entpackt,
+            // einmal im ZIP.
+            await Dialoge.MessageAsync("Fehler",
+                "Der Export ist fehlgeschlagen:\n\n" + ex.Message);
+        }
+    }
+}

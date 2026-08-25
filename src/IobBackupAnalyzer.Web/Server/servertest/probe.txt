@@ -1,0 +1,11 @@
+Prüfdatei der Serverprüfung für die Browser-Fassung des ioBroker Backup Analyzers.
+
+Diese Datei hat keinen Inhalt, der irgendwo gebraucht würde. Sie ist nur da, damit die
+Seite servertest.html etwas abrufen kann: Sie sieht sich die Antwortköpfe an und erkennt
+daran, ob die .htaccess gelesen wird, ob der Dateityp stimmt und ob komprimiert
+ausgeliefert wird. Der Text ist absichtlich etwas länger, weil sich Kompression an
+wenigen Zeichen nicht zeigen würde — ein Server komprimiert kleine Antworten oft gar
+nicht erst.
+
+Die Datei kann nach der Prüfung stehen bleiben oder gelöscht werden; das Programm selbst
+braucht sie nicht.

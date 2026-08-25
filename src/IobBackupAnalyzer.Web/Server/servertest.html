@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Serverprüfung — ioBroker Backup Analyzer</title>
+<style>
+    :root {
+        --grund: #ffffff; --grund-2: #f4f5f7; --schrift: #1b1b1b; --schwach: #5c6068;
+        --rahmen: #c9cdd3; --gut: #2fa36b; --achtung: #d98a00; --schlecht: #d9534f;
+        --betont: #3d8bc9;
+    }
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --grund: #1e1f22; --grund-2: #26282c; --schrift: #e8e8e8; --schwach: #a0a4ab;
+            --rahmen: #43464c;
+        }
+    }
+    * { box-sizing: border-box; }
+    body {
+        margin: 0; padding: 24px 20px 60px;
+        font-family: "Segoe UI", Roboto, Arial, sans-serif; font-size: 15px;
+        background: var(--grund); color: var(--schrift);
+    }
+    main { max-width: 900px; margin: 0 auto; }
+    h1 { font-size: 22px; margin: 0 0 4px; }
+    h2 { font-size: 16px; color: var(--betont); margin: 28px 0 8px; }
+    p { line-height: 1.5; }
+    .schwach { color: var(--schwach); }
+    .urteil {
+        margin: 18px 0; padding: 12px 14px; border-radius: 4px; border: 1px solid var(--rahmen);
+        background: var(--grund-2); font-weight: 600;
+    }
+    .urteil.gut { border-color: var(--gut); color: var(--gut); }
+    .urteil.achtung { border-color: var(--achtung); color: var(--achtung); }
+    .urteil.schlecht { border-color: var(--schlecht); color: var(--schlecht); }
+    table { border-collapse: collapse; width: 100%; margin-top: 6px; }
+    th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--rahmen); vertical-align: top; }
+    th { font-weight: 600; background: var(--grund-2); }
+    td.zustand { width: 96px; font-weight: 600; white-space: nowrap; }
+    .ok { color: var(--gut); }
+    .warn { color: var(--achtung); }
+    .fehl { color: var(--schlecht); }
+    code, pre {
+        font-family: Consolas, "DejaVu Sans Mono", monospace; font-size: 13px;
+    }
+    pre {
+        background: var(--grund-2); border: 1px solid var(--rahmen); border-radius: 4px;
+        padding: 10px 12px; overflow-x: auto;
+    }
+    .knopf {
+        background: var(--betont); color: #fff; border: none; border-radius: 3px;
+        padding: 8px 16px; font: inherit; cursor: pointer;
+    }
+</style>
+</head>
+<body>
+<main>
+
+<h1>Serverprüfung</h1>
+<p class="schwach">
+    Für die Browser-Fassung des ioBroker Backup Analyzers. Diese Seite prüft, ob der Apache
+    ausliefert, was das Programm braucht — und sagt, was zu tun ist, wenn nicht.
+</p>
+
+<p id="erstaufruf" class="schwach" style="display:none">
+    <b>Sie wurden hierher geleitet</b>, weil das Programm auf diesem Server zum ersten Mal
+    aufgerufen wurde. Das passiert genau einmal. Steht unten „Alles in Ordnung“, geht es
+    mit dem Knopf am Ende der Seite weiter.
+</p>
+
+<div id="urteil" class="urteil">Prüfung läuft …</div>
+
+<h2>Ergebnis</h2>
+<table>
+    <thead><tr><th>Prüfung</th><th class="zustand">Zustand</th><th>Befund</th></tr></thead>
+    <tbody id="zeilen"></tbody>
+</table>
+
+<h2>Was zu tun ist</h2>
+<div id="massnahmen"><p class="schwach">Wird nach der Prüfung eingeblendet.</p></div>
+
+<h2>Server</h2>
+<pre id="serverinfo">—</pre>
+
+<p style="margin-top:24px">
+    <button class="knopf" onclick="location.reload()">Erneut prüfen</button>
+    <button class="knopf" id="weiter" style="margin-left:8px">Weiter zum Programm</button>
+</p>
+
+<p class="schwach" style="margin-top:28px">
+    Diese Seite braucht kein PHP und keine Datenbank. Sie schickt nur einige Anfragen an
+    denselben Server und sieht sich die Antwortköpfe an. Sie gehört nach der Prüfung nicht
+    dauerhaft auf einen öffentlich erreichbaren Server — sie verrät Einzelheiten über die
+    Einrichtung.
+</p>
+
+</main>
+
+<script>
+// Die Prüfungen. Jede liefert { zustand: 'ok' | 'warn' | 'fehl', text, massnahme? }.
+//
+// Bewusst ohne Fremdbibliothek und ohne Aufbau-Werkzeug: Diese Datei soll man auf einen
+// Server legen und aufrufen können, sonst nichts.
+
+const pruefungen = [];
+
+function eintragen(name, zustand, text, massnahme) {
+    pruefungen.push({ name, zustand, text, massnahme });
+}
+
+/** Holt eine Datei und liefert Antwort samt Kopfzeilen — oder null, wenn es sie nicht gibt. */
+async function hole(pfad, optionen) {
+    try {
+        const antwort = await fetch(pfad, Object.assign({ cache: 'no-store' }, optionen || {}));
+        return antwort;
+    } catch (e) {
+        return null;
+    }
+}
+
+async function pruefen() {
+    // ---------------------------------------------------------------- .htaccess
+    const probe = await hole('servertest/probe.txt');
+
+    if (!probe) {
+        eintragen('Server erreichbar', 'fehl',
+            'Die Prüfdatei servertest/probe.txt wurde nicht gefunden.',
+            'Den Ordner „servertest" mit hochladen — er gehört neben diese Seite.');
+    } else if (!probe.ok) {
+        eintragen('Server erreichbar', 'fehl',
+            'servertest/probe.txt antwortet mit ' + probe.status + '.',
+            'Prüfen, ob der Ordner „servertest" vollständig hochgeladen wurde und die ' +
+            'Dateirechte das Lesen erlauben (üblich: 644 für Dateien, 755 für Ordner).');
+    } else {
+        eintragen('Server erreichbar', 'ok', 'Dateien werden ausgeliefert.');
+    }
+
+    // ---------------------------------------------------------------- MIME-Typ für WebAssembly
+    //
+    // Diese Prüfung kommt vor der .htaccess, und das ist Absicht: Ob die .htaccess gelesen
+    // wird, ist keine Frage für sich. Sie ist nur dann wichtig, wenn ohne sie etwas fehlt.
+    const wasm = await hole('servertest/probe.wasm');
+    const wasmTyp = wasm && wasm.ok ? (wasm.headers.get('content-type') || '').split(';')[0].trim() : null;
+    const wasmOk = wasmTyp === 'application/wasm';
+
+    if (wasmOk) {
+        eintragen('Dateityp für .wasm', 'ok', 'application/wasm — richtig.');
+    } else if (wasmTyp) {
+        eintragen('Dateityp für .wasm', 'fehl',
+            'Ausgeliefert als „' + wasmTyp + '" statt application/wasm.',
+            'Ohne den richtigen Typ lehnt der Browser das Programm ab, bevor es startet. ' +
+            'Die mitgelieferte .htaccess setzt ihn — wird sie nicht gelesen (siehe unten), ' +
+            'gehört er in die Apache-Konfiguration: AddType application/wasm .wasm');
+    } else {
+        eintragen('Dateityp für .wasm', 'fehl',
+            'servertest/probe.wasm wurde nicht gefunden.',
+            'Den Ordner „servertest" vollständig hochladen.');
+    }
+
+    // ---------------------------------------------------------------- .htaccess
+    const htaccessKopf = probe && probe.headers.get('x-iob-analyzer');
+
+    if (htaccessKopf === 'htaccess-aktiv') {
+        eintragen('.htaccess wird gelesen', 'ok', 'AllowOverride ist gesetzt, mod_headers arbeitet.');
+    } else if (wasmOk) {
+        // Der Server bringt von sich aus mit, was zählt. Hier noch „fehlt" zu melden,
+        // hieße jemanden auf Fehlersuche zu schicken, dessen Server längst richtig
+        // eingerichtet ist.
+        eintragen('.htaccess wird gelesen', 'warn',
+            'Der Kennkopf aus der .htaccess fehlt — gebraucht wird sie hier aber nicht: ' +
+            'Der Dateityp für .wasm stimmt schon ohne sie.',
+            'Nur nachgehen, wenn eine der Zeilen darunter etwas vermisst. Sonst zwei ' +
+            'mögliche Ursachen: In der Verzeichnis-Konfiguration steht „AllowOverride None" ' +
+            'statt „All", oder mod_headers fehlt („sudo a2enmod headers", danach ' +
+            '„sudo systemctl reload apache2").');
+    } else {
+        eintragen('.htaccess wird gelesen', 'fehl',
+            'Der Kennkopf aus der .htaccess fehlt — und der Dateityp für .wasm stimmt auch nicht.',
+            'Beides hängt zusammen: Die .htaccess würde den Dateityp setzen, wird aber nicht ' +
+            'gelesen. In der Konfiguration des Verzeichnisses muss „AllowOverride All" ' +
+            '(mindestens „AllowOverride FileInfo Indexes") stehen; fehlt mod_headers, hilft ' +
+            '„sudo a2enmod headers" und „sudo systemctl reload apache2".');
+    }
+
+    // ---------------------------------------------------------------- mod_rewrite
+    const rewrite = await hole('htaccess-pruefung-rewrite');
+
+    if (rewrite && rewrite.ok) {
+        eintragen('mod_rewrite', 'ok', 'Umschreibungen greifen — vorkomprimierte Dateien werden ausgeliefert.');
+    } else {
+        eintragen('mod_rewrite', 'warn',
+            'Die Prüfregel greift nicht (' + (rewrite ? rewrite.status : 'keine Antwort') + ').',
+            'Das Programm läuft trotzdem — es lädt dann nur unkomprimiert, also rund dreimal ' +
+            'so viele Daten beim ersten Aufruf. Einschalten mit „sudo a2enmod rewrite" und ' +
+            '„sudo systemctl reload apache2".');
+    }
+
+    // ---------------------------------------------------------------- Kompression
+    const gepackt = await hole('servertest/probe.txt', {
+        headers: { 'X-Pruefung': 'kompression' }
+    });
+    const kodierung = gepackt ? (gepackt.headers.get('content-encoding') || '') : '';
+
+    // Der Browser fragt von sich aus mit Accept-Encoding an; fetch macht das ebenfalls.
+    // Wird etwas zurückgegeben, das komprimiert ist, steht es im Kopf — sofern der Server
+    // die vorkomprimierte Fassung ausliefert. Bei mod_deflate steht dort ebenfalls „gzip".
+    if (kodierung.includes('br')) {
+        eintragen('Kompression', 'ok', 'Brotli — die sparsamste Auslieferung.');
+    } else if (kodierung.includes('gzip') || kodierung.includes('deflate')) {
+        eintragen('Kompression', 'ok', 'gzip. Brotli wäre noch sparsamer, ist aber kein Muss.');
+    } else {
+        eintragen('Kompression', 'warn',
+            'Es wird unkomprimiert ausgeliefert.',
+            'Kostet beim ersten Aufruf Zeit, sonst nichts. Abhilfe: „sudo a2enmod rewrite ' +
+            'headers deflate" und Apache neu laden. Die .htaccess nutzt dann die ' +
+            'vorkomprimierten Dateien, die neben jeder Programmdatei liegen.');
+    }
+
+    // ---------------------------------------------------------------- Ist die App da?
+    const start = await hole('index.html');
+    const boot = await hole('_framework/blazor.boot.json');
+
+    if (start && start.ok && boot && boot.ok) {
+        let anzahl = '?';
+        try {
+            const daten = await boot.json();
+            anzahl = Object.keys((daten.resources && daten.resources.assembly) || {}).length;
+        } catch (e) { /* Zählung ist Beiwerk */ }
+
+        eintragen('Programm vorhanden', 'ok',
+            'index.html und _framework sind da (' + anzahl + ' Programmteile).');
+    } else if (start && start.ok) {
+        eintragen('Programm vorhanden', 'fehl',
+            'index.html ist da, der Ordner _framework fehlt.',
+            'Der Ordner _framework enthält das eigentliche Programm. Manche FTP-Programme ' +
+            'überspringen Ordner, deren Name mit einem Unterstrich beginnt, oder brechen bei ' +
+            'der Menge an Dateien ab. Übertragung wiederholen und die Dateizahl vergleichen.');
+    } else {
+        eintragen('Programm vorhanden', 'warn',
+            'index.html wurde nicht gefunden.',
+            'Diese Seite prüft nur den Server. Das Programm selbst — index.html, der Ordner ' +
+            '_framework und die übrigen Dateien — gehört in denselben Ordner.');
+    }
+
+    // ---------------------------------------------------------------- Verschlüsselung
+    if (location.protocol === 'https:') {
+        eintragen('Verschlüsselung', 'ok', 'Die Seite wird über https ausgeliefert.');
+    } else if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+        eintragen('Verschlüsselung', 'ok', 'Aufruf über localhost — hier gilt http als sicher.');
+    } else {
+        eintragen('Verschlüsselung', 'warn',
+            'Die Seite wird über http ausgeliefert.',
+            'Im Heimnetz ist das vertretbar. Zwei Dinge fehlen ohne https: Der Knopf „In die ' +
+            'Zwischenablage" bleibt wirkungslos (Browser erlauben den Zugriff nur auf ' +
+            'gesicherten Seiten), und wer die Adresse von außen erreichbar macht, überträgt ' +
+            'im Klartext. Diese Seite gehört ohnehin nicht ins offene Netz.');
+    }
+
+    darstellen();
+}
+
+function darstellen() {
+    const koerper = document.getElementById('zeilen');
+    koerper.innerHTML = '';
+
+    const zeichen = { ok: '✔ in Ordnung', warn: '▲ Hinweis', fehl: '✖ fehlt' };
+
+    for (const p of pruefungen) {
+        const zeile = document.createElement('tr');
+        zeile.innerHTML =
+            '<td>' + p.name + '</td>' +
+            '<td class="zustand ' + p.zustand + '">' + zeichen[p.zustand] + '</td>' +
+            '<td>' + p.text + '</td>';
+        koerper.appendChild(zeile);
+    }
+
+    const fehler = pruefungen.filter(p => p.zustand === 'fehl');
+    const hinweise = pruefungen.filter(p => p.zustand === 'warn');
+    const urteil = document.getElementById('urteil');
+
+    if (fehler.length > 0) {
+        urteil.className = 'urteil schlecht';
+        urteil.textContent = 'Das Programm wird so nicht starten — ' + fehler.length +
+                             (fehler.length === 1 ? ' Punkt fehlt.' : ' Punkte fehlen.');
+    } else if (hinweise.length > 0) {
+        urteil.className = 'urteil achtung';
+        urteil.textContent = 'Das Programm läuft. ' + hinweise.length +
+                             (hinweise.length === 1 ? ' Punkt' : ' Punkte') +
+                             ' könnten besser eingestellt sein.';
+    } else {
+        urteil.className = 'urteil gut';
+        urteil.textContent = 'Alles in Ordnung — der Server ist eingerichtet.';
+    }
+
+    const massnahmen = document.getElementById('massnahmen');
+    const offen = pruefungen.filter(p => p.massnahme);
+
+    if (offen.length === 0) {
+        massnahmen.innerHTML = '<p class="schwach">Nichts zu tun.</p>';
+    } else {
+        massnahmen.innerHTML = offen.map(p =>
+            '<p><b>' + p.name + ':</b> ' + p.massnahme + '</p>').join('');
+    }
+
+    // Was der Server über sich verrät. „Server: Apache" allein sagt schon, ob man an der
+    // richtigen Stelle sucht.
+    const info = document.getElementById('serverinfo');
+    fetch('servertest/probe.txt', { cache: 'no-store' }).then(a => {
+        const zeilen = [];
+        a.headers.forEach((wert, name) => zeilen.push(name + ': ' + wert));
+        zeilen.sort();
+        info.textContent = 'Adresse: ' + location.href + '\n\n' + zeilen.join('\n');
+    }).catch(() => { info.textContent = 'Keine Antwort.'; });
+}
+
+// Der Hinweis nur, wenn index.html hierher geleitet hat.
+if (location.search.indexOf('erster=1') >= 0) {
+    document.getElementById('erstaufruf').style.display = '';
+}
+
+document.getElementById('weiter').addEventListener('click', function () {
+    location.href = './';
+});
+
+/**
+ * Merkt, dass geprüft wurde — index.html leitet dann nicht mehr hierher.
+ *
+ * Gesetzt wird die Markierung, sobald die Prüfung durchgelaufen ist, und nicht erst beim
+ * Weiterklicken: Wer diese Seite von sich aus aufgerufen hat, hat den Server geprüft, und
+ * ein zweites Mal hinzuschicken wäre Bevormundung. Über den Knopf „Erneut prüfen“ oder
+ * die Adresse kommt man jederzeit wieder hierher.
+ */
+function pruefungGemerkt() {
+    try { localStorage.setItem('iob-analyzer-servertest', new Date().toISOString()); }
+    catch (e) { /* ohne Speicher wird eben jedes Mal geprüft */ }
+}
+
+pruefen().then(pruefungGemerkt, pruefungGemerkt);
+</script>
+</body>
+</html>

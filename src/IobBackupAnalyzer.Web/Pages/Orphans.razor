@@ -1,0 +1,238 @@
+@inherits TabBase
+
+@*
+    Säule 3: Verwaiste Datenpunkte — Analyse A (Objekte ohne Instanz), B (unbenutzte
+    User-Datenpunkte) und C (States) in je einem Unterreiter. Texte, Filter, Sichten und
+    Einstufungen kommen aus OrphansPresenter.
+*@
+
+@if (Daten is null || Daten.Kind != BackupKind.Full)
+{
+    <Platzhalter Text="@PlatzhalterText(
+        "Für die Verwaisten-Analyse wird ein Voll-Backup benötigt.\n\n" +
+        "Die geladene Datei enthält nur Skripte —\n" +
+        "verfügbar ist damit nur der Reiter „Skripte“.")" />
+}
+else
+{
+    <div class="reiter-inhalt">
+
+        <nav class="unterreiter">
+            <button class="reiter-knopf @(S.Sub == 0 ? "aktiv" : null)" @onclick="() => S.Sub = 0">
+                A — Objekt-Leichen
+            </button>
+            <button class="reiter-knopf @(S.Sub == 1 ? "aktiv" : null)" @onclick="() => S.Sub = 1">
+                B — Unbenutzte User-Datenpunkte
+            </button>
+            <button class="reiter-knopf @(S.Sub == 2 ? "aktiv" : null)" @onclick="() => S.Sub = 2">
+                @OrphansPresenter.TabTitleC(States?.HasStates == true)
+            </button>
+        </nav>
+
+        @if (S.Sub == 0)
+        {
+            <div class="kopfbereich">
+                <Warnkasten Text="@OrphansPresenter.WarningA" />
+                <div class="leiste">
+                    <label for="orph-a">Filter:</label>
+                    <input id="orph-a" class="feld breit" placeholder="Objekt-ID oder Instanz …"
+                           value="@S.FilterA" @oninput="e => S.FilterA = Text(e)" />
+                    <span class="zaehler">@OrphansPresenter.CountA(ZeilenA.Count, Waisen)</span>
+                    <span class="dehnen"></span>
+                    <button class="knopf" @onclick="CsvA">Als CSV exportieren</button>
+                </div>
+            </div>
+
+            <div class="tabellenbereich">
+                <DataTable TItem="OrphanObject" Items="ZeilenA" Columns="SpaltenA" />
+            </div>
+        }
+        else if (S.Sub == 1)
+        {
+            <div class="kopfbereich">
+                <Warnkasten Text="@OrphansPresenter.WarningB" />
+                <div class="leiste">
+                    <label for="orph-b">Filter:</label>
+                    <input id="orph-b" class="feld breit" placeholder="Datenpunkt-ID …"
+                           value="@S.FilterB" @oninput="e => S.FilterB = Text(e)" />
+
+                    <label class="haken">
+                        <input type="checkbox" checked="@S.ShowAllB"
+                               @onchange="e => S.ShowAllB = (bool?)e.Value == true" />
+                        @OrphansPresenter.ShowAllLabelB(Daten.VisViews.Count > 0)
+                    </label>
+
+                    <span class="zaehler">@OrphansPresenter.CountB(Unbenutzte, States?.HasStates == true)</span>
+                    <span class="dehnen"></span>
+                    <button class="knopf" @onclick="CsvB">Als CSV exportieren</button>
+                </div>
+            </div>
+
+            <div class="tabellenbereich">
+                <DataTable TItem="UnusedDatapoint" Items="ZeilenB" Columns="SpaltenB"
+                           Emphasis="OrphansPresenter.EmphasisB" />
+            </div>
+        }
+        else
+        {
+            <div class="kopfbereich">
+                <Warnkasten Text="@OrphansPresenter.WarningC" />
+                <div class="leiste">
+                    <label for="orph-c-sicht">Sicht:</label>
+                    <select id="orph-c-sicht" class="feld weit" @onchange="SichtGewaehlt">
+                        @for (var i = 0; i < OrphansPresenter.ViewLabelsC.Length; i++)
+                        {
+                            <option value="@i" selected="@((int)S.ViewC == i)">@OrphansPresenter.ViewLabelsC[i]</option>
+                        }
+                    </select>
+
+                    <label for="orph-c">Filter:</label>
+                    <input id="orph-c" class="feld" placeholder="Datenpunkt-ID …"
+                           value="@S.FilterC" @oninput="e => S.FilterC = Text(e)" />
+
+                    <span class="zaehler">@ZaehlerC</span>
+                    <span class="dehnen"></span>
+                    <button class="knopf" disabled="@(States is null || States.StatesWithoutObject.Count == 0)"
+                            @onclick="() => _aufraeumen = true">
+                        Aufräum-Skript erzeugen …
+                    </button>
+                    <button class="knopf" @onclick="CsvC">Als CSV exportieren</button>
+                </div>
+
+                @if (States is not null)
+                {
+                    <div class="klein gedaempft">@OrphansPresenter.StatsC(States)</div>
+                }
+            </div>
+
+            <div class="tabellenbereich">
+                <DataTable TItem="StateRow" Items="ZeilenC" Columns="SpaltenC"
+                           Emphasis="OrphansPresenter.EmphasisC" />
+            </div>
+        }
+
+    </div>
+
+    @if (_aufraeumen)
+    {
+        <CleanupDialog Groups="OrphansPresenter.CleanupGroups(States)"
+                       SourceFile="@Daten.SourceFile"
+                       OnClose="() => _aufraeumen = false" />
+    }
+}
+
+@code {
+    private UiState.OrphansTab S => Bedienung.Orphans;
+
+    private bool _aufraeumen;
+
+    private static string Text(ChangeEventArgs e) => e.Value?.ToString() ?? "";
+
+    // ------------------------------------------------------------------ Daten
+
+    private List<OrphanObject> Waisen =>
+        Daten is null
+            ? new List<OrphanObject>()
+            : Analysen?.Orphans ?? OrphanAnalyzer.FindOrphanObjects(Daten);
+
+    private List<UnusedDatapoint> Unbenutzte =>
+        Daten is null
+            ? new List<UnusedDatapoint>()
+            : Analysen?.Unused ?? OrphanAnalyzer.FindUnusedDatapoints(Daten);
+
+    private StateReport? States =>
+        Daten is null ? null : Analysen?.States ?? StateAnalyzer.Analyze(Daten);
+
+    // ------------------------------------------------------------------ Analyse A
+
+    private List<OrphanObject> ZeilenA => OrphansPresenter.FilterA(Waisen, S.FilterA);
+
+    private static readonly TableColumn<OrphanObject>[] SpaltenA =
+    {
+        new() { Header = "Fehlende Instanz", Width = 200, Text = o => o.MissingInstance },
+        new() { Header = "Objekt-ID",        Width = 460, Text = o => o.Id },
+        new() { Header = "Typ",              Width = 100, Text = o => o.Type },
+        new() { Header = "Name",             Width = 240, Text = o => o.Name }
+    };
+
+    private async Task CsvA() =>
+        await Io.SaveCsvAsync("objekt-leichen.csv", OrphansPresenter.ColumnsA,
+                              ZeilenA.Select(OrphansPresenter.RowA).ToList());
+
+    // ------------------------------------------------------------------ Analyse B
+
+    private List<UnusedDatapoint> ZeilenB =>
+        OrphansPresenter.FilterB(Unbenutzte, S.ShowAllB, S.FilterB);
+
+    private static readonly TableColumn<UnusedDatapoint>[] SpaltenB =
+    {
+        new() { Header = "Datenpunkt-ID",    Width = 380, Text = u => u.Id },
+        new() { Header = "Name",             Width = 220, Text = u => u.Name },
+        new() { Header = "In Skripten",      Width = 125, Text = u => u.InScriptsText },
+        new() { Header = "In VIS",           Width = 85,  Text = u => u.InVisText },
+        new() { Header = "Alias-Ziel",       Width = 115, Text = u => u.AliasText },
+        new() { Header = "Logging",          Width = 95,  Text = u => u.LoggingText },
+        new() { Header = "In Chart",         Width = 100, Text = u => u.InChartText },
+        new() { Header = "Zuletzt geändert", Width = 215, Text = u => u.LastChangeText,
+                SortKey = u => u.LastChange },
+        new() { Header = "Bewertung",        Width = 170, Text = u => u.Verdict }
+    };
+
+    private async Task CsvB() =>
+        await Io.SaveCsvAsync("verwaiste-datenpunkte.csv", OrphansPresenter.CsvColumnsB,
+                              ZeilenB.Select(OrphansPresenter.RowB).ToList());
+
+    // ------------------------------------------------------------------ Analyse C
+
+    /// <summary>Alle Zeilen der gewählten Sicht, vor der Anzeigegrenze.</summary>
+    private List<StateRow> AlleC => OrphansPresenter.RowsC(States, S.ViewC);
+
+    private List<StateRow> GefiltertC => OrphansPresenter.FilterC(AlleC, S.FilterC);
+
+    /// <summary>
+    /// Die Sicht „Älteste" umfasst alle States; vollständig dargestellt wäre die Liste
+    /// unbenutzbar lang. Der CSV-Export enthält immer alles.
+    ///
+    /// Anders als in den Desktop-Fassungen wäre die Grenze hier technisch nicht nötig — die
+    /// Tabelle stellt ohnehin nur die sichtbaren Zeilen dar. Sie bleibt trotzdem stehen:
+    /// Eine Liste mit hunderttausend Zeilen ist auch dann keine Liste, die man durchsieht,
+    /// wenn der Browser sie verkraftet.
+    /// </summary>
+    private List<StateRow> ZeilenC
+    {
+        get
+        {
+            var zeilen = GefiltertC;
+            var grenze = OrphansPresenter.LimitC(S.ViewC, zeilen.Count);
+            return zeilen.Count > grenze ? zeilen.Take(grenze).ToList() : zeilen;
+        }
+    }
+
+    private string ZaehlerC =>
+        OrphansPresenter.CountC(GefiltertC.Count, AlleC.Count,
+                                (S.FilterC ?? "").Trim().Length > 0,
+                                OrphansPresenter.LimitC(S.ViewC, GefiltertC.Count));
+
+    private void SichtGewaehlt(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var i)) S.ViewC = (StateView)i;
+    }
+
+    private static readonly TableColumn<StateRow>[] SpaltenC =
+    {
+        new() { Header = "Datenpunkt-ID",    Width = 420, Text = r => r.Id },
+        new() { Header = "Name",             Width = 180, Text = r => r.Name },
+        new() { Header = "Zuletzt geändert", Width = 215, Text = r => r.LastChangeText,
+                SortKey = r => r.LastChange },
+        // Aus common.write: unterscheidet reine Lieferanten (Sensoren) von schreibbaren
+        // Datenpunkten — Rückfrage aus der Praxis zur Sicht „Objekte ohne Wert".
+        new() { Header = "Schreibbar",       Width = 115, Text = r => r.WritableText },
+        new() { Header = "Quelle",           Width = 170, Text = r => r.From },
+        new() { Header = "Qualität",         Width = 180, Text = r => r.QualityText },
+        new() { Header = "Quittiert",        Width = 105, Text = r => r.AckText, SortKey = r => r.Ack }
+    };
+
+    private async Task CsvC() =>
+        await Io.SaveCsvAsync(OrphansPresenter.CsvNameC(S.ViewC), OrphansPresenter.CsvColumnsC,
+                              GefiltertC.Select(OrphansPresenter.RowC).ToList());
+}

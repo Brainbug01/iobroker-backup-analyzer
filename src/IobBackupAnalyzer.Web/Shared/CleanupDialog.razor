@@ -1,0 +1,190 @@
+@inject BrowserIo Io
+@inject DialogService Dialoge
+
+@*
+    Dialog zum Erzeugen eines Aufräum-Skripts für Waisen-States. Links steht die Liste der
+    Namensräume, aufklappbar bis zum einzelnen Wert — beides mit Häkchen. Rechts entsteht
+    daraus das Shell-Skript. Der Analyzer löscht nichts — er erzeugt nur die Datei.
+
+    Die Auswahl selbst liegt in CleanupSelection und nicht in den Zeilen: So überlebt sie
+    das Filtern, und alle drei Oberflächen verhalten sich Klick für Klick gleich.
+
+    „Skript speichern" ist der empfohlene Weg: Die Datei wird mit LF und ohne BOM
+    geschrieben. Über die Zwischenablage in einen Windows-Editor kopiert, landet sonst
+    leicht CRLF im Skript, woran es auf dem Host mit $'\r': command not found scheitert.
+*@
+
+<div class="dialog-hintergrund">
+    <div class="dialog gross" @onclick:stopPropagation="true">
+
+        <h3>Aufräum-Skript für Waisen-States erzeugen</h3>
+
+        <p class="klein">
+            Namensraum anhaken, dessen übrig gebliebene Werte weg sollen — oder ihn
+            aufklappen und einzelne Werte auswählen. Rechts entsteht daraus ein
+            Shell-Skript. Speichern, auf den ioBroker-Host kopieren, dort
+            „bash &lt;Datei&gt;“ aufrufen — das Skript fragt beim Start, ob es löschen oder
+            nur testen soll.
+        </p>
+
+        <div class="aufraeumen">
+
+            <div class="aufraeumen-links">
+                <input class="feld" placeholder="Suchen — Teil einer ID oder eines Adapternamens"
+                       value="@_suche" @oninput="SucheGeaendert" />
+
+                <div class="baum">
+                    @foreach (var gruppe in _auswahl.VisibleGroups)
+                    {
+                        var g = gruppe;
+                        var zustand = _auswahl.StateOf(g);
+
+                        <details>
+                            <summary>
+                                <label class="haken @(zustand == GroupCheck.Partial ? "teilweise" : null)"
+                                       @onclick:stopPropagation="true">
+                                    @* Der Zustand „teilweise" steht in der Beschriftung („ausgewählt: n"):
+                                       Ein halb gefülltes Kästchen kennt HTML nur über Javascript, und
+                                       die Zahl daneben sagt ohnehin mehr. *@
+                                    <input type="checkbox" checked="@(zustand == GroupCheck.All)"
+                                           @onchange="e => GruppeUmschalten(g, (bool?)e.Value == true)" />
+                                    @_auswahl.GroupLabel(g)
+                                </label>
+                            </summary>
+
+                            @foreach (var id in g.Visible)
+                            {
+                                var wert = id;
+                                <label class="haken wert">
+                                    <input type="checkbox" checked="@_auswahl.IsSelected(wert)"
+                                           @onchange="e => WertUmschalten(wert, (bool?)e.Value == true)" />
+                                    @wert
+                                </label>
+                            }
+                        </details>
+                    }
+                </div>
+
+                <div class="klein">@_auswahl.CountText</div>
+                @if (_auswahl.HiddenSelectionHint is { } hinweis)
+                {
+                    <div class="klein text-warnung">@hinweis</div>
+                }
+            </div>
+
+            <textarea class="code aufraeumen-rechts" readonly>@_skript</textarea>
+
+        </div>
+
+        <div class="dialog-knoepfe verteilt">
+            <span>
+                <button class="knopf" @onclick="() => AlleSichtbaren(true)">Alle auswählen</button>
+                <button class="knopf" @onclick="() => AlleSichtbaren(false)">Keine</button>
+            </span>
+            <span>
+                <button class="knopf" disabled="@(_auswahl.SelectedCount == 0)"
+                        @onclick="SpeichernAsync">Skript speichern …</button>
+                <button class="knopf" disabled="@(_auswahl.SelectedCount == 0)"
+                        @onclick="KopierenAsync">Skript kopieren</button>
+                <button class="knopf betont" @onclick="() => OnClose.InvokeAsync()">Schließen</button>
+            </span>
+        </div>
+
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public List<(string Namespace, IReadOnlyList<string> Ids)> Groups { get; set; } = new();
+
+    /// <summary>Pfad des geladenen Backups — nur für den Dateinamensvorschlag.</summary>
+    [Parameter] public string? SourceFile { get; set; }
+
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private CleanupSelection _auswahl = new(Array.Empty<(string, IReadOnlyList<string>)>());
+    private string _suche = "";
+    private string _skript = "";
+    private string _backupName = "";
+
+    protected override void OnInitialized()
+    {
+        _auswahl = new CleanupSelection(Groups);
+        _backupName = BackupNaming.FolderName(SourceFile);
+        Nachziehen();
+    }
+
+    private void SucheGeaendert(ChangeEventArgs e)
+    {
+        _suche = e.Value?.ToString() ?? "";
+        _auswahl.SetFilter(_suche);
+    }
+
+    private void GruppeUmschalten(CleanupSelection.Group gruppe, bool an)
+    {
+        // Ein Klick auf einen teilweise gefüllten Namensraum wählt ihn vollständig aus,
+        // der nächste hebt ihn ganz auf — wie in beiden Desktop-Fassungen.
+        _auswahl.SelectGroup(gruppe, an);
+        Nachziehen();
+    }
+
+    private void WertUmschalten(string id, bool an)
+    {
+        _auswahl.Select(id, an);
+        Nachziehen();
+    }
+
+    private void AlleSichtbaren(bool an)
+    {
+        _auswahl.SelectAllVisible(an);
+        Nachziehen();
+    }
+
+    /// <summary>Skript nach jeder Änderung neu erzeugen — wie in den Desktop-Fassungen.</summary>
+    private void Nachziehen() => _skript = CleanupScriptGenerator.Generate(_auswahl.SelectedIds);
+
+    private async Task KopierenAsync()
+    {
+        if (_skript.Length == 0) return;
+
+        var geklappt = await Io.CopyAsync(_skript);
+
+        await Dialoge.MessageAsync(geklappt ? "Kopiert" : "Nicht kopiert", geklappt
+            ? "Das Skript liegt in der Zwischenablage.\n\n" +
+              "Auf dem ioBroker-Host als Datei speichern (z. B. aufraeumen.sh) und mit " +
+              "„bash aufraeumen.sh“ starten — es fragt dann selbst, ob gelöscht oder nur " +
+              "getestet werden soll.\n\n" +
+              "Sicherer ist „Skript speichern …“: Die Datei bekommt dabei die Zeilenenden, " +
+              "die eine Linux-Shell erwartet."
+            : "Der Browser hat den Zugriff auf die Zwischenablage abgelehnt.\n\n" +
+              "Das passiert vor allem, wenn die Seite über http statt https ausgeliefert " +
+              "wird. Nimm stattdessen „Skript speichern …“ — das ist ohnehin der sicherere " +
+              "Weg, weil die Datei dabei die richtigen Zeilenenden bekommt.");
+    }
+
+    /// <summary>
+    /// Schreibt das Skript als Datei: UTF-8 ohne BOM und mit LF. Beides ist keine Kosmetik —
+    /// eine BOM würde die Shebang-Zeile entwerten, CRLF jede Zeile mit einem \r beenden.
+    ///
+    /// Die BOM kommt in dieser Fassung nicht vom Schreiber, sondern vom Javascript: Für
+    /// CSV-Dateien wird sie gesetzt, hier ausdrücklich nicht.
+    /// </summary>
+    private async Task SpeichernAsync()
+    {
+        if (_skript.Length == 0) return;
+
+        var name = CleanupScriptGenerator.SuggestedFileName(_backupName);
+        await Io.SaveTextAsync(name, CleanupScriptGenerator.ForFile(_skript),
+                               "application/x-shellscript", bom: false);
+
+        await Dialoge.MessageAsync("Skript gespeichert",
+            $"Gespeichert als „{name}“ — der Browser legt die Datei dort ab, wo er " +
+            "Downloads ablegt.\n\n" +
+            "So geht es weiter:\n" +
+            "1. Datei auf den ioBroker-Host kopieren — per SFTP, z. B. mit FileZilla,\n" +
+            "   oder in der Konsole mit scp. Es gelten dieselben Zugangsdaten wie bei SSH.\n" +
+            $"2. In der Shell aufrufen:  bash {name}\n" +
+            "3. Auf die Frage zuerst mit Enter antworten — das ist der Testlauf.\n" +
+            "   Erst wenn die Liste stimmt, noch einmal starten und mit einem großen „J“ bestätigen.");
+    }
+}

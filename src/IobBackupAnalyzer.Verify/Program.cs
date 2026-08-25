@@ -3419,6 +3419,149 @@ Check("Die Zeitgrenze steht an einer einzigen Stelle",
       && File.ReadAllText(Path.Combine(coreOrdner, "RegexLimits.cs"))
              .Contains("TimeSpan.FromSeconds", StringComparison.Ordinal));
 
+// Kein Weg an TarSource vorbei.
+//
+// Das ist keine Stilfrage, sondern die Voraussetzung dafür, dass die Browser-Fassung
+// ueberhaupt ein Backup oeffnen kann: Wer irgendwo wieder direkt zu TarReader greift,
+// baut eine Stelle ein, die auf dem Rechner laeuft und im Browser sofort mit
+// "System.Formats.Tar is not supported on this platform" abbricht. Auf dem
+// Entwicklungsrechner faellt das nie auf.
+//
+// Genau das ist beim Bauen einmal passiert — eine zurueckgenommene Aenderung nahm die
+// Umstellung im BackupLoader mit. Aufgefallen ist es beim Durchsehen, nicht beim Testen.
+var tarDirekt = Directory.EnumerateFiles(coreOrdner, "*.cs")
+    .Where(f => Path.GetFileName(f) != "TarSource.cs")
+    .Where(f => System.Text.RegularExpressions.Regex.IsMatch(
+        File.ReadAllText(f), @"\bnew TarReader\b|\bTarEntry\b"))
+    .Select(Path.GetFileName)
+    .ToList();
+
+Check("Nur TarSource greift direkt auf System.Formats.Tar zu",
+      tarDirekt.Count == 0,
+      string.Join(", ", tarDirekt));
+
+// ---------------------------------------------------------------- Tar-Leser
+
+// Seit der Browser-Fassung gibt es zwei Wege, ein Archiv zu lesen: den eingebauten
+// TarReader von .NET und den eigenen Leser in TarSource. Der eigene springt nur in
+// WebAssembly ein, wo .NET statt System.Formats.Tar nur eine Attrappe ausliefert — und
+// genau deshalb wird er hier geprueft: Auf dem Rechner laeuft er sonst nie, sein Ausfall
+// wuerde also erst im Browser auffallen, wo niemand hinsieht.
+//
+// Geprueft wird nicht "laeuft durch", sondern "liefert dasselbe": Name, Groesse, Art und
+// Pruefsumme des Inhalts jedes einzelnen Eintrags, an den echten Archiven.
+
+Console.WriteLine();
+Console.WriteLine("Tar-Leser: eigener gegen eingebauten");
+
+var tarArchive = new List<string>();
+if (File.Exists(full)) tarArchive.Add(full);
+if (File.Exists(js)) tarArchive.Add(js);
+
+// Dazu das selbst erzeugte Pruefarchiv: Es enthaelt bewusst Sonderfaelle, die in einem
+// echten Backup nicht jedes Mal vorkommen.
+var tarPruefarchiv = Path.Combine(Path.GetTempPath(), "iob-tarvergleich.tar.gz");
+try
+{
+    ErzeugePruefarchiv(tarPruefarchiv);
+    tarArchive.Add(tarPruefarchiv);
+}
+catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+{
+    // Ohne das Zusatzarchiv bleiben die echten Backups — die sind der wichtigere Massstab.
+    // Gesperrte Dateien im Temp-Ordner sind unter Windows Alltag (Virenscanner, ein
+    // zweiter Lauf daneben) und duerfen den Vergleich nicht zu Fall bringen.
+    Console.WriteLine("  [--]   Zusatzarchiv nicht erzeugbar: " + ex.Message);
+}
+
+if (tarArchive.Count == 0)
+{
+    nichtGelaufen.Add("Tar-Leser: kein Archiv zum Vergleichen gefunden");
+}
+else
+{
+    foreach (var archiv in tarArchive)
+    {
+        var name = Path.GetFileName(archiv);
+
+        try
+        {
+            var mitEingebautem = TarEintraege(archiv, eigener: false);
+            var mitEigenem = TarEintraege(archiv, eigener: true);
+
+            CheckEq($"Tar {name}: gleiche Eintragszahl", mitEigenem.Count, mitEingebautem.Count);
+
+            var unterschiede = new List<(string A, string B)>();
+            var namensvarianten = 0;
+
+            foreach (var (a, b) in mitEingebautem.Zip(mitEigenem, (a, b) => (a, b)))
+            {
+                if (a == b) continue;
+
+                // Ein bekannter, harmloser Fall: Bei Archiven im GNU-Format liefert der
+                // eingebaute Leser den Eintragsnamen mitsamt der Zeitstempel, die dort an
+                // der Stelle des Namensvorspanns stehen — aus "backup/" wird
+                // "15236273373 15236273374/backup/". Der eigene Leser gibt den blanken
+                // Namen zurueck. Fuer die Auswertung ist das gleichwertig: Der Loader
+                // sucht seine Dateien ohnehin mit EndsWith auf Segmentgrenze.
+                //
+                // Gezaehlt und ausgegeben wird es trotzdem — was hier stillschweigend
+                // wuechse, waere beim naechsten Mal ein echter Fehler.
+                var (nameA, restA) = Zerlegen(a);
+                var (nameB, restB) = Zerlegen(b);
+
+                if (restA == restB && (nameA.EndsWith("/" + nameB, StringComparison.Ordinal)
+                                       || nameA.TrimStart().EndsWith(nameB, StringComparison.Ordinal)))
+                {
+                    namensvarianten++;
+                    continue;
+                }
+
+                unterschiede.Add((a, b));
+            }
+
+            Check($"Tar {name}: jeder Eintrag deckungsgleich",
+                  unterschiede.Count == 0,
+                  unterschiede.Count == 0
+                      ? null
+                      : $"{unterschiede.Count} Abweichungen, erste: eingebaut „{unterschiede[0].A}“ " +
+                        $"/ eigener „{unterschiede[0].B}“");
+
+            if (namensvarianten > 0)
+                Console.WriteLine($"  [--]   {name}: {namensvarianten} Eintragsnamen im GNU-Format " +
+                                  "unterschiedlich geschrieben, inhaltlich gleich");
+        }
+        catch (Exception ex)
+        {
+            Check($"Tar {name}: beide Leser kommen durch", false, ex.Message);
+        }
+    }
+
+    try { File.Delete(tarPruefarchiv); } catch { /* Aufraeumen ist Kuer */ }
+}
+
+// Die Browser-Fassung darf hinter den Desktop-Fassungen zurueckliegen — sie ist juenger.
+// Was sie nicht darf: eine Nummer tragen, die es im Verlauf gar nicht gibt, oder eine,
+// die neuer ist als der Verlauf selbst.
+var webCsproj = Path.Combine(root, "src", "IobBackupAnalyzer.Web", "IobBackupAnalyzer.Web.csproj");
+if (!File.Exists(webCsproj))
+{
+    nichtGelaufen.Add("Version der Browser-Fassung (Projektdatei nicht gefunden)");
+}
+else
+{
+    var webVersion = System.Text.RegularExpressions.Regex.Match(
+        File.ReadAllText(webCsproj), @"<Version>\s*(\d+\.\d+\.\d+)\s*</Version>");
+
+    var webNummer = webVersion.Success ? webVersion.Groups[1].Value : "?";
+
+    Check($"Browser-Fassung {webNummer} steht im Aenderungsverlauf",
+          ChangelogContent.Entries.Any(e => e.Version == webNummer));
+    Check("Browser-Fassung ist nicht neuer als der Verlauf",
+          webVersion.Success
+          && new Version(webNummer) <= new Version(ChangelogContent.Entries[0].Version));
+}
+
 // ---------------------------------------------------------------- Ergebnis
 
 Console.WriteLine();
@@ -3610,4 +3753,53 @@ static void ErzeugePruefarchiv(string ziel)
     }
 
     Directory.Delete(bau, true);
+}
+
+/// <summary>
+/// Alle Eintraege eines Archivs als Zeilen „Name | Groesse | Art | Pruefsumme".
+///
+/// Die Pruefsumme des Inhalts gehoert ausdruecklich dazu: Zwei Leser, die dieselben Namen
+/// und Groessen melden, koennen die Daten trotzdem um einen Block verschoben liefern —
+/// und genau das ist der Fehler, den man in einem Tar-Leser macht.
+/// </summary>
+static List<string> TarEintraege(string archiv, bool eigener)
+{
+    var zeilen = new List<string>();
+
+    // Am Inhalt erkannt, nicht am Namen — dieselbe Regel wie im Loader. Dessen eigene
+    // Erkennung ist bibliotheksintern, deshalb steht sie hier noch einmal in zwei Zeilen.
+    var kennung = new byte[2];
+    using (var probe = File.OpenRead(archiv)) probe.ReadExactly(kennung);
+    var gepackt = kennung[0] == 0x1F && kennung[1] == 0x8B;
+
+    using var datei = File.OpenRead(archiv);
+    using Stream quelle = gepackt ? new GZipStream(datei, CompressionMode.Decompress) : datei;
+    using var tar = eigener ? TarSource.OpenMinimal(quelle) : TarSource.Open(quelle);
+
+    while (tar.GetNextEntry() is { } eintrag)
+    {
+        var summe = "-";
+
+        if (eintrag.DataStream is { } daten)
+        {
+            using var sha = System.Security.Cryptography.SHA256.Create();
+            summe = Convert.ToHexString(sha.ComputeHash(daten))[..16];
+        }
+
+        zeilen.Add($"{eintrag.Name.Replace('\\', '/')} | {eintrag.Length} | " +
+                   $"{(eintrag.IsRegularFile ? "Datei" : "sonstiges")} | {summe}");
+    }
+
+    return zeilen;
+}
+
+/// <summary>
+/// Zerlegt eine Vergleichszeile in „Name" und „alles Weitere" (Groesse, Art, Pruefsumme).
+/// Gebraucht vom Tar-Vergleich, der beim Namen eine bekannte Schreibvariante zulaesst,
+/// beim Inhalt aber nicht.
+/// </summary>
+static (string, string) Zerlegen(string zeile)
+{
+    var trenner = zeile.IndexOf(" | ", StringComparison.Ordinal);
+    return trenner < 0 ? (zeile, "") : (zeile[..trenner], zeile[(trenner + 3)..]);
 }

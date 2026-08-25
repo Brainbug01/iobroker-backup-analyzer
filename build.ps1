@@ -618,6 +618,67 @@ Copy-Item $license $xplat -Force
 if (Test-Path $macReadme) { Copy-Item $macReadme $xplat -Force }
 if (Test-Path $linuxReadme) { Copy-Item $linuxReadme $xplat -Force }
 
+# ------------------------------------------------- Variante 4: Browser-Fassung (Blazor)
+#
+# Eine statische Seite fuer den eigenen Webserver. Sie enthaelt dieselbe Auswertung wie die
+# Programme daneben - der Core ist derselbe -, laeuft aber vollstaendig im Browser des
+# Anwenders. Auf den Server kommt kein Backup: Er liefert nur die Dateien aus.
+#
+# Das Ergebnis ist ein Ordner zum Hochladen und dasselbe noch einmal als ZIP. Beigelegt
+# sind die .htaccess, eine Anleitung und die Pruefseite servertest.html, mit der sich ein
+# Apache vor dem ersten Aufruf durchmessen laesst.
+
+Write-Host "`n=== Variante 4: Browser-Fassung (statische Seite) ===" -ForegroundColor Cyan
+
+$web = Join-Path $root 'src\IobBackupAnalyzer.Web'
+$webBeilagen = Join-Path $web 'Server'
+$webZiel = Join-Path $dist 'web'
+$webStage = Join-Path $dist '_web_publish'
+
+if (Test-Path $webStage) { Remove-Item $webStage -Recurse -Force }
+if (Test-Path $webZiel) { Remove-Item $webZiel -Recurse -Force }
+
+& $dotnet publish $web -c Release -o $webStage | Out-Null
+if ($LASTEXITCODE -ne 0) { throw "Publish der Browser-Fassung fehlgeschlagen." }
+
+# Blazor legt die auszuliefernden Dateien unter wwwroot ab; alles daneben ist Beiwerk des
+# Publish-Vorgangs und gehoert nicht auf den Server.
+$webRoot = Join-Path $webStage 'wwwroot'
+if (-not (Test-Path $webRoot)) { throw "Publish der Browser-Fassung: wwwroot fehlt." }
+
+New-Item -ItemType Directory -Force $webZiel | Out-Null
+Copy-Item (Join-Path $webRoot '*') $webZiel -Recurse -Force
+
+# Die Beilagen fuer den Server. Copy-Item nimmt die .htaccess nur mit, wenn sie
+# ausdruecklich genannt wird - Platzhalter uebergehen Dateien, die mit einem Punkt
+# beginnen.
+foreach ($datei in 'servertest.html', 'LIESMICH_Browser.txt') {
+    $quelle = Join-Path $webBeilagen $datei
+    if (Test-Path $quelle) { Copy-Item $quelle $webZiel -Force }
+}
+
+$htaccess = Join-Path $webBeilagen '.htaccess'
+if (Test-Path $htaccess) { Copy-Item $htaccess (Join-Path $webZiel '.htaccess') -Force }
+
+$pruefordner = Join-Path $webBeilagen 'servertest'
+if (Test-Path $pruefordner) { Copy-Item $pruefordner $webZiel -Recurse -Force }
+
+Copy-Item $license $webZiel -Force
+
+Remove-Item $webStage -Recurse -Force
+
+# Als ZIP zum Weitergeben. Compress-Archive laesst Dateien mit fuehrendem Punkt aus,
+# deshalb ueber die ZIP-Bibliothek von .NET - sonst fehlte ausgerechnet die .htaccess.
+$webZip = Join-Path $dist 'ioBroker-Backup-Analyzer_Browser.zip'
+if (Test-Path $webZip) { Remove-Item $webZip -Force }
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+[System.IO.Compression.ZipFile]::CreateFromDirectory($webZiel, $webZip,
+    [System.IO.Compression.CompressionLevel]::Optimal, $false)
+
+$webDateien = (Get-ChildItem $webZiel -Recurse -File).Count
+$webMb = [math]::Round(((Get-ChildItem $webZiel -Recurse -File | Measure-Object Length -Sum).Sum / 1MB), 1)
+Write-Host "  dist\web: $webDateien Dateien, $webMb MB (mit den vorkomprimierten Fassungen)" -ForegroundColor DarkGray
+
 # ---------------------------------------------------------------- Optionaler Defender-Scan
 
 $mp = Join-Path $env:ProgramFiles 'Windows Defender\MpCmdRun.exe'

@@ -1,0 +1,116 @@
+@inherits TabBase
+
+@*
+    Säule 1: Backup-Inventar — die Browser-Fassung des Übersicht-Reiters.
+
+    Alle Zahlen, Texte, Filter- und Sortierregeln kommen aus OverviewPresenter, den sich
+    diese Ansicht mit den beiden Desktop-Fassungen teilt. Hier steht ausschließlich
+    Anzeige-Code.
+*@
+
+@if (Daten is null || Daten.Kind != BackupKind.Full)
+{
+    <Platzhalter Text="@PlatzhalterText(
+        "Für die Übersicht wird ein Voll-Backup benötigt.\n\n" +
+        "Die geladene Datei enthält nur Skripte —\n" +
+        "verfügbar ist damit nur der Reiter „Skripte“.")" />
+}
+else
+{
+    <div class="reiter-inhalt">
+
+        <div class="kopfbereich">
+            <div class="ueberschrift">@OverviewPresenter.HeaderText(Daten)</div>
+            <div>@OverviewPresenter.MetricsText(Daten)</div>
+
+            @if (OverviewPresenter.ObjectLimitWarning(Daten) is { } warnung)
+            {
+                <Warnkasten Text="@warnung" />
+                <div class="klein gedaempft">@OverviewPresenter.ObjectLimitHint</div>
+            }
+
+            <div class="leiste">
+                <label for="ov-filter">Filter:</label>
+                <input id="ov-filter" class="feld breit" placeholder="Adaptername …"
+                       value="@S.Filter" @oninput="FilterGeaendert" />
+                <span class="zaehler">@OverviewPresenter.CountText(Gefiltert.Count, Daten.Instances.Count)</span>
+                <span class="dehnen"></span>
+                <button class="knopf" @onclick="InstanzenAlsCsv">Als CSV exportieren</button>
+            </div>
+        </div>
+
+        <div class="tabellenbereich">
+            <DataTable TItem="AdapterInstance" Items="Gefiltert" Columns="InstanzSpalten"
+                       Emphasis="i => i.Enabled ? RowEmphasis.None : RowEmphasis.Muted" />
+        </div>
+
+        <div class="unterbereich">
+            <div class="ueberschrift klein-ueberschrift">
+                @OverviewPresenter.NoInstanceHeader(OhneInstanz.Count)
+            </div>
+            <div class="leiste">
+                <span class="gedaempft">@OverviewPresenter.NoInstanceHint</span>
+                <span class="dehnen"></span>
+                <button class="knopf" @onclick="OhneInstanzAlsCsv">Als CSV exportieren</button>
+            </div>
+
+            <div class="tabellenbereich niedrig">
+                <DataTable TItem="AdapterWithoutInstance" Items="OhneInstanz" Columns="OhneInstanzSpalten" />
+            </div>
+        </div>
+
+    </div>
+}
+
+@code {
+    private UiState.OverviewTab S => Bedienung.Overview;
+
+    /// <summary>
+    /// Die Instanzen in der Sicht — gefiltert und in der Grundordnung des Presenters.
+    /// Wird bei jedem Rendern neu berechnet; die Liste ist selbst bei großen Anlagen
+    /// wenige hundert Zeilen lang.
+    /// </summary>
+    private List<AdapterInstance> Gefiltert =>
+        Daten is null
+            ? new List<AdapterInstance>()
+            : OverviewPresenter.Sort(OverviewPresenter.Filter(Daten, S.Filter),
+                                     column: -1, ascending: true);
+
+    private List<AdapterWithoutInstance> OhneInstanz =>
+        Daten is null
+            ? new List<AdapterWithoutInstance>()
+            : OrphanAnalyzer.FindAdaptersWithoutInstance(Daten);
+
+    private void FilterGeaendert(ChangeEventArgs e) => S.Filter = e.Value?.ToString() ?? "";
+
+    // Breiten wie in der Avalonia-Fassung, damit die Spalten in allen drei Oberflächen an
+    // derselben Stelle stehen.
+    private static readonly TableColumn<AdapterInstance>[] InstanzSpalten =
+    {
+        new() { Header = "Adapter",   Width = 220, Text = i => i.Adapter },
+        new() { Header = "Instanz",   Width = 90,  Number = true, Text = i => i.Instance.ToString(),
+                SortKey = i => i.Instance },
+        new() { Header = "Version",   Width = 110, Text = i => i.Version },
+        // Angezeigt wird der Text, sortiert wird nach dem Wahrheitswert.
+        new() { Header = "Aktiviert", Width = 95,  Text = i => i.EnabledText, SortKey = i => i.Enabled },
+        new() { Header = "Objekte",   Width = 110, Number = true,
+                Text = i => i.ObjectCount.ToString("N0"), SortKey = i => i.ObjectCount,
+                // Hervorgehoben wird allein die Objektzahl, nicht die ganze Zeile: Die
+                // Instanz ist in Ordnung, allein ihr Objektbestand ist zu groß.
+                CellClassOf = i => i.OverObjectLimit ? "ueberlimit" : null }
+    };
+
+    private static readonly TableColumn<AdapterWithoutInstance>[] OhneInstanzSpalten =
+    {
+        new() { Header = "Adapter", Width = 260, Text = a => a.Adapter },
+        new() { Header = "Version", Width = 140, Text = a => a.Version }
+    };
+
+    private async Task InstanzenAlsCsv() =>
+        await Io.SaveCsvAsync("adapter-instanzen.csv", OverviewPresenter.InstanceColumns,
+                              Gefiltert.Select(OverviewPresenter.Row).ToList());
+
+    private async Task OhneInstanzAlsCsv() =>
+        await Io.SaveCsvAsync("adapter-ohne-instanz.csv", OverviewPresenter.NoInstanceColumns,
+                              OhneInstanz.Select(OverviewPresenter.Row).ToList());
+}

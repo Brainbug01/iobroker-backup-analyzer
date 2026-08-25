@@ -254,9 +254,9 @@ public static class VisProjectExporter
             using (Stream tarSource = BackupLoader.LooksLikeGzip(data.SourceFile)
                        ? new GZipStream(fs, CompressionMode.Decompress)
                        : fs)
-            using (var tar = new TarReader(tarSource))
+            using (var tar = TarSource.Open(tarSource))
             {
-                TarEntry? entry;
+                TarItem? entry;
                 while ((entry = ReadNextSafe(tar)) is not null)
                 {
                     ct.ThrowIfCancellationRequested();
@@ -368,7 +368,7 @@ public static class VisProjectExporter
     /// zu lassen — was bis dahin gelesen wurde, steht in der ZIP. Was fehlt, meldet
     /// <see cref="ZipResult.Missing"/>.
     /// </summary>
-    private static TarEntry? ReadNextSafe(TarReader tar)
+    private static TarItem? ReadNextSafe(TarSource tar)
     {
         try
         {

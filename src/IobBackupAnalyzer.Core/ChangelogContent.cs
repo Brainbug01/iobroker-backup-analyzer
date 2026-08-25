@@ -23,6 +23,34 @@ public static class ChangelogContent
     /// <summary>Neueste Version zuerst.</summary>
     public static IReadOnlyList<ChangelogEntry> Entries { get; } = new ChangelogEntry[]
     {
+        new("1.23.0", "24.08.2026", new[]
+        {
+            "Neu: eine Fassung für den Browser. Sie wird einmal auf den eigenen Webserver " +
+            "gelegt — etwa den Apache, der auf vielen ioBroker-Hosts ohnehin läuft — und " +
+            "ist danach von jedem Rechner im Netz aufrufbar, ohne Installation.",
+
+            "Das Backup wird dabei NICHT hochgeladen. Der Server liefert nur das Programm " +
+            "aus; gelesen und ausgewertet wird es im Browser, auf dem Rechner davor. Wer " +
+            "das nachsehen möchte: In den Entwicklerwerkzeugen ist unter „Netzwerk\" nach " +
+            "dem Laden der Seite keine weitere Übertragung zu sehen.",
+
+            "Alle Reiter sind dieselben wie in den Programmen für Windows, macOS und " +
+            "Linux, und sie zeigen dieselben Zahlen — die Auswertung ist dieselbe.",
+
+            "Zwei Unterschiede, die der Browser vorgibt: Wo die Programme einen Zielordner " +
+            "anbieten — beim Export von Skripten und Dateien —, lädt diese Fassung ein ZIP " +
+            "mit denselben Dateien darin herunter. Und während ein Backup gelesen wird, " +
+            "steht die Seite still: In einem Browser rechnet dasselbe an der Auswertung, " +
+            "was auch zeichnet.",
+
+            "Angenommen werden Backups bis 512 MB. Ein Browser-Reiter hat rund 2 GB " +
+            "Speicher zur Verfügung; übliche Backitup-Archive liegen bei 10 bis 30 MB. " +
+            "Wie viel gerade belegt ist, steht unten rechts.",
+
+            "Beim ersten Aufruf erscheint eine Prüfseite, die den Webserver durchmisst und " +
+            "zu jedem Fehlbefund den passenden Befehl nennt. Danach nicht wieder.",
+        }),
+
         new("1.22.2", "23.08.2026", new[]
         {
             "Die Analyse „unbenutzte Datenpunkte\" ist bei großen Anlagen nicht mehr " +

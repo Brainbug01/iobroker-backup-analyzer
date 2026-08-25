@@ -1,0 +1,13 @@
+@*
+    Der Text anstelle einer Tabelle, solange es nichts zu zeigen gibt.
+
+    Wie in den Desktop-Fassungen wird die Tabelle dabei ausgeblendet und nicht überdeckt:
+    Das erspart die Frage, welche Hintergrundfarbe in hellem wie dunklem Thema deckend
+    wäre. Die Zeilenumbrüche im Text bleiben erhalten (white-space im Stylesheet), weil
+    die Meldungen aus den Desktop-Fassungen übernommen sind und dort mit \n gesetzt werden.
+*@
+<div class="platzhalter">@Text</div>
+
+@code {
+    [Parameter, EditorRequired] public string Text { get; set; } = "";
+}

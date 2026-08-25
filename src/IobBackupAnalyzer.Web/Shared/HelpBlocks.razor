@@ -1,0 +1,48 @@
+@*
+    Gerenderter Fließtext aus HelpBlock-Absätzen: die In-App-Hilfe und der Änderungsverlauf
+    teilen sich diese Ansicht — genau wie HelpView in der Avalonia-Fassung. Der Text stammt
+    aus dem Core, hier steht nur die Darstellung.
+*@
+
+<div class="hilfe">
+    @foreach (var block in Blocks)
+    {
+        var text = Aufloesen(block.Text);
+
+        @switch (block.Kind)
+        {
+            case HelpBlockKind.Title:
+                <h1>@text</h1>
+                break;
+
+            case HelpBlockKind.Heading:
+                <h2>@text</h2>
+                break;
+
+            default:
+                <p>@text</p>
+                break;
+        }
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<HelpBlock> Blocks { get; set; } =
+        Array.Empty<HelpBlock>();
+
+    /// <summary>
+    /// Setzt die Platzhalter des Hilfetextes ein — hier aber anders als in den
+    /// Desktop-Fassungen.
+    ///
+    /// <see cref="HelpContent.Resolve"/> würde den Dateipfad des Ladeprotokolls einsetzen.
+    /// Im Browser gäbe das einen Pfad, den es auf keiner Festplatte gibt: Das Protokoll
+    /// entsteht im Speicher des Reiters. Statt eines Pfades steht hier deshalb der Weg,
+    /// auf dem man wirklich herankommt.
+    /// </summary>
+    private static string Aufloesen(string text) =>
+        text.Contains(HelpContent.LogPlaceholder, StringComparison.Ordinal)
+            ? text.Replace(HelpContent.LogPlaceholder,
+                           "unten rechts hinter dem Knopf „Ladeprotokoll“ — von dort lässt es " +
+                           "sich herunterladen.", StringComparison.Ordinal)
+            : text;
+}

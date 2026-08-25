@@ -1,0 +1,40 @@
+@implements IDisposable
+@inject DialogService Dialoge
+
+@*
+    Das eine Fenster, in dem alle Meldungen und Rückfragen erscheinen. Liegt im
+    Hauptlayout, damit es über allen Reitern steht.
+*@
+
+@if (Dialoge.Current is { } dialog)
+{
+    <div class="dialog-hintergrund" @onclick="() => Schliessen(false)">
+        <div class="dialog" @onclick:stopPropagation="true">
+            <h3>@dialog.Title</h3>
+            <div class="dialog-text">@dialog.Message</div>
+            <div class="dialog-knoepfe">
+                @if (dialog.Confirm)
+                {
+                    <button class="knopf" @onclick="() => Schliessen(true)">Ja</button>
+                    <button class="knopf betont" @onclick="() => Schliessen(false)">Nein</button>
+                }
+                else
+                {
+                    <button class="knopf betont" @onclick="() => Schliessen(true)">OK</button>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    protected override void OnInitialized() => Dialoge.Changed += Neuzeichnen;
+
+    private void Neuzeichnen() => InvokeAsync(StateHasChanged);
+
+    // Ein Klick neben das Fenster gilt als „Nein" beziehungsweise als Wegklicken des
+    // Hinweises — dasselbe wie der Schließen-Knopf eines Fensters.
+    private void Schliessen(bool ergebnis) => Dialoge.Close(ergebnis);
+
+    public void Dispose() => Dialoge.Changed -= Neuzeichnen;
+}

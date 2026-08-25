@@ -1,0 +1,323 @@
+@implements IDisposable
+@inject AppState Zustand
+@inject UiState Bedienung
+@inject BrowserIo Io
+@inject WebSettings Einstellungen
+@inject DialogService Dialoge
+
+@*
+    Kopfzeile, Reiterleiste, Fußzeile — das Gegenstück zu MainWindow.axaml.
+
+    Der auffälligste Unterschied zu den Desktop-Fassungen steht nicht im Aufbau, sondern
+    im Laden: WebAssembly rechnet auf demselben Faden, auf dem auch gezeichnet wird. Ein
+    Task.Run läuft hier nicht nebenher, sondern sofort und blockierend. Solange ein Backup
+    gelesen wird, steht die Seite deshalb still. Damit wenigstens die Wartemeldung
+    erscheint, bevor es losgeht, wird vor jedem Rechenschritt einmal an den Browser
+    zurückgegeben (siehe ZeichnenLassen).
+*@
+
+<div class="rahmen">
+
+    <header class="kopf">
+        <div class="kopf-zeile">
+            <label class="knopf betont dateiwahl">
+                Backup öffnen …
+                <InputFile OnChange="OeffnenAsync" accept=".gz,.tgz,.tar,.json,.jsonl" />
+            </label>
+
+            <label class="ablegeflaeche @(_laedt ? "aus" : null)">
+                … oder Datei hier hineinziehen
+                <InputFile OnChange="OeffnenAsync" accept=".gz,.tgz,.tar,.json,.jsonl" />
+            </label>
+
+            @if (_laedt)
+            {
+                <span class="fortschritt" role="status">
+                    <span class="fortschritt-lauf"></span>
+                </span>
+            }
+
+            <span class="kopf-rechts">
+                <label for="darstellung">Darstellung:</label>
+                <select id="darstellung" value="@((int)Einstellungen.Theme)"
+                        @onchange="ThemaGewaehltAsync">
+                    @for (var i = 0; i < WebSettings.ThemeLabels.Length; i++)
+                    {
+                        <option value="@i">@WebSettings.ThemeLabels[i]</option>
+                    }
+                </select>
+            </span>
+        </div>
+
+        <div class="kopf-zeile datei">
+            <span class="dateiname" title="@Zustand.FileName">
+                @(string.IsNullOrEmpty(Zustand.FileName) ? "Keine Datei geladen." : Zustand.FileName)
+            </span>
+        </div>
+    </header>
+
+    <nav class="reiter">
+        @foreach (var reiter in Reiter)
+        {
+            <button class="reiter-knopf @(_aktiv == reiter.Key ? "aktiv" : null)"
+                    @onclick="() => _aktiv = reiter.Key">
+                @reiter.Titel
+            </button>
+        }
+    </nav>
+
+    <main class="inhalt">
+        @switch (_aktiv)
+        {
+            case Tab.Overview:
+                <Overview />
+                break;
+            case Tab.BackupCheck:
+                <BackupCheck />
+                break;
+            case Tab.Scripts:
+                <Scripts />
+                break;
+            case Tab.Usage:
+                <Usage OnScriptRequested="ZumSkript" />
+                break;
+            case Tab.Vis:
+                <Vis />
+                break;
+            case Tab.Orphans:
+                <Orphans />
+                break;
+            case Tab.Logging:
+                <Logging />
+                break;
+            case Tab.Alias:
+                <Alias />
+                break;
+            case Tab.Files:
+                <Files />
+                break;
+            case Tab.Compare:
+                <Compare />
+                break;
+            case Tab.Help:
+                <Help />
+                break;
+            case Tab.Changelog:
+                <Changelog />
+                break;
+        }
+    </main>
+
+    <footer class="fuss">
+        <span class="status">@_status</span>
+        <span class="fuss-rechts">
+            @if (_speicherMb is { } mb)
+            {
+                <span class="klein" title="Belegter Speicher dieses Browser-Reiters. Die WebAssembly-Laufzeit ist 32-bittig; bei sehr großen Backups ist bei rund 2 GB Schluss.">@mb MB</span>
+            }
+            @if (Zustand.LoadLogLines.Count > 0)
+            {
+                <button class="knopf klein-knopf" @onclick="LadeprotokollSpeichernAsync">Ladeprotokoll</button>
+            }
+            <span class="klein">@AppInfo.LongVersion</span>
+        </span>
+    </footer>
+
+</div>
+
+<DialogHost />
+
+@code {
+    private enum Tab
+    {
+        Overview, BackupCheck, Scripts, Usage, Vis, Orphans,
+        Logging, Alias, Files, Compare, Help, Changelog
+    }
+
+    /// <summary>
+    /// Reihenfolge und Beschriftung wie in beiden Desktop-Fassungen — damit eine Anleitung
+    /// für alle drei gilt.
+    /// </summary>
+    private static readonly (Tab Key, string Titel)[] Reiter =
+    {
+        (Tab.Overview,    "Übersicht"),
+        (Tab.BackupCheck, "Backup-Prüfung"),
+        (Tab.Scripts,     "Skripte"),
+        (Tab.Usage,       "Verwendung"),
+        (Tab.Vis,         "VIS-Datenpunkte"),
+        (Tab.Orphans,     "Verwaiste Datenpunkte"),
+        (Tab.Logging,     "Logging"),
+        (Tab.Alias,       "Aliasse"),
+        (Tab.Files,       "Dateien"),
+        (Tab.Compare,     "Vergleich"),
+        (Tab.Help,        "Hilfe"),
+        (Tab.Changelog,   "Änderungen")
+    };
+
+    private Tab _aktiv = Tab.Overview;
+    private bool _laedt;
+    private string _status = "Bereit.";
+    private int? _speicherMb;
+
+    /// <summary>
+    /// Obergrenze für die hochgeladene Datei. Ein Backitup-Archiv liegt üblicherweise bei
+    /// 10 bis 30 MB; 512 MB lassen auch sehr große Anlagen durch und verhindern zugleich,
+    /// dass ein versehentlich gewähltes Speicherabbild den Reiter zum Absturz bringt.
+    /// </summary>
+    private const long MaxDateigroesse = 512L * 1024 * 1024;
+
+    protected override void OnInitialized() => Zustand.Changed += Neuzeichnen;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        await Einstellungen.InitAsync();
+        StateHasChanged();
+    }
+
+    private void Neuzeichnen() => InvokeAsync(StateHasChanged);
+
+    private async Task ThemaGewaehltAsync(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var index))
+            await Einstellungen.SetThemeAsync((ThemeChoice)Math.Clamp(index, 0, 2));
+    }
+
+    // ------------------------------------------------------------------ Laden
+
+    private async Task OeffnenAsync(InputFileChangeEventArgs e)
+    {
+        var datei = e.File;
+        if (datei is null) return;
+
+        _laedt = true;
+        _status = "Backup wird gelesen …";
+        Bedienung.Reset();
+        Zustand.Set(null, null, datei.Name, datei.Size);
+        await ZeichnenLassen();
+
+        // Der Rest des vorigen Backups darf nicht liegen bleiben: Im Browser-Reiter ist
+        // Arbeitsspeicher das knappste Gut.
+        BrowserIo.ClearWorkDir();
+
+        var protokollPfad = Path.Combine(BrowserIo.WorkDir, "ladeprotokoll.txt");
+        LoadLog? protokoll = null;
+
+        try
+        {
+            if (datei.Size > MaxDateigroesse)
+            {
+                throw new NotABackupException(
+                    $"Die Datei ist {BackupFileInfo.FormatSize(datei.Size)} groß.\n\n" +
+                    "Die Browser-Fassung nimmt bis 512 MB an. Für größere Archive gibt es " +
+                    "die Fassung für Windows, macOS und Linux — sie kennt diese Grenze nicht.");
+            }
+
+            await using (var strom = datei.OpenReadStream(MaxDateigroesse))
+            {
+                await BrowserIo.StoreAsync(strom, datei.Name);
+            }
+
+            var pfad = Path.Combine(BrowserIo.WorkDir, Path.GetFileName(datei.Name));
+
+            // Ohne die Browserkennung stünde im Protokollkopf „Other 1.0.0.0" — das ist,
+            // was .NET über sein Wirtssystem weiß, wenn es im Browser läuft. Für die
+            // Fehlersuche zählt stattdessen, welcher Browser es ist.
+            protokoll = LoadLog.Start(protokollPfad, AppInfo.Version, datei.Name,
+                                      await Io.BrowserKennungAsync());
+
+            _status = "Bitte warten — Backup wird gelesen …";
+            await ZeichnenLassen();
+
+            // Bewusst der synchrone Aufruf: LoadAsync verpackt dieselbe Arbeit in ein
+            // Task.Run, das hier ohnehin sofort und auf demselben Faden läuft. Der Umweg
+            // würde nur den Eindruck erwecken, es liefe etwas nebenher.
+            var daten = BackupLoader.Load(pfad, null, CancellationToken.None, protokoll);
+
+            _status = "Bitte warten — Backup wird analysiert …";
+            await ZeichnenLassen();
+
+            var analysen = AnalysisResults.Compute(daten, protokoll);
+
+            // LoadLog.Start liefert null, wenn sich das Protokoll nicht anlegen ließ —
+            // das Laden läuft dann ohne, und hier ist nichts zu schließen.
+            protokoll?.Dispose();
+            protokoll = null;
+
+            Zustand.Set(daten, analysen, datei.Name, datei.Size, ProtokollLesen(protokollPfad));
+
+            _status = daten.Kind == BackupKind.Full
+                ? $"Geladen: {daten.Objects.Count:N0} Objekte, {daten.Instances.Count:N0} Instanzen."
+                : "Geladen: Skript-Teilbackup — die Übersicht braucht ein Voll-Backup.";
+        }
+        catch (Exception ex)
+        {
+            protokoll?.Dispose();
+            protokoll = null;
+
+            Zustand.Set(null, null, "", 0, ProtokollLesen(protokollPfad));
+            _status = "Laden fehlgeschlagen.";
+
+            var wo = "\n\nDer Ablauf des Ladevorgangs steht im Ladeprotokoll — der Knopf " +
+                     "dafür sitzt unten rechts.";
+
+            await Dialoge.MessageAsync("Fehler",
+                (ex is NotABackupException
+                    ? ex.Message
+                    : $"Die Datei konnte nicht gelesen werden.\n\n{ex.Message}") + wo);
+        }
+        finally
+        {
+            protokoll?.Dispose();
+            _laedt = false;
+            _speicherMb = await Io.MemoryMbAsync();
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>
+    /// Gibt einmal an den Browser zurück, damit er zeichnen kann.
+    ///
+    /// Ohne diesen Punkt bliebe die Oberfläche im Zustand vor dem Klick stehen, bis das
+    /// ganze Backup gelesen ist — der Anwender sähe minutenlang eine Seite, die aussieht,
+    /// als hätte er nichts angeklickt. Task.Yield genügt dafür nicht: Es reiht sich in
+    /// dieselbe Warteschlange ein, aus der auch das Zeichnen kommt.
+    /// </summary>
+    private async Task ZeichnenLassen()
+    {
+        StateHasChanged();
+        await Task.Delay(1);
+    }
+
+    private static IReadOnlyList<string> ProtokollLesen(string pfad)
+    {
+        try
+        {
+            return File.Exists(pfad) ? File.ReadAllLines(pfad) : Array.Empty<string>();
+        }
+        catch (IOException)
+        {
+            return Array.Empty<string>();
+        }
+    }
+
+    private async Task LadeprotokollSpeichernAsync() =>
+        await Io.SaveTextAsync("ladeprotokoll.txt",
+                               string.Join("\r\n", Zustand.LoadLogLines));
+
+    // ------------------------------------------------------------------ Sprung zum Skript
+
+    /// <summary>
+    /// Doppelklick auf ein Skript in der Kreuzreferenz führt zu seinem Quelltext — dieselbe
+    /// Verdrahtung wie in beiden Desktop-Fassungen.
+    /// </summary>
+    private void ZumSkript(string scriptId)
+    {
+        Bedienung.Scripts.PendingJump = scriptId;
+        _aktiv = Tab.Scripts;
+        StateHasChanged();
+    }
+
+    public void Dispose() => Zustand.Changed -= Neuzeichnen;
+}

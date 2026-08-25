@@ -1,0 +1,608 @@
+/*
+    Gestaltung der Browser-Fassung.
+
+    Zwei Dinge sind hier nicht Geschmack, sondern Voraussetzung:
+
+    1. Die Zeilenhöhe (--zeilenhoehe) muss zu ZeilenHoehe in DataTable.razor passen.
+       Die Tabelle stellt nur die sichtbaren Zeilen dar und rechnet dafür mit einer festen
+       Höhe. Bricht eine Zelle um, verrutscht die ganze Rechnung — deshalb wird
+       abgeschnitten statt umgebrochen, genau wie im DataGrid der Desktop-Fassungen.
+
+    2. Die Höhen der Bereiche. Ein Rollbereich braucht eine Höhe, die nicht aus seinem
+       Inhalt kommt; sonst wächst er endlos und rollt gar nicht. Alle Bereiche stehen
+       deshalb in einer durchgehenden Kette aus Flex-Elementen mit min-height: 0.
+
+    Die Farben folgen den Desktop-Fassungen. Warnfarben sind bewusst fest gewählt: Ein
+    Hinweis muss in hellem wie dunklem Thema gleich deutlich bleiben.
+*/
+
+:root {
+    --zeilenhoehe: 26px;
+
+    --grund: #ffffff;
+    --grund-2: #f4f5f7;
+    --grund-3: #e9ebee;
+    --schrift: #1b1b1b;
+    --schrift-schwach: #5c6068;
+    --rahmen: #c9cdd3;
+    --betont: #3d8bc9;
+    --betont-schrift: #ffffff;
+    --auswahl: #d6e8f7;
+
+    --gut: #2fa36b;
+    --achtung: #d98a00;
+    --schlecht: #d9534f;
+
+    --warn-grund: #fff9db;
+    --warn-rahmen: #e0ce8a;
+    --warn-schrift: #5a3c00;
+
+    --diff-plus: #e2f8e2;
+    --diff-plus-schrift: #005a00;
+    --diff-minus: #ffe7e7;
+    --diff-minus-schrift: #820000;
+
+    --schriftart: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --schriftart-fest: Consolas, "DejaVu Sans Mono", Menlo, monospace;
+}
+
+/* Dunkel: einmal für die Systemeinstellung, einmal für die ausdrückliche Wahl. */
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="hell"]) {
+        --grund: #1e1f22;
+        --grund-2: #26282c;
+        --grund-3: #303338;
+        --schrift: #e8e8e8;
+        --schrift-schwach: #a0a4ab;
+        --rahmen: #43464c;
+        --auswahl: #2b4a63;
+
+        --diff-plus: #1e3a24;
+        --diff-plus-schrift: #a9e5b0;
+        --diff-minus: #462323;
+        --diff-minus-schrift: #f0b3b3;
+    }
+}
+
+:root[data-theme="dunkel"] {
+    --grund: #1e1f22;
+    --grund-2: #26282c;
+    --grund-3: #303338;
+    --schrift: #e8e8e8;
+    --schrift-schwach: #a0a4ab;
+    --rahmen: #43464c;
+    --auswahl: #2b4a63;
+
+    --diff-plus: #1e3a24;
+    --diff-plus-schrift: #a9e5b0;
+    --diff-minus: #462323;
+    --diff-minus-schrift: #f0b3b3;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+    height: 100%;
+    margin: 0;
+    font-family: var(--schriftart);
+    font-size: 14px;
+    background: var(--grund);
+    color: var(--schrift);
+}
+
+#app { height: 100%; }
+
+/* ================================================================ Startbild */
+
+.startbild {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+}
+
+.startbild-inhalt { max-width: 460px; text-align: center; }
+.startbild h1 { font-size: 20px; font-weight: 600; }
+
+.balken {
+    height: 4px;
+    background: var(--grund-3);
+    border-radius: 2px;
+    overflow: hidden;
+    margin: 16px 0;
+}
+
+.balken-lauf {
+    height: 100%;
+    width: 40%;
+    background: var(--betont);
+    animation: lauf 1.4s ease-in-out infinite;
+}
+
+@keyframes lauf {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(250%); }
+}
+
+/* ================================================================ Gerüst */
+
+.rahmen {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+}
+
+.kopf {
+    padding: 10px 12px 6px;
+    border-bottom: 1px solid var(--rahmen);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.kopf-zeile {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.kopf-rechts {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.dateiname {
+    color: var(--schrift-schwach);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.fuss {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 4px 12px;
+    border-top: 1px solid var(--rahmen);
+    color: var(--schrift-schwach);
+}
+
+.fuss-rechts {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.status { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.inhalt {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 0 8px;
+}
+
+/* ================================================================ Reiter */
+
+.reiter, .unterreiter {
+    display: flex;
+    gap: 2px;
+    padding: 0 8px;
+    border-bottom: 1px solid var(--rahmen);
+    overflow-x: auto;
+    flex: none;
+}
+
+.unterreiter { padding: 0; margin-bottom: 6px; }
+
+.reiter-knopf {
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--schrift);
+    font: inherit;
+    padding: 8px 10px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.reiter-knopf:hover { background: var(--grund-2); }
+.reiter-knopf.aktiv { border-bottom-color: var(--betont); font-weight: 600; }
+
+.reiter-inhalt {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 8px 0;
+    gap: 6px;
+}
+
+/* Hilfe und Änderungen rollen als Fließtext statt in Tabellen. */
+.blatt {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    padding: 10px 16px;
+}
+
+/* ================================================================ Bedienelemente */
+
+.kopfbereich { display: flex; flex-direction: column; gap: 6px; flex: none; }
+
+.leiste {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.leiste.rechts { justify-content: flex-end; }
+.dehnen { flex: 1; }
+
+.knopf {
+    background: var(--grund-2);
+    color: var(--schrift);
+    border: 1px solid var(--rahmen);
+    border-radius: 3px;
+    padding: 5px 12px;
+    font: inherit;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.knopf:hover:not(:disabled) { background: var(--grund-3); }
+.knopf:disabled, .knopf.aus { opacity: 0.5; cursor: default; }
+
+.knopf.betont {
+    background: var(--betont);
+    border-color: var(--betont);
+    color: var(--betont-schrift);
+}
+
+.klein-knopf { padding: 2px 8px; font-size: 12px; }
+
+/*
+    Der Dateiwähler von Blazor ist ein echtes <input type="file">. Es liegt unsichtbar
+    über seiner Beschriftung — so lässt sich eine Datei auch hineinziehen, ohne dass dafür
+    eigenes Javascript nötig wäre.
+*/
+.dateiwahl, .ablegeflaeche { position: relative; overflow: hidden; display: inline-flex; }
+
+.dateiwahl input[type="file"],
+.ablegeflaeche input[type="file"] {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.ablegeflaeche {
+    align-items: center;
+    justify-content: center;
+    min-width: 300px;
+    padding: 6px 12px;
+    border: 1px dashed var(--rahmen);
+    border-radius: 3px;
+    color: var(--schrift-schwach);
+}
+
+.feld {
+    background: var(--grund);
+    color: var(--schrift);
+    border: 1px solid var(--rahmen);
+    border-radius: 3px;
+    padding: 4px 6px;
+    font: inherit;
+    min-width: 120px;
+}
+
+.feld.breit { min-width: 280px; }
+.feld.weit { min-width: 230px; }
+.feld.sehr-weit { min-width: 300px; }
+
+.haken {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.zaehler { color: var(--schrift-schwach); white-space: nowrap; }
+
+.fortschritt {
+    display: inline-block;
+    width: 180px;
+    height: 6px;
+    background: var(--grund-3);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.fortschritt-lauf {
+    display: block;
+    height: 100%;
+    width: 40%;
+    background: var(--betont);
+    animation: lauf 1.2s ease-in-out infinite;
+}
+
+/* ================================================================ Tabelle */
+
+.tabellenbereich {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    border: 1px solid var(--rahmen);
+    border-radius: 3px;
+    background: var(--grund);
+}
+
+/* Aufteilung oben/unten wie die Trenner der Desktop-Fassungen — dort verschiebbar,
+   hier fest: Ein Ziehbalken wäre ein eigenes Steuerelement, und der Gewinn ist klein. */
+.tabellenbereich.oben  { flex: 3; }
+.tabellenbereich.unten { flex: 2; }
+.tabellenbereich.niedrig { flex: none; height: 150px; }
+.tabellenbereich.schmal { flex: none; width: 430px; }
+
+.nebeneinander {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    gap: 6px;
+}
+
+.tabelle {
+    border-collapse: collapse;
+    table-layout: fixed;
+    font-size: 13px;
+    width: 100%;
+}
+
+.tabelle th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--grund-2);
+    border-bottom: 1px solid var(--rahmen);
+    border-right: 1px solid var(--rahmen);
+    padding: 4px 6px;
+    text-align: left;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+    user-select: none;
+}
+
+.tabelle th.sortiert { color: var(--betont); }
+
+.tabelle td {
+    height: var(--zeilenhoehe);
+    max-height: var(--zeilenhoehe);
+    padding: 0 6px;
+    border-bottom: 1px solid var(--grund-3);
+    border-right: 1px solid var(--grund-3);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tabelle th.zahl, .tabelle td.zahl { text-align: right; }
+.tabelle tbody tr:hover { background: var(--grund-2); }
+.tabelle tbody tr.gewaehlt { background: var(--auswahl); }
+
+/* Einstufung der Zeilen, einheitlich über alle Reiter. */
+.zeile-gedaempft { opacity: 0.55; }
+.zeile-positiv td { color: var(--gut); }
+.zeile-warnung td { color: var(--achtung); }
+.zeile-problem td { color: var(--schlecht); }
+
+/* Auffällig ist hier nicht die Zeile, sondern eine einzelne Zelle. */
+td.ueberlimit { color: var(--achtung); font-weight: 600; }
+
+/* Der Zeilenvergleich färbt die Fläche, nicht die Schrift. */
+.diff .tabelle td { font-family: var(--schriftart-fest); font-size: 12px; }
+.diff .zeile-positiv { background: var(--diff-plus); }
+.diff .zeile-positiv td { color: var(--diff-plus-schrift); }
+.diff .zeile-problem { background: var(--diff-minus); }
+.diff .zeile-problem td { color: var(--diff-minus-schrift); }
+.diff .zeile-gedaempft td { color: var(--schrift-schwach); }
+
+/* ================================================================ Detailbereich */
+
+.detailbereich {
+    flex: 2;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.unterbereich { flex: none; display: flex; flex-direction: column; gap: 4px; }
+
+.code {
+    font-family: var(--schriftart-fest);
+    font-size: 12px;
+    background: var(--grund);
+    color: var(--schrift);
+    border: 1px solid var(--rahmen);
+    border-radius: 3px;
+    padding: 6px;
+    width: 100%;
+    resize: none;
+    white-space: pre;
+    overflow: auto;
+}
+
+.vorschau { flex: 1; min-height: 120px; }
+
+.feldgitter {
+    display: grid;
+    grid-template-columns: 170px 1fr;
+    gap: 6px 10px;
+    align-items: start;
+    overflow: auto;
+}
+
+.legende { display: flex; gap: 18px; flex-wrap: wrap; font-size: 12px; }
+
+/* ================================================================ Texte */
+
+.ueberschrift { font-size: 15px; font-weight: 600; }
+.klein-ueberschrift { font-size: 13px; }
+.klein { font-size: 12px; }
+.gedaempft { color: var(--schrift-schwach); }
+
+.urteil { font-size: 17px; font-weight: 700; }
+.urteil.gut { color: var(--gut); }
+.urteil.achtung { color: var(--achtung); }
+.urteil.schlecht { color: var(--schlecht); }
+
+.text-gut { color: var(--gut); }
+.text-warnung { color: var(--achtung); }
+.text-problem { color: var(--schlecht); }
+
+.platzhalter {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    white-space: pre-line;
+    color: var(--schrift-schwach);
+    padding: 20px;
+}
+
+.warnkasten {
+    background: var(--warn-grund);
+    border: 1px solid var(--warn-rahmen);
+    border-radius: 3px;
+    color: var(--warn-schrift);
+    padding: 8px 10px;
+    white-space: pre-line;
+}
+
+.warnkasten.knapp { max-height: 120px; overflow: auto; }
+
+/* Befehle zum Herauskopieren: feste Schrift, rollbar, Zeilenumbrüche erhalten. */
+.warnkasten.befehle {
+    font-family: var(--schriftart-fest);
+    font-size: 12px;
+    max-height: 260px;
+    overflow: auto;
+    flex: none;
+    user-select: text;
+}
+
+.hilfe { max-width: 900px; }
+.hilfe h1 { font-size: 20px; font-weight: 700; margin: 0 0 8px; }
+.hilfe h2 { font-size: 15px; font-weight: 600; color: var(--betont); margin: 18px 0 6px; }
+.hilfe p { margin: 0 0 8px; line-height: 1.45; white-space: pre-line; }
+
+/* ================================================================ Dialoge */
+
+.dialog-hintergrund {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 20px;
+}
+
+.dialog {
+    background: var(--grund);
+    border: 1px solid var(--rahmen);
+    border-radius: 5px;
+    padding: 16px;
+    max-width: 620px;
+    width: 100%;
+    max-height: 100%;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.dialog.gross { max-width: 1100px; height: 100%; }
+.dialog h3 { margin: 0; font-size: 16px; }
+.dialog-text { white-space: pre-line; line-height: 1.45; overflow: auto; }
+
+.dialog-knoepfe { display: flex; gap: 8px; justify-content: flex-end; }
+.dialog-knoepfe.verteilt { justify-content: space-between; }
+.dialog-knoepfe span { display: flex; gap: 8px; }
+
+/* ================================================================ Aufräum-Dialog */
+
+.aufraeumen {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    gap: 10px;
+}
+
+.aufraeumen-links {
+    flex: none;
+    width: 400px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-height: 0;
+}
+
+.aufraeumen-rechts { flex: 1; min-height: 0; }
+
+.baum {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    border: 1px solid var(--rahmen);
+    border-radius: 3px;
+    padding: 4px;
+    font-size: 13px;
+}
+
+.baum summary { cursor: pointer; padding: 2px 0; }
+.baum .wert { display: flex; padding: 1px 0 1px 22px; font-family: var(--schriftart-fest); font-size: 12px; }
+.baum .teilweise { font-style: italic; }
+
+/* ================================================================ Fehlerstreifen */
+
+#blazor-error-ui {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 200;
+    background: var(--warn-grund);
+    color: var(--warn-schrift);
+    border-top: 1px solid var(--warn-rahmen);
+    padding: 10px 16px;
+    box-shadow: 0 -1px 4px rgba(0, 0, 0, 0.2);
+}
+
+#blazor-error-ui .dismiss {
+    position: absolute;
+    right: 12px;
+    top: 8px;
+    cursor: pointer;
+}
+
+#blazor-error-ui .neu-laden { color: inherit; margin-left: 8px; }
+
+/* Die leere Fläche hinter der letzten Spalte — siehe DataTable.razor. */
+.tabelle th.fueller, .tabelle td.fueller { border-right: none; }

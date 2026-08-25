@@ -1,0 +1,155 @@
+ioBroker Backup Analyzer - Browser-Fassung
+==========================================
+
+Dieselbe Auswertung wie die Programme fuer Windows, macOS und Linux, nur im Browser.
+Gedacht fuer den eigenen Apache: einmal hochladen, danach von jedem Rechner im Netz
+aufrufen - ohne Installation.
+
+Wichtig vorweg: Das Backup wird NICHT hochgeladen. Es wird vom Browser gelesen und im
+Speicher des Browser-Reiters ausgewertet. Der Server liefert nur das Programm aus; er
+bekommt von den Daten nichts zu sehen und speichert nichts. Nachpruefbar ueber die
+Entwicklerwerkzeuge des Browsers: Nach dem Laden der Seite ist unter "Netzwerk" keine
+weitere Uebertragung zu sehen.
+
+
+HOCHLADEN
+---------
+
+1. Den gesamten Inhalt dieses Ordners in ein Verzeichnis des Webservers kopieren.
+
+   Wie das Verzeichnis heisst, ist gleichgueltig - es muss nur unterhalb des
+   Web-Wurzelverzeichnisses liegen (auf Debian und Ubuntu ueblicherweise /var/www/html).
+   Ob "analyzer", "backup-analyse" oder "test": Das Programm arbeitet durchgehend mit
+   relativen Adressen und laeuft in jedem Unterordner, auch direkt in der Wurzel.
+
+   In dieser Anleitung steht <ordner> fuer den selbst gewaehlten Namen. Wer das
+   Verzeichnis /var/www/html/test anlegt, liest also ueberall "test" fuer <ordner>.
+
+   Es muss ALLES mit: index.html, der Ordner _framework, css/, js/, die .htaccess und
+   der Ordner servertest. Der Ordner _framework enthaelt das eigentliche Programm.
+
+   ACHTUNG bei FTP-Programmen: Zwei Fallen sind haeufig.
+     - Versteckte Dateien werden nicht angezeigt. Die .htaccess beginnt mit einem Punkt
+       und faellt darunter. In FileZilla: Server -> "Versteckte Dateien anzeigen".
+     - Ordner mit fuehrendem Unterstrich (_framework) werden von manchen Programmen
+       uebersprungen. Nach der Uebertragung die Dateizahl vergleichen.
+
+   Uebertragungsart BINAER waehlen, nicht ASCII - sonst werden die .wasm-Dateien
+   unterwegs veraendert und das Programm startet nicht.
+
+2. Rechte setzen, falls noetig: Dateien 644, Ordner 755.
+
+3. Im Browser die Pruefseite aufrufen:
+
+     http://<adresse>/<ordner>/servertest.html
+
+   Sie prueft, ob der Apache alles Noetige mitbringt, und nennt bei jedem Fehlbefund den
+   Befehl, der ihn behebt. Steht dort "Alles in Ordnung", ist der Server fertig
+   eingerichtet.
+
+4. Das Programm aufrufen:
+
+     http://<adresse>/<ordner>/
+
+Die Pruefseite darf danach stehen bleiben - noetig ist sie nicht mehr. Auf einem aus dem
+Internet erreichbaren Server sollte sie geloescht werden: Sie nennt Einzelheiten ueber die
+Einrichtung.
+
+
+WAS DER APACHE KOENNEN MUSS
+---------------------------
+
+PHP wird NICHT gebraucht. Auch keine Datenbank, kein Node, nichts weiter - es ist eine
+statische Seite. Gebraucht werden nur:
+
+  Pflicht    Der Dateityp application/wasm fuer .wasm-Dateien.
+             Neuere Apache-Fassungen bringen ihn mit; sonst setzt ihn die .htaccess -
+             dafuer muss Apache sie lesen duerfen (AllowOverride, siehe unten).
+
+  Empfohlen  mod_headers, mod_rewrite, mod_deflate, mod_expires.
+             Damit werden die vorkomprimierten Dateien ausgeliefert, die neben jeder
+             Programmdatei liegen. Das spart beim ersten Aufruf rund zwei Drittel der
+             Uebertragung. Ohne sie laeuft das Programm genauso, nur laedt es langsamer.
+
+Module einschalten (Debian/Ubuntu, also auch auf den meisten ioBroker-Hosts):
+
+     sudo a2enmod headers rewrite deflate expires
+     sudo systemctl restart apache2
+
+Damit die .htaccess ueberhaupt gelesen wird, muss fuer das Verzeichnis AllowOverride
+gesetzt sein. In /etc/apache2/apache2.conf steht dafuer meist ein Block wie dieser:
+
+     <Directory /var/www/>
+             Options Indexes FollowSymLinks
+             AllowOverride None          <-- hier steht oft None
+             Require all granted
+     </Directory>
+
+"None" durch "All" ersetzen, dann:
+
+     sudo systemctl restart apache2
+
+Ob es gewirkt hat, sagt die Pruefseite.
+
+
+WENN NACH DEM EINSCHALTEN DER .HTACCESS NICHTS MEHR GEHT
+--------------------------------------------------------
+
+Erst lief alles, dann wurde AllowOverride auf All gesetzt - und ploetzlich meldet die
+Pruefseite 404 fuer den Ordner _framework. Dann greifen die Umschreibregeln in der
+.htaccess ins Leere.
+
+Sofort wieder lauffaehig:
+
+     sudo mv .htaccess .htaccess.aus
+
+Danach laeuft alles wie zuvor, nur ohne die sparsamere Auslieferung. Die mitgelieferte
+.htaccess kommt ohne "RewriteBase" aus und funktioniert deshalb in jedem Unterverzeichnis.
+Steht in einer aelteren Fassung noch eine Zeile "RewriteBase /", muss sie entfernt werden:
+Sie schickt jede umgeschriebene Anfrage in die Wurzel des Servers, und dort liegt das
+Programm nicht.
+
+
+WENN DAS PROGRAMM NICHT STARTET
+-------------------------------
+
+Erst die Pruefseite aufrufen - sie beantwortet die meisten Faelle direkt. Bleibt es
+unklar, hilft die Konsole des Browsers (F12, Reiter "Konsole"). Die haeufigsten Meldungen:
+
+  "Incorrect response MIME type. Expected 'application/wasm'"
+      Der Dateityp fehlt. Siehe oben.
+
+  "Failed to load resource: 404" fuer Dateien aus _framework
+      Der Ordner ist unvollstaendig hochgeladen. Uebertragung wiederholen.
+
+  Die Seite bleibt beim Ladebalken stehen
+      Meist eine abgebrochene Uebertragung. Im Reiter "Netzwerk" steht, welche Datei
+      haengt.
+
+
+GRENZEN GEGENUEBER DEN DESKTOP-FASSUNGEN
+----------------------------------------
+
+  Dateigroesse   Bis 512 MB je Backup. Die WebAssembly-Laufzeit ist 32-bittig, ein
+                 Browser-Reiter kommt bei rund 2 GB Speicher an seine Grenze. Uebliche
+                 Backitup-Archive liegen bei 10 bis 30 MB - das ist reichlich Luft. Der
+                 belegte Speicher steht unten rechts in der Fusszeile (Chrome und Edge).
+
+  Waehrend des Ladens steht die Seite. WebAssembly rechnet auf demselben Faden, auf dem
+  auch gezeichnet wird; ein Fortschrittsbalken waehrend der Auswertung ist damit nicht
+  moeglich. Bei einer grossen Anlage dauert es einige Sekunden.
+
+  Exporte, die auf dem Rechner in einen Ordner schreiben - Skripte und Dateien -,
+  kommen hier als ZIP mit demselben Inhalt.
+
+Alles Uebrige ist gleich: Es ist dieselbe Auswertung, dieselben Zahlen, dieselben Texte.
+
+
+HERKUNFT
+--------
+
+Diese Software wurde vollstaendig mit KI erstellt (Claude, Anthropic). Vor jeder
+Auslieferung laeuft ein Verifikationslauf gegen echte ioBroker-Backups - derzeit rund
+700 Pruefungen. Was er prueft, steht in der README des Projekts.
+
+MIT-Lizenz, siehe LICENSE.

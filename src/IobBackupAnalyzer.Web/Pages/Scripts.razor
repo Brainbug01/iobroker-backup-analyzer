@@ -1,0 +1,307 @@
+@inherits TabBase
+
+@*
+    Säule 2: Skript-Extraktion. Liste mit Filtern oben, Vorschau des gewählten Skripts
+    unten; bei Blockly lässt sich zwischen erzeugtem JavaScript und dem XML umschalten.
+    Filter, Sortierung und Vorschautext kommen aus ScriptsPresenter.
+*@
+
+@if (Daten is null)
+{
+    <Platzhalter Text="Kein Backup geladen.&#10;&#10;Bitte oben eine Datei öffnen oder hineinziehen." />
+}
+else
+{
+    <div class="reiter-inhalt">
+
+        <div class="kopfbereich">
+            <div class="leiste">
+                <label for="skr-suche">Suche:</label>
+                <input id="skr-suche" class="feld breit" placeholder="Suchbegriff …"
+                       value="@S.Search" @oninput="SucheGeaendert" />
+
+                <select class="feld" @onchange="SuchartGewaehlt">
+                    @for (var i = 0; i < ScriptsPresenter.SearchModeLabels.Length; i++)
+                    {
+                        <option value="@i" selected="@((int)S.Mode == i)">@ScriptsPresenter.SearchModeLabels[i]</option>
+                    }
+                </select>
+
+                <label for="skr-typ">Typ:</label>
+                <select id="skr-typ" class="feld" @onchange="TypGewaehlt">
+                    @for (var i = 0; i < ScriptsPresenter.TypeLabels.Length; i++)
+                    {
+                        <option value="@i" selected="@(S.TypeIndex == i)">@ScriptsPresenter.TypeLabels[i]</option>
+                    }
+                </select>
+
+                <label class="haken">
+                    <input type="checkbox" checked="@S.HideDisabled"
+                           @onchange="e => S.HideDisabled = (bool?)e.Value == true" />
+                    Deaktivierte ausblenden
+                </label>
+
+                <label class="haken" title="@ScriptsPresenter.HintsHint">
+                    <input type="checkbox" checked="@S.OnlyWithHints"
+                           @onchange="e => S.OnlyWithHints = (bool?)e.Value == true" />
+                    @ScriptsPresenter.OnlyWithHintsLabel
+                </label>
+            </div>
+
+            <div class="leiste">
+                <span class="zaehler">@Zaehler</span>
+                <span class="dehnen"></span>
+                <button class="knopf" @onclick="KopierenAsync">In Zwischenablage</button>
+                <button class="knopf" @onclick="() => ExportierenAsync(true)">Ausgewählte exportieren</button>
+                <button class="knopf" @onclick="() => ExportierenAsync(false)">
+                    @ScriptsPresenter.ExportAllLabel(Gefiltert.Count, Daten.Scripts.Count)
+                </button>
+                <button class="knopf" @onclick="ListeAlsCsv">Liste als CSV</button>
+            </div>
+
+            <div class="leiste rechts">
+                @* Aus = je Skript genau eine Datei, so wie sie auch in ioBroker liegt. *@
+                <label class="haken" title="@ScriptsPresenter.GeneratedJsHint">
+                    <input type="checkbox" checked="@S.WithGeneratedJs"
+                           @onchange="e => S.WithGeneratedJs = (bool?)e.Value == true" />
+                    @ScriptsPresenter.GeneratedJsLabel
+                </label>
+            </div>
+        </div>
+
+        <div class="tabellenbereich oben">
+            <DataTable TItem="ScriptInfo" Items="Gefiltert" Columns="Spalten"
+                       Emphasis="ScriptsPresenter.Emphasis"
+                       Multiple="true" SelectedMany="S.Marked" SelectedManyChanged="a => S.Marked = a"
+                       Selected="S.Selected" SelectedChanged="s => S.Selected = s"
+                       ScrollToIndex="_rollenZu" />
+        </div>
+
+        <div class="detailbereich">
+            @* Befunde zum gewählten Skript; nur sichtbar, wenn es welche gibt. Bewusst über
+               der Vorschau statt in ihr — die zeigt unverändert den Quelltext. *@
+            @if (Hinweise.Length > 0)
+            {
+                <Warnkasten Text="@Hinweise" Class="knapp" />
+            }
+
+            @* Der Kopierknopf steht bewusst hier unten und nicht nur oben bei den übrigen
+               Aktionen: Kopieren will man den Text, den man gerade liest — und bei Blockly
+               ist das je nach Umschaltung etwas anderes. *@
+            <div class="leiste">
+                @if (ScriptsPresenter.HasXmlView(S.Selected))
+                {
+                    <label class="haken">
+                        <input type="radio" name="skr-ansicht" checked="@(!S.ShowXml)"
+                               @onchange="() => S.ShowXml = false" />
+                        Generiertes JavaScript
+                    </label>
+                    <label class="haken">
+                        <input type="radio" name="skr-ansicht" checked="@S.ShowXml"
+                               @onchange="() => S.ShowXml = true" />
+                        Blockly-XML
+                    </label>
+                }
+
+                <span class="dehnen"></span>
+                <button class="knopf klein-knopf" disabled="@(S.Selected is null)"
+                        @onclick="KopierenAsync">
+                    @KopierLabel
+                </button>
+            </div>
+
+            <textarea class="code vorschau" readonly>@Vorschau</textarea>
+        </div>
+
+    </div>
+}
+
+@code {
+    private UiState.ScriptsTab S => Bedienung.Scripts;
+
+    private List<ScriptInfo> Gefiltert =>
+        Daten is null
+            ? new List<ScriptInfo>()
+            : ScriptsPresenter.Sort(
+                ScriptsPresenter.Filter(Daten.Scripts, S.HideDisabled, S.TypeIndex, S.Mode,
+                                        S.Search, S.OnlyWithHints),
+                column: -1, ascending: true);
+
+    private string Zaehler => _rueckmeldung
+                              ?? (Daten is null
+                                  ? ""
+                                  : ScriptsPresenter.CountText(Gefiltert.Count, Daten, S.Mode, S.Search));
+
+    /// <summary>
+    /// Kurze Rückmeldung in der Zählzeile — sie wird beim nächsten Filtern überschrieben,
+    /// genau wie in den Desktop-Fassungen.
+    /// </summary>
+    private string? _rueckmeldung;
+
+    private string Hinweise => ScriptsPresenter.HintDetails(S.Selected);
+
+    private string Vorschau => ScriptsPresenter.PreviewText(S.Selected, S.ShowXml);
+
+    /// <summary>
+    /// Beschriftung des Kopierknopfes — sie nennt, was wirklich in der Zwischenablage
+    /// landet. Bei einem Blockly-Skript ist das je nach Umschaltung der erzeugte
+    /// Quelltext oder das XML, und der Unterschied ist erheblich.
+    /// </summary>
+    private string KopierLabel =>
+        ScriptsPresenter.HasXmlView(S.Selected)
+            ? (S.ShowXml ? "XML kopieren" : "JavaScript kopieren")
+            : "Quelltext kopieren";
+
+    /// <summary>
+    /// Zeile, zu der die Liste rollen soll — gesetzt vom Sprung aus dem Reiter
+    /// „Verwendung". Ohne das bliebe die Auswahl außerhalb des Bildes stehen, und der
+    /// Sprung sähe aus, als wäre nichts passiert.
+    /// </summary>
+    private int? _rollenZu;
+
+    protected override void OnParametersSet()
+    {
+        // Ohne Auswahl bliebe die Vorschau leer — der erste Treffer ist fast immer der,
+        // den man sehen will.
+        if (S.Selected is null && Gefiltert.Count > 0) S.Selected = Gefiltert[0];
+
+        SprungAusfuehren();
+    }
+
+    /// <summary>
+    /// Der Sprung aus dem Reiter „Verwendung": Das dort angeklickte Skript wird hier
+    /// ausgewählt.
+    ///
+    /// Verdeckt die laufende Filterung es (Suchbegriff, Typfilter, ausgeblendete
+    /// deaktivierte Skripte), werden die Filter zurückgesetzt — ein Sprung, der in einer
+    /// leeren Liste endet, sähe wie ein Fehler aus. Gleiche Regel wie in der
+    /// Avalonia-Fassung.
+    /// </summary>
+    private void SprungAusfuehren()
+    {
+        if (S.PendingJump is not { } id) return;
+
+        // Der Wunsch wird in jedem Fall gelöscht: Auch ein Skript, das es nicht mehr gibt,
+        // darf nicht bei jedem Zurückwechseln erneut gesucht werden.
+        S.PendingJump = null;
+
+        if (Daten is null || Daten.Scripts.All(s => s.Id != id)) return;
+
+        if (Gefiltert.All(s => s.Id != id))
+        {
+            S.Search = "";
+            S.TypeIndex = 0;
+            S.HideDisabled = false;
+            S.OnlyWithHints = false;
+        }
+
+        var liste = Gefiltert;
+        var stelle = liste.FindIndex(s => s.Id == id);
+        if (stelle < 0) return;
+
+        S.Selected = liste[stelle];
+        S.Marked = new HashSet<ScriptInfo> { liste[stelle] };
+
+        // Die Zeile ins Bild rollen. Die Tabelle erzeugt nur, was sichtbar ist — ohne
+        // diesen Schritt bliebe die Auswahl irgendwo weiter unten stehen.
+        _rollenZu = stelle;
+    }
+
+    private void SucheGeaendert(ChangeEventArgs e)
+    {
+        S.Search = e.Value?.ToString() ?? "";
+        _rueckmeldung = null;
+    }
+
+    private void SuchartGewaehlt(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var i)) S.Mode = (ScriptSearchMode)i;
+    }
+
+    private void TypGewaehlt(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var i)) S.TypeIndex = i;
+    }
+
+    private static readonly TableColumn<ScriptInfo>[] Spalten =
+    {
+        new() { Header = "Name",          Width = 220, Text = s => s.Name },
+        new() { Header = "ioBroker-Pfad", Width = 400, Text = s => s.Id },
+        new() { Header = "Typ",           Width = 140, Text = s => s.EngineText },
+        new() { Header = "Status",        Width = 120, Text = s => s.StatusText, SortKey = s => s.Enabled },
+        new() { Header = "Hinweise",      Width = 240, Text = s => s.HintsText }
+    };
+
+    private async Task ListeAlsCsv() =>
+        await Io.SaveCsvAsync("skriptliste.csv", ScriptsPresenter.Columns,
+                              Gefiltert.Select(ScriptsPresenter.Row).ToList());
+
+    private async Task KopierenAsync()
+    {
+        if (S.Selected is null)
+        {
+            await Dialoge.MessageAsync("Hinweis", "Bitte zuerst ein Skript auswählen.");
+            return;
+        }
+
+        var text = Vorschau;
+        if (text.Length == 0) return;
+
+        var was = ScriptsPresenter.HasXmlView(S.Selected) && S.ShowXml ? "XML" : "Quelltext";
+
+        _rueckmeldung = await Io.CopyAsync(text)
+            ? $"{was} von „{S.Selected.Name}“ in die Zwischenablage kopiert."
+            : "Der Browser hat den Zugriff auf die Zwischenablage abgelehnt. " +
+              "Ersatzweise: in die Vorschau klicken, Strg+A, Strg+C.";
+    }
+
+    /// <summary>
+    /// Schreibt die Skripte in ein ZIP. In den Desktop-Fassungen wählt man dafür einen
+    /// Zielordner; im Browser entsteht dasselbe Ordnergerüst innerhalb der ZIP-Datei.
+    /// </summary>
+    private async Task ExportierenAsync(bool nurAusgewaehlte)
+    {
+        if (Daten is null) return;
+
+        // Bei „Alle" bewusst die gefilterte Liste: Wer nach „Heizung" sucht und dann
+        // exportiert, meint die Treffer — nicht den gesamten Bestand. Der Knopf sagt das auch.
+        var zuExportieren = nurAusgewaehlte ? S.Marked.ToList() : Gefiltert;
+
+        if (zuExportieren.Count == 0)
+        {
+            await Dialoge.MessageAsync("Hinweis", nurAusgewaehlte
+                ? "Bitte zuerst mindestens ein Skript in der Liste auswählen."
+                : "Die aktuelle Filterung enthält kein Skript.");
+            return;
+        }
+
+        try
+        {
+            ScriptExporter.ExportResult? ergebnis = null;
+            var zwischenordner = "";
+
+            await Io.SaveFolderAsZipAsync("ioBroker-Skripte.zip", ordner =>
+            {
+                zwischenordner = ordner;
+                ergebnis = ScriptExporter.Export(zuExportieren, ordner,
+                    S.WithGeneratedJs ? ScriptExportFormat.WithGeneratedJs
+                                      : ScriptExportFormat.OriginalOnly,
+                    Daten.SourceFile);
+            });
+
+            if (ergebnis is not null)
+                await Dialoge.MessageAsync("Export abgeschlossen",
+                    // Die Zusammenfassung nennt den angelegten Überordner mit vollem Pfad.
+                    // Der liegt im virtuellen Dateisystem; stehen bleiben soll nur der
+                    // Ordnername, unter dem er in der ZIP-Datei wirklich zu finden ist.
+                    ScriptsPresenter.ExportSummary(ergebnis)
+                                    .Replace(zwischenordner + "/", "", StringComparison.Ordinal) +
+                    "\n\nDie Dateien stecken im heruntergeladenen ZIP „ioBroker-Skripte.zip“.");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+                                      or OutOfMemoryException)
+        {
+            await Dialoge.MessageAsync("Fehler", "Der Export ist fehlgeschlagen:\n\n" + ex.Message);
+        }
+    }
+}

@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="de" data-theme="system">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ioBroker Backup Analyzer</title>
+
+    <!--
+        Relative Angabe statt "/": So läuft die Seite in jedem Unterverzeichnis eines
+        Apache, ohne dass hier etwas geändert werden muss. Wer sie unter
+        http://iobroker/analyzer/ ablegt, lädt damit dieselben Dateien wie in der Wurzel.
+    -->
+    <base href="./" />
+
+    <meta name="description" content="Wertet ein ioBroker-Backup im Browser aus. Die Datei bleibt dabei auf dem eigenen Rechner." />
+    <meta name="robots" content="noindex" />
+
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="css/app.css" />
+</head>
+<body>
+
+<div id="app">
+    <div class="startbild">
+        <div class="startbild-inhalt">
+            <h1>ioBroker Backup Analyzer</h1>
+            <p>Das Programm wird geladen …</p>
+            <div class="balken"><div class="balken-lauf"></div></div>
+            <p class="klein">
+                Beim ersten Aufruf werden einige Megabyte übertragen. Danach liegt alles im
+                Zwischenspeicher des Browsers, und der Start geht schnell.
+            </p>
+        </div>
+    </div>
+</div>
+
+<!--
+    Fällt die Laufzeit aus, zeigt Blazor sonst nur einen schmalen gelben Streifen mit
+    englischem Text. Diese Fassung sagt auf Deutsch, was zu tun ist.
+-->
+<div id="blazor-error-ui">
+    Es ist ein unerwarteter Fehler aufgetreten. Die Seite muss neu geladen werden.
+    <a href="." class="neu-laden">Neu laden</a>
+    <a class="dismiss">🗙</a>
+</div>
+
+<!--
+    Beim allerersten Aufruf zuerst die Serverprüfung.
+
+    Der Grund ist Erfahrung, nicht Vorsicht: Wer eine Seite hochlädt, ruft sie auf — die
+    beiliegende Prüfseite sieht sich kaum jemand vorher an. Fehlt dann der Dateityp für
+    .wasm, bleibt hier ein weißes Bild stehen, und die Ursache steht nur in der Konsole
+    des Browsers.
+
+    Umgeleitet wird genau einmal je Browser. Wer die Prüfseite ohnehin schon aufgerufen
+    hat, kommt gar nicht erst hierher zurückgeschickt — sie setzt dieselbe Markierung.
+    Fehlt die Prüfseite (jemand hat sie nach der Einrichtung gelöscht), passiert nichts:
+    Vor dem Umleiten wird nachgesehen, ob es sie überhaupt gibt.
+-->
+<script>
+    (function () {
+        var schluessel = 'iob-analyzer-servertest';
+
+        try {
+            if (localStorage.getItem(schluessel)) return;
+        } catch (e) {
+            // Ohne Speicher (privates Fenster) lieber gar nicht umleiten, sonst landet
+            // man bei jedem Aufruf wieder auf der Prüfseite.
+            return;
+        }
+
+        fetch('servertest.html', { method: 'HEAD' })
+            .then(function (a) { if (a.ok) location.replace('servertest.html?erster=1'); })
+            .catch(function () { /* keine Prüfseite, kein Umweg */ });
+    })();
+</script>
+
+<script src="js/app.js"></script>
+<script src="_framework/blazor.webassembly.js"></script>
+</body>
+</html>

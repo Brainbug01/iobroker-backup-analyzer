@@ -1,0 +1,284 @@
+@typeparam TItem
+@using System.Collections.Generic
+
+@*
+    Die Tabelle aller Reiter — das Gegenstück zum DataGrid der Desktop-Fassungen.
+
+    Zwei Dinge muss sie können, die eine gewöhnliche HTML-Tabelle nicht kann:
+
+    Erstens sehr viele Zeilen. Ein großes Backup bringt über hunderttausend Datenpunkte
+    mit; als vollständige Tabelle im Dokument bringt das jeden Browser zum Stehen.
+    <Virtualize> erzeugt deshalb nur die sichtbaren Zeilen. Das setzt eine feste
+    Zeilenhöhe voraus (--zeilenhoehe im Stylesheet) — deshalb bricht keine Zelle um,
+    sondern wird abgeschnitten, genau wie im DataGrid.
+
+    Zweitens Sortieren nach Spalten. Angezeigter Text und Ordnung fallen dabei oft
+    auseinander; welcher Schlüssel gilt, sagt die Spalte selbst (TableColumn.SortKey).
+*@
+
+@*
+    min-width statt width: Bleibt die Tabelle schmaler als ihr Rahmen, füllt sie den Rest —
+    sonst bliebe rechts eine leere Fläche, während die Texte links abgeschnitten werden.
+    Ist sie breiter, rollt der Rahmen waagerecht. Dasselbe leistet in der Avalonia-Fassung
+    TableLayout.FillLastColumn.
+
+    Womit gefüllt wird, hängt von der letzten Spalte ab: Eine Textspalte wächst mit — dort
+    ist mehr Platz mehr Inhalt. Eine Zahlenspalte darf das nicht, sonst wandern ihre
+    Ziffern an den rechten Rand und stehen einsam neben ihrer Überschrift; dahinter kommt
+    stattdessen eine leere Füllspalte.
+*@
+<div id="@_kennung" class="tabelle-rahmen @Class">
+    <table class="tabelle" style="min-width:@(GesamtBreite)px">
+        <thead>
+            <tr>
+                @for (var i = 0; i < Columns.Count; i++)
+                {
+                    var index = i;
+                    var spalte = Columns[i];
+                    var waechst = index == Columns.Count - 1 && !spalte.Number;
+                    <th style="@(waechst ? null : $"width:{spalte.Width}px")"
+                        class="@(spalte.Number ? "zahl" : null) @(_sortSpalte == index ? "sortiert" : null)"
+                        title="@spalte.Header"
+                        @onclick="() => Sortieren(index)">
+                        @spalte.Header@(_sortSpalte == index ? (_aufsteigend ? " ▲" : " ▼") : "")
+                    </th>
+                }
+
+                @if (Fuellspalte)
+                {
+                    <th class="fueller"></th>
+                }
+            </tr>
+        </thead>
+        <tbody>
+            <Virtualize Items="_sichtbar" Context="zeile" ItemSize="ZeilenHoehe"
+                        SpacerElement="tr" OverscanCount="10">
+                <tr class="@ZeilenKlasse(zeile)"
+                    @onclick="e => WaehlenAsync(zeile, e)"
+                    @ondblclick="() => OnRowDoubleClick.InvokeAsync(zeile)">
+                    @foreach (var spalte in Columns)
+                    {
+                        var text = spalte.Text(zeile);
+                        <td class="@(spalte.Number ? "zahl" : null) @spalte.CellClass @spalte.CellClassOf?.Invoke(zeile)" title="@text">@text</td>
+                    }
+
+                    @if (Fuellspalte)
+                    {
+                        <td class="fueller"></td>
+                    }
+                </tr>
+            </Virtualize>
+        </tbody>
+    </table>
+</div>
+
+@code {
+    /// <summary>Die Zeilen in ihrer Grundordnung — wie sie der Presenter liefert.</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<TItem> Items { get; set; } = Array.Empty<TItem>();
+
+    [Parameter, EditorRequired] public IReadOnlyList<TableColumn<TItem>> Columns { get; set; } =
+        Array.Empty<TableColumn<TItem>>();
+
+    /// <summary>Einstufung der Zeile — färbt sie wie in den Desktop-Fassungen ein.</summary>
+    [Parameter] public Func<TItem, RowEmphasis>? Emphasis { get; set; }
+
+    [Parameter] public TItem? Selected { get; set; }
+    [Parameter] public EventCallback<TItem> SelectedChanged { get; set; }
+
+    /// <summary>Doppelklick auf eine Zeile — im Reiter „Verwendung" der Sprung zum Skript.</summary>
+    [Parameter] public EventCallback<TItem> OnRowDoubleClick { get; set; }
+
+    /// <summary>
+    /// Mehrfachauswahl mit Strg und Umschalt — gebraucht von „Skripte" und „Dateien", wo
+    /// man eine Handvoll Einträge zum Export zusammenklickt.
+    /// </summary>
+    [Parameter] public bool Multiple { get; set; }
+
+    [Parameter] public HashSet<TItem> SelectedMany { get; set; } = new();
+    [Parameter] public EventCallback<HashSet<TItem>> SelectedManyChanged { get; set; }
+
+    /// <summary>Zeilenhöhe in Pixeln; muss zum Stylesheet passen.</summary>
+    [Parameter] public int ZeilenHoehe { get; set; } = 26;
+
+    [Parameter] public string? Class { get; set; }
+
+    /// <summary>
+    /// Zeile, die nach dem Rendern ins Bild gerollt werden soll — der Sprung aus dem Reiter
+    /// „Verwendung". Bewusst als Index und nicht als Element: Die Zeile ist im Dokument
+    /// noch gar nicht vorhanden, solange sie außerhalb des sichtbaren Bereichs liegt.
+    /// </summary>
+    [Parameter] public int? ScrollToIndex { get; set; }
+
+    [Inject] private IJSRuntime Js { get; set; } = default!;
+
+    /// <summary>
+    /// Eigene Kennung des Rahmens. Gebraucht wird sie nur zum Rollen: Der Weg über eine
+    /// ElementReference erwies sich als unzuverlässig — beim Sprung aus einem anderen
+    /// Reiter kam der Aufruf zwar an, traf aber nicht den Rahmen, der am Ende im Bild
+    /// stand. Über die Kennung greift das Javascript das Element in dem Moment, in dem
+    /// wirklich gerollt wird.
+    /// </summary>
+    private readonly string _kennung = "tab-" + Guid.NewGuid().ToString("N")[..8];
+
+    private int? _gerollt;
+
+    private int _sortSpalte = -1;
+    private bool _aufsteigend = true;
+
+    /// <summary>Die zuletzt angeklickte Zeile — Anker für die Umschalt-Auswahl.</summary>
+    private int _ankerIndex = -1;
+
+    /// <summary>
+    /// Die Zeilen in der gerade gewählten Ordnung — einmal berechnet und gemerkt.
+    ///
+    /// Ohne das Merken liefe die Sortierung bei jedem einzelnen Rendern erneut, und
+    /// <c>Virtualize</c> rendert bei jedem Rollen. Bei hunderttausend Zeilen ist der
+    /// Unterschied nicht messbar, sondern sichtbar.
+    /// </summary>
+    private ICollection<TItem> _sichtbar = Array.Empty<TItem>();
+
+    private int GesamtBreite => Columns.Sum(s => s.Width);
+
+    /// <summary>
+    /// Ob hinter der letzten Spalte eine leere Fläche steht. Nur nötig, wenn die letzte
+    /// Spalte selbst nicht wachsen darf — siehe Erläuterung über der Tabelle.
+    /// </summary>
+    private bool Fuellspalte => Columns.Count > 0 && Columns[^1].Number;
+
+    protected override void OnParametersSet() => Ordnen();
+
+    /// <summary>
+    /// Rollt nach dem Rendern zur gewünschten Zeile — und nur einmal je Wunsch.
+    ///
+    /// Nach dem Rendern, weil der Rahmen vorher seine Höhe noch nicht kennt; nur einmal,
+    /// weil die Tabelle bei jedem Rollen neu rendert und sonst sofort wieder
+    /// zurückspringen würde.
+    /// </summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (ScrollToIndex is not { } index || _gerollt == index) return;
+
+        _gerollt = index;
+
+        // Ein Atemzug, bevor gerollt wird.
+        //
+        // Unmittelbar nach dem Zeichnen ist die Tabelle nur so hoch wie ihre wenigen
+        // erzeugten Zeilen — ihre Gesamthöhe setzt <Virtualize> erst, wenn es den Rahmen
+        // ausgemessen hat. Ein scrollTop, das zu diesem Zeitpunkt gesetzt wird, begrenzt
+        // der Browser auf null, und der Sprung landet sichtbar nirgends. Nachgemessen an
+        // einem Backup mit 193 Skripten: ohne Wartezeit blieb die Liste stur oben stehen.
+        await Task.Delay(120);
+
+        await Js.InvokeVoidAsync("iobAnalyzer.zuZeileRollen", "#" + _kennung, index, ZeilenHoehe);
+    }
+
+    private void Ordnen()
+    {
+        if (_sortSpalte < 0 || _sortSpalte >= Columns.Count)
+        {
+            // Ohne Spaltenklick bleibt die Reihenfolge des Presenters stehen — sie ist die
+            // fachlich sinnvolle.
+            // Virtualize verlangt eine ICollection. Die Presenter liefern durchweg List<T>,
+            // sodass der Umweg über eine Kopie im Regelfall entfällt.
+            _sichtbar = Items as ICollection<TItem> ?? Items.ToList();
+            return;
+        }
+
+        var spalte = Columns[_sortSpalte];
+
+        _sichtbar = (_aufsteigend
+                ? Items.OrderBy(spalte.KeyOf, VergleichMitLeeren.Instance)
+                : Items.OrderByDescending(spalte.KeyOf, VergleichMitLeeren.Instance))
+            .ToList();
+    }
+
+    private void Sortieren(int index)
+    {
+        if (_sortSpalte == index) _aufsteigend = !_aufsteigend;
+        else { _sortSpalte = index; _aufsteigend = true; }
+
+        Ordnen();
+    }
+
+    private string? ZeilenKlasse(TItem zeile)
+    {
+        string? einstufung = null;
+
+        if (Emphasis is not null)
+        {
+            var e = EmphasisClass.Of(Emphasis(zeile));
+            if (e.Length > 0) einstufung = e;
+        }
+
+        var gewaehlt = Multiple
+            ? SelectedMany.Contains(zeile)
+            : EqualityComparer<TItem>.Default.Equals(Selected, zeile);
+
+        if (!gewaehlt) return einstufung;
+        return einstufung is null ? "gewaehlt" : einstufung + " gewaehlt";
+    }
+
+    private async Task WaehlenAsync(TItem zeile, MouseEventArgs e)
+    {
+        Selected = zeile;
+        await SelectedChanged.InvokeAsync(zeile);
+
+        if (!Multiple) return;
+
+        var auswahl = new HashSet<TItem>(SelectedMany);
+        var liste = _sichtbar as IList<TItem> ?? _sichtbar.ToList();
+        var index = liste.IndexOf(zeile);
+
+        if (e.CtrlKey)
+        {
+            // Ein zweites Strg-Klicken nimmt die Zeile wieder heraus.
+            if (!auswahl.Add(zeile)) auswahl.Remove(zeile);
+        }
+        else if (e.ShiftKey && _ankerIndex >= 0 && index >= 0)
+        {
+            auswahl.Clear();
+            var von = Math.Min(_ankerIndex, index);
+            var bis = Math.Max(_ankerIndex, index);
+            for (var i = von; i <= bis && i < liste.Count; i++) auswahl.Add(liste[i]);
+        }
+        else
+        {
+            // Ohne Zusatztaste ersetzt ein Klick die Auswahl — wie in beiden
+            // Desktop-Fassungen.
+            auswahl.Clear();
+            auswahl.Add(zeile);
+        }
+
+        if (!e.ShiftKey) _ankerIndex = index;
+
+        SelectedMany = auswahl;
+        await SelectedManyChanged.InvokeAsync(auswahl);
+    }
+
+    /// <summary>
+    /// Ein Vergleicher, der mit fehlenden Werten umgehen kann.
+    ///
+    /// Nötig, weil viele Sortierschlüssel <c>null</c> sein dürfen — ein Datenpunkt ohne
+    /// Zeitstempel etwa. Der Standardvergleich wirft dann zwar nicht, sortiert die Lücken
+    /// aber an den Anfang; hier stehen sie immer am Ende, wo man sie erwartet.
+    /// </summary>
+    private sealed class VergleichMitLeeren : IComparer<IComparable?>
+    {
+        public static readonly VergleichMitLeeren Instance = new();
+
+        public int Compare(IComparable? a, IComparable? b)
+        {
+            if (a is null && b is null) return 0;
+            if (a is null) return 1;
+            if (b is null) return -1;
+
+            // Zeichenketten ohne Rücksicht auf Groß- und Kleinschreibung, wie in den
+            // Presentern: „Alias" und „alias" gehören nebeneinander.
+            if (a is string sa && b is string sb)
+                return string.Compare(sa, sb, StringComparison.OrdinalIgnoreCase);
+
+            try { return a.CompareTo(b); }
+            catch (ArgumentException) { return 0; }
+        }
+    }
+}

@@ -1,0 +1,437 @@
+@inherits TabBase
+
+@*
+    Vergleich zweier Backups. Das erste ist das oben geladene, das zweite wird hier
+    gewählt. Welches „vorher" ist, entscheidet der Backup-Zeitpunkt. Texte, Filter und
+    Zeilenaufbereitung kommen aus ComparePresenter.
+
+    Das zweite Backup landet in einem eigenen Unterordner des virtuellen Dateisystems — der
+    Platz des ersten darf nicht überschrieben werden, denn aus ihm holen die Exporte später
+    noch Dateien.
+*@
+
+<div class="reiter-inhalt">
+
+    <div class="kopfbereich">
+        <div>@(Daten is null ? "Kein Backup geladen." : ComparePresenter.LoadedText(Daten))</div>
+
+        <div class="leiste">
+            @* „dateiwahl" ist nicht Zierde: Sie legt das Eingabefeld unsichtbar über die
+               Beschriftung. Ohne sie steht daneben der graue Systemknopf „Datei
+               auswählen" samt abgeschnittenem Dateinamen. *@
+            <label class="knopf dateiwahl @(Daten is null ? "aus" : null)">
+                Zweites Backup wählen …
+                <InputFile OnChange="ZweitesLadenAsync" disabled="@(Daten is null || _laedt)"
+                           accept=".gz,.tgz,.tar,.json,.jsonl" />
+            </label>
+
+            <button class="knopf" disabled="@(S.Comparison is null)" @onclick="Zuruecksetzen">
+                Zweites Backup entfernen
+            </button>
+
+            @if (_laedt)
+            {
+                <span class="fortschritt"><span class="fortschritt-lauf"></span></span>
+            }
+
+            @if (S.OtherName.Length > 0)
+            {
+                <span class="gedaempft">Zweites Backup: @S.OtherName</span>
+            }
+        </div>
+
+        @if (S.Comparison is { } c)
+        {
+            <div>@ComparePresenter.SummaryText(c)</div>
+            <div class="@SystemKlasse(c)">@c.SystemMatchText</div>
+        }
+    </div>
+
+    @if (S.Comparison is null)
+    {
+        <Platzhalter Text="@ComparePresenter.PlaceholderText(Daten)" />
+    }
+    else
+    {
+        var v = S.Comparison;
+
+        <nav class="unterreiter">
+            @foreach (var (index, titel) in Unterreiter)
+            {
+                var i = index;
+                <button class="reiter-knopf @(S.Sub == i ? "aktiv" : null)" @onclick="() => S.Sub = i">
+                    @titel
+                </button>
+            }
+        </nav>
+
+        @if (S.Sub == 0)
+        {
+            <div class="leiste rechts">
+                <button class="knopf" @onclick="KennzahlenAlsCsv">Als CSV exportieren</button>
+            </div>
+            <div class="tabellenbereich">
+                <DataTable TItem="MetricRow" Items="v.Metrics" Columns="KennzahlSpalten"
+                           Emphasis="ComparePresenter.Emphasis" />
+            </div>
+        }
+        else if (S.Sub == 1)
+        {
+            <div class="leiste">
+                <label class="haken">
+                    <input type="checkbox" checked="@S.OnlyChangedInstances"
+                           @onchange="e => S.OnlyChangedInstances = (bool?)e.Value == true" />
+                    Nur Änderungen anzeigen
+                </label>
+                <span class="dehnen"></span>
+                <button class="knopf" @onclick="InstanzenAlsCsv">Als CSV exportieren</button>
+            </div>
+            <div class="tabellenbereich">
+                <DataTable TItem="InstanceChange" Items="Instanzen" Columns="InstanzSpalten"
+                           Emphasis="ComparePresenter.Emphasis" />
+            </div>
+        }
+        else if (S.Sub == 2)
+        {
+            <div class="leiste">
+                <label class="haken">
+                    <input type="checkbox" checked="@S.OnlyChangedScripts"
+                           @onchange="e => S.OnlyChangedScripts = (bool?)e.Value == true" />
+                    Nur Änderungen anzeigen
+                </label>
+                <label class="haken">
+                    <input type="checkbox" checked="@S.OnlyChangedLines"
+                           @onchange="e => S.OnlyChangedLines = (bool?)e.Value == true" />
+                    Im Vergleich nur geänderte Stellen zeigen
+                </label>
+                <span class="gedaempft">@DiffInfo</span>
+                <span class="dehnen"></span>
+                <button class="knopf" @onclick="SkripteAlsCsv">Als CSV exportieren</button>
+            </div>
+
+            <div class="tabellenbereich oben">
+                <DataTable TItem="ScriptChange" Items="Skripte" Columns="SkriptSpalten"
+                           Emphasis="ComparePresenter.Emphasis"
+                           Selected="S.SelectedScript" SelectedChanged="s => S.SelectedScript = s" />
+            </div>
+
+            @* Der Zeilenvergleich als Tabelle statt als formatierter Fließtext: So bleiben
+               Zeilennummern in eigenen Spalten stehen. *@
+            <div class="tabellenbereich unten diff">
+                <DataTable TItem="DiffDisplayLine" Items="DiffZeilen" Columns="DiffSpalten"
+                           Emphasis="DiffEinstufung" ZeilenHoehe="22" />
+            </div>
+        }
+        else if (S.Sub == 3)
+        {
+            <div class="leiste">
+                <span class="gedaempft">
+                    Namensraum auswählen, um die betroffenen Objekt-IDs zu sehen.
+                </span>
+                <span class="dehnen"></span>
+                <button class="knopf" @onclick="ObjekteAlsCsv">Als CSV exportieren</button>
+            </div>
+
+            <div class="nebeneinander">
+                <div class="tabellenbereich schmal">
+                    <DataTable TItem="NamespaceChange" Items="v.Namespaces" Columns="NamensraumSpalten"
+                               Emphasis="ComparePresenter.Emphasis"
+                               Selected="S.SelectedNamespace" SelectedChanged="n => S.SelectedNamespace = n" />
+                </div>
+                <div class="tabellenbereich">
+                    <DataTable TItem="ObjektZeile" Items="ObjektIds" Columns="ObjektSpalten"
+                               Emphasis="o => o.IsAdded ? RowEmphasis.Positive : RowEmphasis.Problem" />
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="leiste">
+                <label class="haken">
+                    <input type="checkbox" checked="@S.OnlyChangedViews"
+                           @onchange="e => S.OnlyChangedViews = (bool?)e.Value == true" />
+                    Nur Änderungen anzeigen
+                </label>
+                <span class="dehnen"></span>
+                <button class="knopf" @onclick="ViewsAlsCsv">Als CSV exportieren</button>
+            </div>
+            <div class="tabellenbereich">
+                <DataTable TItem="ViewChange" Items="Views" Columns="ViewSpalten"
+                           Emphasis="ComparePresenter.Emphasis" />
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    /// <summary>Eine Zeile der Objekt-ID-Liste.</summary>
+    public sealed record ObjektZeile(string Change, string Id, bool IsAdded);
+
+    private UiState.CompareTab S => Bedienung.Compare;
+
+    private bool _laedt;
+
+    private static readonly (int Index, string Titel)[] Unterreiter =
+    {
+        (0, "Kennzahlen"), (1, "Adapter-Instanzen"), (2, "Skripte"), (3, "Objekte"), (4, "VIS-Views")
+    };
+
+    // ------------------------------------------------------------------ Laden
+
+    private async Task ZweitesLadenAsync(InputFileChangeEventArgs e)
+    {
+        if (Daten is null) return;
+
+        var datei = e.File;
+        if (datei is null) return;
+
+        // Dieselbe Datei zweimal zu vergleichen ergibt lauter Nullzeilen. Anders als auf dem
+        // Rechner gibt es hier keinen Pfad zum Vergleichen — der Dateiname ist alles, was
+        // der Browser preisgibt.
+        if (string.Equals(datei.Name, Zustand.FileName, StringComparison.OrdinalIgnoreCase))
+        {
+            await Dialoge.MessageAsync("Hinweis",
+                "Das ist dieselbe Datei, die bereits geladen ist.\n\n" +
+                "Bitte ein anderes Backup zum Vergleich auswählen.");
+            return;
+        }
+
+        _laedt = true;
+        StateHasChanged();
+        await Task.Delay(1);
+
+        try
+        {
+            // Eigener Unterordner im virtuellen Dateisystem: Das erste Backup muss dort
+            // liegen bleiben, seine Exporte greifen später noch darauf zu.
+            string pfad;
+            await using (var strom = datei.OpenReadStream(512L * 1024 * 1024))
+            {
+                pfad = await BrowserIo.StoreAsync(strom, datei.Name, subFolder: "vergleich");
+            }
+
+            var anderes = BackupLoader.Load(pfad);
+
+            // Ein Skript-Backup gegen ein Voll-Backup zu stellen ergäbe lauter
+            // Scheinänderungen — jedes Objekt und jede Instanz fehlte auf einer Seite.
+            if (anderes.Kind != Daten.Kind)
+            {
+                await Dialoge.MessageAsync("Nicht vergleichbar",
+                    ComparePresenter.NotComparableText(Daten.Kind, anderes.Kind));
+                return;
+            }
+
+            // Stammen beide vom selben ioBroker? Ein Unterschied ist kein Fehler, aber er
+            // erklärt tausende Scheinänderungen — deshalb nachfragen.
+            if (BackupComparer.MatchSystems(Daten.System, anderes.System) == SystemMatch.Different
+                && !await Dialoge.ConfirmAsync("Verschiedene Systeme",
+                        ComparePresenter.DifferentSystemText(Daten.System, anderes.System)))
+                return;
+
+            S.Other = anderes;
+            S.OtherName = datei.Name;
+            S.Comparison = BackupComparer.Compare(Daten, anderes);
+            S.SelectedScript = null;
+            S.SelectedNamespace = S.Comparison.Namespaces.FirstOrDefault();
+        }
+        catch (NotABackupException ex)
+        {
+            await Dialoge.MessageAsync("Backup konnte nicht geladen werden",
+                $"Datei: {datei.Name}\n\n{ex.Message}");
+        }
+        catch (Exception ex)
+        {
+            await Dialoge.MessageAsync("Fehler",
+                "Die Datei konnte nicht geladen werden:\n\n" + ex.Message);
+        }
+        finally
+        {
+            _laedt = false;
+            StateHasChanged();
+        }
+    }
+
+    private void Zuruecksetzen()
+    {
+        S.Other = null;
+        S.Comparison = null;
+        S.OtherName = "";
+        S.SelectedScript = null;
+        S.SelectedNamespace = null;
+    }
+
+    private static string SystemKlasse(BackupComparison c) => c.SystemMatch switch
+    {
+        SystemMatch.Same => "text-gut",
+        SystemMatch.Different => "text-problem",
+        _ => "gedaempft"
+    };
+
+    // ------------------------------------------------------------------ Sichten
+
+    private List<InstanceChange> Instanzen =>
+        S.Comparison is null
+            ? new List<InstanceChange>()
+            : ComparePresenter.FilterInstances(S.Comparison, S.OnlyChangedInstances);
+
+    private List<ScriptChange> Skripte =>
+        S.Comparison is null
+            ? new List<ScriptChange>()
+            : ComparePresenter.FilterScripts(S.Comparison, S.OnlyChangedScripts);
+
+    private List<ViewChange> Views =>
+        S.Comparison is null
+            ? new List<ViewChange>()
+            : ComparePresenter.FilterViews(S.Comparison, S.OnlyChangedViews);
+
+    private List<ObjektZeile> ObjektIds =>
+        S.SelectedNamespace is null
+            ? new List<ObjektZeile>()
+            : ComparePresenter.ObjectIds(S.SelectedNamespace)
+                              .Select(r => new ObjektZeile(r.Change, r.Id, r.IsAdded))
+                              .ToList();
+
+    /// <summary>
+    /// Der Zeilenvergleich des ausgewählten Skripts. Bei Blockly wird das XML verglichen —
+    /// es ist die eigentliche Quelle, das JavaScript daneben nur erzeugt.
+    /// </summary>
+    private List<DiffDisplayLine> DiffZeilen
+    {
+        get
+        {
+            if (S.SelectedScript is not { } sc) return new List<DiffDisplayLine>();
+
+            if (sc.OnlyStatusChanged)
+                return new List<DiffDisplayLine>
+                {
+                    new("", "", "",
+                        "Der Inhalt ist unverändert — geändert hat sich nur der Aktiv-Status.",
+                        DiffKind.Unchanged, true)
+                };
+
+            var vorher = sc.Before is null ? "" : ScriptChange.ComparableText(sc.Before);
+            var nachher = sc.After is null ? "" : ScriptChange.ComparableText(sc.After);
+
+            return ComparePresenter.VisibleLines(TextDiff.Compare(vorher, nachher),
+                                                 S.OnlyChangedLines);
+        }
+    }
+
+    private string DiffInfo
+    {
+        get
+        {
+            if (S.SelectedScript is not { } sc)
+                return Skripte.Count == 0
+                    ? "Keine Skriptänderungen."
+                    : "Skript auswählen, um den Vergleich zu sehen.";
+
+            if (sc.OnlyStatusChanged) return ComparePresenter.DiffBasis(sc);
+
+            var vorher = sc.Before is null ? "" : ScriptChange.ComparableText(sc.Before);
+            var nachher = sc.After is null ? "" : ScriptChange.ComparableText(sc.After);
+
+            return ComparePresenter.DiffInfoText(sc, TextDiff.Compare(vorher, nachher));
+        }
+    }
+
+    private static RowEmphasis DiffEinstufung(DiffDisplayLine l) =>
+        l.IsGap ? RowEmphasis.Muted
+        : l.Kind == DiffKind.Added ? RowEmphasis.Positive
+        : l.Kind == DiffKind.Removed ? RowEmphasis.Problem
+        : RowEmphasis.None;
+
+    // ------------------------------------------------------------------ Spalten
+
+    private static readonly TableColumn<MetricRow>[] KennzahlSpalten =
+    {
+        new() { Header = "Kennzahl",  Width = 240, Text = m => m.Label },
+        new() { Header = "Vorher",    Width = 140, Number = true,
+                Text = m => m.Before.ToString("N0"), SortKey = m => m.Before },
+        new() { Header = "Nachher",   Width = 140, Number = true,
+                Text = m => m.After.ToString("N0"), SortKey = m => m.After },
+        new() { Header = "Differenz", Width = 140, Number = true,
+                Text = m => m.DeltaText, SortKey = m => m.Delta }
+    };
+
+    private static readonly TableColumn<InstanceChange>[] InstanzSpalten =
+    {
+        new() { Header = "Instanz",   Width = 220, Text = i => i.Namespace },
+        new() { Header = "Änderung",  Width = 110, Text = i => i.KindText },
+        new() { Header = "Version",   Width = 200, Text = i => i.VersionText },
+        new() { Header = "Aktiviert", Width = 150, Text = i => i.EnabledDisplay },
+        new() { Header = "Details",   Width = 320, Text = i => i.Detail }
+    };
+
+    private static readonly TableColumn<ScriptChange>[] SkriptSpalten =
+    {
+        new() { Header = "Skript",   Width = 340, Text = s => s.DisplayPath },
+        new() { Header = "Typ",      Width = 130, Text = s => s.EngineText },
+        new() { Header = "Änderung", Width = 110, Text = s => s.KindText },
+        new() { Header = "Details",  Width = 240, Text = s => s.Detail }
+    };
+
+    private static readonly TableColumn<DiffDisplayLine>[] DiffSpalten =
+    {
+        new() { Header = "alt",  Width = 60,  Number = true, Text = l => l.Old },
+        new() { Header = "neu",  Width = 60,  Number = true, Text = l => l.New },
+        new() { Header = "",     Width = 30,  Text = l => l.Marker },
+        new() { Header = "Zeile", Width = 900, Text = l => l.Text, CellClass = "code-zelle" }
+    };
+
+    private static readonly TableColumn<NamespaceChange>[] NamensraumSpalten =
+    {
+        new() { Header = "Namensraum", Width = 200, Text = n => n.Namespace },
+        new() { Header = "Neu",        Width = 70,  Number = true,
+                Text = n => n.Added.ToString("N0"), SortKey = n => n.Added },
+        new() { Header = "Entfernt",   Width = 85,  Number = true,
+                Text = n => n.Removed.ToString("N0"), SortKey = n => n.Removed },
+        new() { Header = "Saldo",      Width = 75,  Number = true,
+                Text = n => n.DeltaText, SortKey = n => n.Delta }
+    };
+
+    private static readonly TableColumn<ObjektZeile>[] ObjektSpalten =
+    {
+        new() { Header = "Änderung",  Width = 115, Text = o => o.Change },
+        new() { Header = "Objekt-ID", Width = 600, Text = o => o.Id }
+    };
+
+    private static readonly TableColumn<ViewChange>[] ViewSpalten =
+    {
+        new() { Header = "VIS",      Width = 80,  Text = v => v.VersionText },
+        new() { Header = "View",     Width = 260, Text = v => v.View },
+        new() { Header = "Änderung", Width = 110, Text = v => v.KindText },
+        new() { Header = "Widgets",  Width = 130, Number = true, Text = v => v.WidgetsDisplay },
+        new() { Header = "Details",  Width = 340, Text = v => v.Detail }
+    };
+
+    // Je Unterreiter eine eigene Methode statt eines Aufrufs im Knopf: Razor bricht an
+    // einem mehrzeiligen Lambda mit Kommas ab, weil es das Attributende nicht mehr findet.
+
+    private async Task KennzahlenAlsCsv()
+    {
+        if (S.Comparison is not { } v) return;
+        await Io.SaveCsvAsync("vergleich-kennzahlen.csv", ComparePresenter.MetricColumns,
+                              v.Metrics.Select(ComparePresenter.Row).ToList());
+    }
+
+    private async Task InstanzenAlsCsv() =>
+        await Io.SaveCsvAsync("vergleich-instanzen.csv", ComparePresenter.InstanceCsvColumns,
+                              Instanzen.Select(ComparePresenter.Row).ToList());
+
+    private async Task SkripteAlsCsv() =>
+        await Io.SaveCsvAsync("vergleich-skripte.csv", ComparePresenter.ScriptCsvColumns,
+                              Skripte.Select(ComparePresenter.Row).ToList());
+
+    private async Task ObjekteAlsCsv()
+    {
+        if (S.Comparison is not { } v) return;
+        await Io.SaveCsvAsync("vergleich-objekte.csv", ComparePresenter.ObjectCsvColumns,
+                              ComparePresenter.ObjectCsvRows(v));
+    }
+
+    private async Task ViewsAlsCsv() =>
+        await Io.SaveCsvAsync("vergleich-views.csv", ComparePresenter.ViewCsvColumns,
+                              Views.Select(ComparePresenter.Row).ToList());
+}

@@ -55,7 +55,15 @@ public sealed class LoadLog : IDisposable
     /// Öffnet das Protokoll und schreibt den Kopf. Gibt <c>null</c> zurück, wenn das nicht
     /// geht — ein nicht beschreibbarer Ordner darf das Laden eines Backups nicht verhindern.
     /// </summary>
-    public static LoadLog? Start(string path, string programmVersion, string backupDatei)
+    /// <param name="systemBeschreibung">
+    /// Womit das Programm gerade läuft. Ohne Angabe wird das Betriebssystem genommen —
+    /// richtig auf einem Rechner, unbrauchbar im Browser: Dort meldet .NET „Other 1.0.0.0",
+    /// weil es sein Wirtssystem gar nicht kennt. Wer daraus auf einen Defekt schließt,
+    /// sucht an der falschen Stelle. Die Browser-Fassung reicht deshalb den Browsernamen
+    /// herein — er ist das, was bei der Fehlersuche wirklich zählt.
+    /// </param>
+    public static LoadLog? Start(string path, string programmVersion, string backupDatei,
+                                 string? systemBeschreibung = null)
     {
         try
         {
@@ -74,8 +82,10 @@ public sealed class LoadLog : IDisposable
             writer.WriteLine("vollstaendigen Pfade. Es kann bedenkenlos weitergegeben werden.");
             writer.WriteLine();
             writer.WriteLine($"Programm : {programmVersion}");
-            writer.WriteLine($"System   : {Environment.OSVersion} / {(Environment.Is64BitProcess ? "64" : "32")} Bit / " +
-                             $"{Environment.ProcessorCount} Kerne");
+            var kerne = Environment.ProcessorCount;
+            writer.WriteLine($"System   : {systemBeschreibung ?? Environment.OSVersion.ToString()} / " +
+                             $"{(Environment.Is64BitProcess ? "64" : "32")} Bit / " +
+                             $"{kerne} {(kerne == 1 ? "Kern" : "Kerne")}");
             writer.WriteLine($"Backup   : {Path.GetFileName(backupDatei)}");
             writer.WriteLine($"Beginn   : {log._start:dd.MM.yyyy HH:mm:ss}");
             writer.WriteLine();
