@@ -45,35 +45,31 @@
 </div>
 
 <!--
-    Beim allerersten Aufruf zuerst die Serverprüfung.
+    KEINE Weiterleitung zur Prüfseite mehr — und das ist eine Entscheidung, keine Lücke.
 
-    Der Grund ist Erfahrung, nicht Vorsicht: Wer eine Seite hochlädt, ruft sie auf — die
-    beiliegende Prüfseite sieht sich kaum jemand vorher an. Fehlt dann der Dateityp für
-    .wasm, bleibt hier ein weißes Bild stehen, und die Ursache steht nur in der Konsole
-    des Browsers.
+    Früher sah diese Seite beim ersten Aufruf nach, ob servertest.html danebenliegt, und
+    schickte den Betrachter einmalig dorthin. Gut gemeint: Steht der Dateityp für .wasm
+    falsch, bliebe hier sonst ein weißes Bild stehen.
 
-    Umgeleitet wird genau einmal je Browser. Wer die Prüfseite ohnehin schon aufgerufen
-    hat, kommt gar nicht erst hierher zurückgeschickt — sie setzt dieselbe Markierung.
-    Fehlt die Prüfseite (jemand hat sie nach der Einrichtung gelöscht), passiert nichts:
-    Vor dem Umleiten wird nachgesehen, ob es sie überhaupt gibt.
+    Drei Gründe sprachen dagegen, und sie wiegen schwerer:
+
+    1. Sie erschien, wenn nichts kaputt war. Die Weiterleitung hing am ersten Aufruf, nicht
+       am Fehlerfall — der Normalfall bekam eine Diagnoseseite vorgesetzt, die ihm
+       bestätigte, dass alles stimmt.
+
+    2. Sie erschien nicht dort, wo sie gebraucht wird. Eingerichtet wird eine Instanz
+       einmal, benutzt wird sie danach von mehreren — und die Markierung lag im
+       localStorage, also je Browser und nicht je Installation. Damit bekam jeder neue
+       Betrachter eine Seite über Serverkonfiguration zu sehen, die zu seinem Anliegen
+       nichts beiträgt. LIESMICH_Browser.txt führt in Schritt 3 ohnehin zur Prüfseite.
+
+    3. Sie hat Vertrauen gekostet. Auf einem Server ohne Prüfseite (GitHub Pages) schrieb
+       die Anfrage einen 404 in die Browserkonsole. Ein Anwender meldete ihn zusammen mit
+       einem echten Fehler — für ihn sah beides gleich kaputt aus.
+
+    Die Prüfseite bleibt liegen und lässt sich jederzeit aufrufen; die Anleitung nennt den
+    Weg dorthin.
 -->
-<script>
-    (function () {
-        var schluessel = 'iob-analyzer-servertest';
-
-        try {
-            if (localStorage.getItem(schluessel)) return;
-        } catch (e) {
-            // Ohne Speicher (privates Fenster) lieber gar nicht umleiten, sonst landet
-            // man bei jedem Aufruf wieder auf der Prüfseite.
-            return;
-        }
-
-        fetch('servertest.html', { method: 'HEAD' })
-            .then(function (a) { if (a.ok) location.replace('servertest.html?erster=1'); })
-            .catch(function () { /* keine Prüfseite, kein Umweg */ });
-    })();
-</script>
 
 <script src="js/app.js"></script>
 

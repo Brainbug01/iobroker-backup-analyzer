@@ -23,6 +23,23 @@ public static class ChangelogContent
     /// <summary>Neueste Version zuerst.</summary>
     public static IReadOnlyList<ChangelogEntry> Entries { get; } = new ChangelogEntry[]
     {
+        new("1.23.4", "25.08.2026", new[]
+        {
+            "Die Browser-Fassung ruft die Serverprüfung nicht mehr von selbst auf. Sie " +
+            "erschien bisher beim ersten Aufruf je Browser, auch wenn der Server richtig " +
+            "eingestellt war. Die Prüfseite bleibt liegen und lässt sich jederzeit " +
+            "aufrufen; die beiliegende Anleitung nennt den Weg.",
+
+            "Nebenwirkung, die einigen aufgefallen war: Auf einem Server ohne diese " +
+            "Prüfseite hinterliess die Nachfrage eine Fehlermeldung in der Browserkonsole, " +
+            "die wie ein Defekt aussah, aber keiner war. Die ist damit ebenfalls weg.",
+
+            "Das Ladeprotokoll der Browser-Fassung wird jetzt so gespeichert, dass jeder " +
+            "Editor die Umlaute richtig anzeigt. Bisher konnte aus einem Gedankenstrich " +
+            "je nach Programm „â€”\" werden. Die Fassungen für Windows, macOS und Linux " +
+            "waren davon nie betroffen.",
+        }),
+
         new("1.23.3", "25.08.2026", new[]
         {
             "Behoben: Die Browser-Fassung startete nicht, wenn der Browser auf eine andere " +

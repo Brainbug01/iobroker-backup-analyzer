@@ -63,12 +63,6 @@
     ausliefert, was das Programm braucht — und sagt, was zu tun ist, wenn nicht.
 </p>
 
-<p id="erstaufruf" class="schwach" style="display:none">
-    <b>Sie wurden hierher geleitet</b>, weil das Programm auf diesem Server zum ersten Mal
-    aufgerufen wurde. Das passiert genau einmal. Steht unten „Alles in Ordnung“, geht es
-    mit dem Knopf am Ende der Seite weiter.
-</p>
-
 <div id="urteil" class="urteil">Prüfung läuft …</div>
 
 <h2>Ergebnis</h2>
@@ -314,29 +308,15 @@ function darstellen() {
     }).catch(() => { info.textContent = 'Keine Antwort.'; });
 }
 
-// Der Hinweis nur, wenn index.html hierher geleitet hat.
-if (location.search.indexOf('erster=1') >= 0) {
-    document.getElementById('erstaufruf').style.display = '';
-}
-
 document.getElementById('weiter').addEventListener('click', function () {
     location.href = './';
 });
 
-/**
- * Merkt, dass geprüft wurde — index.html leitet dann nicht mehr hierher.
- *
- * Gesetzt wird die Markierung, sobald die Prüfung durchgelaufen ist, und nicht erst beim
- * Weiterklicken: Wer diese Seite von sich aus aufgerufen hat, hat den Server geprüft, und
- * ein zweites Mal hinzuschicken wäre Bevormundung. Über den Knopf „Erneut prüfen“ oder
- * die Adresse kommt man jederzeit wieder hierher.
- */
-function pruefungGemerkt() {
-    try { localStorage.setItem('iob-analyzer-servertest', new Date().toISOString()); }
-    catch (e) { /* ohne Speicher wird eben jedes Mal geprüft */ }
-}
-
-pruefen().then(pruefungGemerkt, pruefungGemerkt);
+// Diese Seite wird von Hand aufgerufen — so, wie es LIESMICH_Browser.txt in Schritt 3
+// beschreibt. Früher schickte index.html den Betrachter beim ersten Mal selbst hierher
+// und merkte sich das im localStorage; beides ist entfallen (die Begründung steht in
+// index.html). Deshalb gibt es hier auch nichts mehr zu merken.
+pruefen();
 </script>
 </body>
 </html>

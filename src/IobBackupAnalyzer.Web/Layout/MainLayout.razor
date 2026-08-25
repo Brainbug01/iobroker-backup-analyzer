@@ -302,9 +302,23 @@
         }
     }
 
+    /// <summary>
+    /// Das Ladeprotokoll als Datei — mit Byte-Order-Mark.
+    ///
+    /// Ohne ihn muss ein Editor die Kodierung raten, und rät er auf Westeuropäisch, wird
+    /// aus dem Gedankenstrich „â€”" und aus dem Trennpunkt „Â·". Gemeldet aus dem Forum,
+    /// wo jemand sein Protokoll so eingefügt hat.
+    ///
+    /// Die Desktop-Fassungen haben das Problem nie gehabt: LoadLog schreibt dort mit
+    /// Encoding.UTF8, und das setzt den Vorspann von sich aus. Hier war der Standardwert
+    /// von SaveTextAsync massgeblich — und der ist bewusst „ohne", weil er in einem
+    /// Shell-Skript nichts zu suchen hat. Für ein Protokoll zum Weitergeben gilt das
+    /// Gegenteil.
+    /// </summary>
     private async Task LadeprotokollSpeichernAsync() =>
         await Io.SaveTextAsync("ladeprotokoll.txt",
-                               string.Join("\r\n", Zustand.LoadLogLines));
+                               string.Join("\r\n", Zustand.LoadLogLines),
+                               bom: true);
 
     // ------------------------------------------------------------------ Sprung zum Skript
 
