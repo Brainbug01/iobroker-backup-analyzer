@@ -234,7 +234,25 @@ function New-UnixTarGz {
 
 if (-not $SkipVerify) {
     Write-Host "`n=== Verifikationslauf gegen testdaten/ ===" -ForegroundColor Cyan
-    & $dotnet run --project (Join-Path $root 'src\IobBackupAnalyzer.Verify') -c Release
+
+    # Erst uebersetzen, dann die DLL ueber dotnet starten statt ueber "dotnet run".
+    #
+    # Der Unterschied ist nicht kosmetisch: "dotnet run" startet den erzeugten Apphost
+    # (Verify.exe), und der ist unsigniert. Smart App Control blockiert ihn regelmaessig
+    # ("Eine Anwendungssteuerungsrichtlinie hat diese Datei blockiert", 0x800711C7) — und
+    # zwar wechselnd, weil der Reputationsdienst dahinter seine Antwort auch ohne jede
+    # Aenderung am Programm aendert. Wird stattdessen die DLL uebergeben, laeuft das
+    # Microsoft-signierte dotnet.exe an und laedt sie; geprueft wird genau dasselbe.
+    #
+    # Das ist dem Ausweg -SkipVerify weit vorzuziehen: Hier entfaellt nichts.
+    $verifyProjekt = Join-Path $root 'src\IobBackupAnalyzer.Verify'
+    & $dotnet build $verifyProjekt -c Release
+    if ($LASTEXITCODE -ne 0) { throw "Verifikation liess sich nicht uebersetzen (ExitCode $LASTEXITCODE). Build abgebrochen." }
+
+    $verifyDll = Join-Path $verifyProjekt 'bin\Release\net8.0\IobBackupAnalyzer.Verify.dll'
+    if (-not (Test-Path $verifyDll)) { throw "Verifikation nicht gefunden: $verifyDll" }
+
+    & $dotnet $verifyDll
     if ($LASTEXITCODE -ne 0) { throw "Verifikationslauf fehlgeschlagen (ExitCode $LASTEXITCODE). Build abgebrochen." }
 }
 
