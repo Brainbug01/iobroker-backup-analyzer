@@ -164,6 +164,11 @@ internal static class ObjectParser
         // schreibbar" — deshalb null statt false, damit „nicht angegeben" erkennbar bleibt.
         bool? writable = null;
 
+        // Die Beschreibung des Datenpunkts: Einheit, Rolle, Grenzen, Vorgabewert. Ohne
+        // Einheit und Rolle ist ein nackter Zahlenwert oft nicht einzuordnen — „21.5" kann
+        // Grad, Prozent oder Kilowattstunden sein.
+        string? unit = null, role = null, min = null, max = null, def = null;
+
         if (hasCommon)
         {
             if (common.TryGetProperty("type", out var ct) && ct.ValueKind == JsonValueKind.String)
@@ -173,12 +178,19 @@ internal static class ObjectParser
             if (common.TryGetProperty("write", out var wr)
                 && wr.ValueKind is JsonValueKind.True or JsonValueKind.False)
                 writable = wr.ValueKind == JsonValueKind.True;
+
+            unit = NonEmpty(common, "unit");
+            role = NonEmpty(common, "role");
+            min = Scalar(common, "min");
+            max = Scalar(common, "max");
+            def = Scalar(common, "def");
         }
 
         // system.adapter.<ns>.objectsWarnLimit: die Schwelle, ab der ioBroker beim Start einer
         // Instanz „This instance has N objects …" meldet. common.def trägt die Vorgabe — den
         // adaptereigenen Wert oder die Systemvorgabe 5000. Der tatsächlich eingestellte Wert
-        // stünde im State; State-Werte lädt der Analyzer bewusst nicht.
+        // stünde im State und wird hier nicht herangezogen: Die Vorgabe ist die Aussage, die
+        // beim Vergleich zweier Backups stabil bleibt.
         int? objectsWarnLimit = null;
         if (hasCommon
             && id.StartsWith("system.adapter.", StringComparison.Ordinal)
@@ -260,6 +272,11 @@ internal static class ObjectParser
             ConverterWrite = convWrite,
             States = states,
             CommonType = commonType,
+            Unit = unit,
+            Role = role,
+            Min = min,
+            Max = max,
+            Default = def,
             ChartRefs = chartRefs,
             NativeRefs = nativeRefs,
             EnumMembers = enumMembers,
@@ -378,6 +395,25 @@ internal static class ObjectParser
     }
 
     /// <summary>Liest ein String-Feld; leere Strings werden zu null (kein Konverter gesetzt).</summary>
+    /// <summary>
+    /// Liest einen einzelnen Wert (Zahl, Text, Wahrheitswert) als Text. Für common.min,
+    /// common.max und common.def: Die stehen je nach Adapter mal als Zahl, mal als Text im
+    /// Backup. Objekte und Listen ergeben null — dort wäre eine Anzeige sinnlos.
+    /// </summary>
+    private static string? Scalar(JsonElement el, string property)
+    {
+        if (!el.TryGetProperty(property, out var v)) return null;
+
+        return v.ValueKind switch
+        {
+            JsonValueKind.Number => v.GetRawText(),
+            JsonValueKind.True => "true",
+            JsonValueKind.False => "false",
+            JsonValueKind.String => string.IsNullOrWhiteSpace(v.GetString()) ? null : v.GetString(),
+            _ => null
+        };
+    }
+
     private static string? NonEmpty(JsonElement el, string property)
     {
         if (el.TryGetProperty(property, out var v) && v.ValueKind == JsonValueKind.String)

@@ -23,6 +23,36 @@ public static class ChangelogContent
     /// <summary>Neueste Version zuerst.</summary>
     public static IReadOnlyList<ChangelogEntry> Entries { get; } = new ChangelogEntry[]
     {
+        new("1.25.0", "26.08.2026", new[]
+        {
+            "Neuer Reiter „Datenpunkte\": Suche über Datenpunkt-ID und Name, darunter der " +
+            "zuletzt gespeicherte Wert vollständig zum Kopieren. Damit lässt sich ein Wert " +
+            "aus einem alten Backup zurückholen, ohne dafür das ganze Backup wiederherstellen " +
+            "zu müssen.",
+
+            "Werte, die als JSON abgelegt sind, erscheinen eingerückt statt als eine lange " +
+            "Zeile. Im Backup stehen sie als Text mit maskierten Anführungszeichen mitten " +
+            "in einer JSON-Zeile; von Hand ist daraus nur mühsam etwas Einsetzbares zu " +
+            "machen. Der Inhalt bleibt dabei unverändert, es kommt nur Weißraum hinzu.",
+
+            "Neben dem Wert steht, was ihn einordnet: Typ, Einheit, Rolle, Grenzen und " +
+            "Vorgabewert aus der Objektdefinition, dazu die schreibende Instanz, die " +
+            "Quittierung und der Qualitätscode. Ohne Einheit ist „21.5\" nicht viel wert.",
+
+            "Die Suche nimmt mehrere Begriffe, deren Reihenfolge egal ist: „wohnzimmer " +
+            "temp\" findet den Datenpunkt auch dann, wenn seine ID ganz anders aussieht " +
+            "als sein Name.",
+
+            "Neue Spalte „Letzter Wert\" in den Listen „Verwaiste Datenpunkte\" (Analysen " +
+            "B und C) und „Verwendung\". Bei der Frage, ob ein Datenpunkt weg kann, ist " +
+            "sein letzter Wert oft aussagekräftiger als jede Kennzahl daneben.",
+
+            "Hintergrund: Werte wurden bisher beim Laden verworfen, weil einzelne " +
+            "Datenpunkte sehr groß werden können. Die Messung zeigt, dass das nur wenige " +
+            "betrifft — sie zu laden kostet keine messbare Ladezeit. Sehr große Werte " +
+            "werden bei 64 KB gekappt; die Anzeige weist das aus."
+        }),
+
         new("1.24.0", "25.08.2026", new[]
         {
             "Neu im Reiter „Verwendung\": die Sicht „Verweise ins Leere\". Sie zeigt " +

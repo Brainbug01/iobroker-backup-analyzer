@@ -87,6 +87,9 @@
             case Tab.Orphans:
                 <Orphans />
                 break;
+            case Tab.Datapoints:
+                <Datapoints />
+                break;
             case Tab.Logging:
                 <Logging />
                 break;
@@ -130,7 +133,7 @@
 @code {
     private enum Tab
     {
-        Overview, BackupCheck, Scripts, Usage, Vis, Orphans,
+        Overview, BackupCheck, Scripts, Usage, Vis, Orphans, Datapoints,
         Logging, Alias, Files, Compare, Help, Changelog
     }
 
@@ -146,6 +149,7 @@
         (Tab.Usage,       "Verwendung"),
         (Tab.Vis,         "VIS-Datenpunkte"),
         (Tab.Orphans,     "Verwaiste Datenpunkte"),
+        (Tab.Datapoints,  "Datenpunkte"),
         (Tab.Logging,     "Logging"),
         (Tab.Alias,       "Aliasse"),
         (Tab.Files,       "Dateien"),

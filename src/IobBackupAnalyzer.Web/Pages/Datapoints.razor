@@ -1,0 +1,105 @@
+@inherits TabBase
+
+@*
+    Suche über Datenpunkt-ID und Name, darunter der vollständige Wert zum Kopieren.
+    Die Logik steht in DatapointPresenter und ist mit beiden Desktop-Fassungen geteilt.
+
+    Eine Abweichung gegenüber Windows, macOS und Linux: Das Kopieren läuft über die
+    Zwischenablage des Browsers, die nur nach einer Benutzeraktion freigegeben ist. Der
+    Knopf ist deshalb der einzige Weg dorthin — automatisch kopiert hier nichts.
+*@
+
+@if (Daten is null || Datenpunkte.Count == 0)
+{
+    <Platzhalter Text="@PlatzhalterText(
+        "Die geladene Datei enthält keine Datenpunkte.\n\n" +
+        "Werte stehen nur in einem vollständigen Backitup-Archiv.")" />
+}
+else
+{
+    <div class="reiter-inhalt">
+
+        <div class="kopfbereich">
+            <div class="leiste">
+                <label for="dp-suche">Suche:</label>
+                <input id="dp-suche" class="feld breit" placeholder="Datenpunkt-ID oder Name …"
+                       title="@DatapointPresenter.Hint"
+                       value="@S.Filter" @oninput="SucheGeaendert" />
+
+                <span class="zaehler">
+                    @DatapointPresenter.Count(Gefiltert.Count, Datenpunkte.Count,
+                                              S.Filter.Trim().Length > 0)
+                </span>
+                <span class="dehnen"></span>
+                <button class="knopf" @onclick="AlsCsv">Als CSV exportieren</button>
+            </div>
+        </div>
+
+        <div class="tabellenbereich">
+            <DataTable TItem="DatapointHit" Items="Zeilen" Columns="Spalten"
+                       Emphasis="DatapointPresenter.Emphasis"
+                       Selected="S.Selected" SelectedChanged="h => S.Selected = h" />
+        </div>
+
+        <div class="kopfbereich">
+            <div>@DatapointPresenter.Definition(S.Selected)</div>
+            <div class="klein gedaempft">@DatapointPresenter.ValueInfo(S.Selected)</div>
+
+            <div class="leiste">
+                <button class="knopf" disabled="@(Wert.Length == 0)" @onclick="KopierenAsync">
+                    Wert kopieren
+                </button>
+            </div>
+
+            <textarea class="feld wertfeld" readonly rows="10" wrap="off">@Wert</textarea>
+        </div>
+
+    </div>
+}
+
+@code {
+    private UiState.DatapointsTab S => Bedienung.Datapoints;
+
+    private List<DatapointHit> Datenpunkte => Bedienung.DatapointCache ??= DatapointPresenter.Build(Daten);
+
+    private List<DatapointHit> Gefiltert => DatapointPresenter.Filter(Datenpunkte, S.Filter);
+
+    /// <summary>Die angezeigten Zeilen — begrenzt, siehe <see cref="DatapointPresenter.DisplayLimit"/>.</summary>
+    private List<DatapointHit> Zeilen => Gefiltert.Take(DatapointPresenter.DisplayLimit).ToList();
+
+    private string Wert => DatapointPresenter.FullValue(S.Selected);
+
+    private void SucheGeaendert(ChangeEventArgs e)
+    {
+        S.Filter = e.Value?.ToString() ?? "";
+
+        // Eine Auswahl, die durch die neue Suche herausfällt, würde unten weiter ihren Wert
+        // zeigen, obwohl sie in der Liste nicht mehr steht.
+        if (S.Selected is { } gewaehlt && !Gefiltert.Contains(gewaehlt)) S.Selected = null;
+    }
+
+    private static readonly TableColumn<DatapointHit>[] Spalten =
+    {
+        new() { Header = "Datenpunkt-ID",    Width = 420, Text = h => h.Id },
+        new() { Header = "Name",             Width = 200, Text = h => h.Name },
+        new() { Header = "Typ",              Width = 130, Text = h => h.TypeAndUnit },
+        new() { Header = "Rolle",            Width = 170, Text = h => h.Role },
+        new() { Header = "Zuletzt geändert", Width = 190, Text = h => h.LastChangeText,
+                SortKey = h => h.LastChange },
+        new() { Header = OrphansPresenter.ValueColumn, Width = 300, Text = h => h.ValText }
+    };
+
+    private async Task KopierenAsync()
+    {
+        if (Wert.Length == 0) return;
+
+        if (!await Io.CopyAsync(Wert))
+            await Dialoge.MessageAsync("Hinweis",
+                "Der Browser hat das Kopieren abgelehnt. Der Wert lässt sich im Feld " +
+                "darunter markieren und mit Strg+C übernehmen.");
+    }
+
+    private async Task AlsCsv() =>
+        await Io.SaveCsvAsync("datenpunkte.csv", DatapointPresenter.CsvColumns,
+                              Gefiltert.Select(DatapointPresenter.Row).ToList());
+}

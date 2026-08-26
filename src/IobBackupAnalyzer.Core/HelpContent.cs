@@ -310,6 +310,27 @@ public static class HelpContent
             "Steht dort „unbekannter Code 0x…\", hält sich der schreibende Adapter nicht an das " +
             "ioBroker-Schema — dann hilft nur die Doku des Adapters."),
 
+        new(HelpBlockKind.Heading, "Tab „Datenpunkte\""),
+        new(HelpBlockKind.Text,
+            "Der Weg zu einem bestimmten Wert. Oben wird über Datenpunkt-ID und Name gesucht — mehrere " +
+            "Begriffe dürfen in beliebiger Reihenfolge stehen, „wohnzimmer temp\" findet den Datenpunkt " +
+            "also auch dann, wenn seine ID ganz anders aussieht als sein Name. Unten steht der zuletzt " +
+            "gespeicherte Wert vollständig und lässt sich mit einem Knopfdruck kopieren.\n" +
+            "Dafür ist der Tab gedacht: Ein Wert, der im laufenden System überschrieben wurde, steht im " +
+            "Backup noch — und von dort kommt man mit Suchen und Kopieren schneller an ihn heran als über " +
+            "eine Wiederherstellung.\n" +
+            "Werte, die als JSON abgelegt sind, erscheinen eingerückt. Im Backup stehen sie als Text mit " +
+            "maskierten Anführungszeichen mitten in einer Zeile, die selbst JSON ist; hier stehen sie so, " +
+            "wie man sie einsetzen kann. Am Inhalt ändert sich dabei nichts, es kommt nur Weißraum hinzu.\n" +
+            "Über dem Wert steht, was ihn einordnet: Typ, Einheit, Rolle, Grenzen und Vorgabewert aus der " +
+            "Objektdefinition, dazu die schreibende Instanz, die Quittierung und der Qualitätscode. Fehlt " +
+            "zu einem Wert das Objekt — der Datenpunkt wurde gelöscht, sein Wert blieb stehen —, wird das " +
+            "ausgewiesen; solche Zeilen stehen orange.\n" +
+            "Sehr große Werte werden bei 64 KB gekappt, damit ein Kamerabild im Backup den Arbeitsspeicher " +
+            "nicht unnötig füllt. Passiert das, steht es über dem Wertfeld.\n" +
+            "Geschrieben wird nichts: Der Analyzer liest Backups. Was mit dem kopierten Wert geschieht, " +
+            "entscheidet man selbst im Admin oder in einem Skript."),
+
         new(HelpBlockKind.Heading, "Tab „Logging\""),
         new(HelpBlockKind.Text,
             "Je Datenpunkt und loggender Instanz (History, InfluxDB, SQL …) eine Zeile: ob das Logging " +

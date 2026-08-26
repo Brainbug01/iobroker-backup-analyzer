@@ -91,12 +91,12 @@ public static class OrphansPresenter
 
     public static readonly string[] ColumnsB =
         { "Datenpunkt-ID", "Name", "In Skripten", "In VIS", "Alias-Ziel", "Logging",
-          "In Chart", "Zuletzt geändert", "Bewertung" };
+          "In Chart", "Zuletzt geändert", "Bewertung", ValueColumn };
 
     /// <summary>Wie <see cref="ColumnsB"/>, zusätzlich mit dem Alter in Tagen als Zahl.</summary>
     public static readonly string[] CsvColumnsB =
         { "Datenpunkt-ID", "Name", "In Skripten", "In VIS", "Alias-Ziel", "Logging",
-          "In Chart", "Zuletzt geändert", "Alter (Tage)", "Bewertung" };
+          "In Chart", "Zuletzt geändert", "Alter (Tage)", "Bewertung", ValueColumn };
 
     /// <summary>
     /// <paramref name="showAll"/> = false zeigt nur die Kandidaten; true auch die
@@ -133,15 +133,17 @@ public static class OrphansPresenter
         : u.RecentlyChanged ? RowEmphasis.Warn
         : RowEmphasis.Problem;
 
+    /// <summary>Siehe <see cref="DisplayRowC"/> — gekürzter Wert für die Anzeige.</summary>
     public static string[] DisplayRowB(UnusedDatapoint u) =>
         new[] { u.Id, u.Name, u.InScriptsText, u.InVisText, u.AliasText, u.LoggingText,
-                u.InChartText, u.LastChangeText, u.Verdict };
+                u.InChartText, u.LastChangeText, u.Verdict, u.ValText };
 
+    /// <summary>Siehe <see cref="RowC"/> — vollständiger Wert für die CSV.</summary>
     public static string[] RowB(UnusedDatapoint u) =>
         new[] { u.Id, u.Name, u.InScriptsText, u.InVisText, u.AliasText, u.LoggingText,
                 u.InChartText,
                 u.LastChange?.ToString("dd.MM.yyyy HH:mm") ?? (u.HasState ? "" : "nie beschrieben"),
-                u.AgeDays?.ToString() ?? "", u.Verdict };
+                u.AgeDays?.ToString() ?? "", u.Verdict, u.Val };
 
     /// <summary>
     /// Beschriftung des Schalters „alle anzeigen". Fehlen VIS-Views im Backup, fällt eine
@@ -154,11 +156,20 @@ public static class OrphansPresenter
     // ------------------------------------------------------------------ Analyse C
 
     public static readonly string[] ColumnsC =
-        { "Datenpunkt-ID", "Name", "Zuletzt geändert", "Schreibbar", "Quelle", "Qualität", "Quittiert" };
+        { "Datenpunkt-ID", "Name", "Zuletzt geändert", "Schreibbar", "Quelle", "Qualität",
+          "Quittiert", ValueColumn };
 
     /// <summary>Wie <see cref="ColumnsC"/>, zusätzlich mit dem Alter in Tagen als Zahl.</summary>
     public static readonly string[] CsvColumnsC =
-        { "Datenpunkt-ID", "Name", "Zuletzt geändert", "Alter (Tage)", "Schreibbar", "Quelle", "Qualität", "Quittiert" };
+        { "Datenpunkt-ID", "Name", "Zuletzt geändert", "Alter (Tage)", "Schreibbar", "Quelle",
+          "Qualität", "Quittiert", ValueColumn };
+
+    /// <summary>
+    /// Beschriftung der Wertspalte. Sie steht in allen Listen am Ende — die gewohnte
+    /// Spaltenfolge bleibt damit unverändert, und beim Scrollen verschwindet als Erstes das,
+    /// was am seltensten gebraucht wird.
+    /// </summary>
+    public const string ValueColumn = "Letzter Wert";
 
     public static readonly string[] ViewLabelsC =
         { "States ohne Objekt (Werte-Leichen)",
@@ -252,15 +263,25 @@ public static class OrphansPresenter
     }
 
 
+    /// <summary>
+    /// Die Anzeigezeile. Der Wert steht hier in der gekürzten Fassung — eine Tabellenzelle
+    /// verträgt nichts anderes (siehe <see cref="StateInfo.FormatVal"/>).
+    /// </summary>
     public static string[] DisplayRowC(StateRow r) =>
         new[] { r.Id, r.Name, r.HasState ? r.LastChangeText : "nie beschrieben",
-                r.WritableText, r.From, r.QualityText, r.HasState ? r.AckText : "—" };
+                r.WritableText, r.From, r.QualityText, r.HasState ? r.AckText : "—",
+                r.ValText };
 
+    /// <summary>
+    /// Die CSV-Zeile. Anders als in der Anzeige steht hier der <b>vollständige</b>
+    /// gespeicherte Wert: Eine CSV wird weiterverarbeitet und nicht überflogen, und die
+    /// Maskierung verkraftet auch mehrzeilige Werte.
+    /// </summary>
     public static string[] RowC(StateRow r) =>
         new[] { r.Id, r.Name,
                 r.LastChange?.ToString("dd.MM.yyyy HH:mm") ?? (r.HasState ? "" : "nie beschrieben"),
                 r.AgeDays?.ToString() ?? "", r.WritableText, r.From, r.QualityText,
-                r.HasState ? r.AckText : "" };
+                r.HasState ? r.AckText : "", r.Val };
 
     /// <summary>Vorgeschlagener Dateiname des CSV-Exports, passend zur gewählten Sicht.</summary>
     public static string CsvNameC(StateView view) => view switch

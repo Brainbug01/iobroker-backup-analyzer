@@ -19,6 +19,7 @@ public partial class MainWindow : Window
     private readonly BackupCheckView _backupCheck;
     private readonly VisView _vis;
     private readonly OrphansView _orphans;
+    private readonly DatapointsView _datapoints;
     private readonly ScriptsView _scripts;
     private readonly UsageView _usage;
     private readonly CompareView _compare;
@@ -60,6 +61,7 @@ public partial class MainWindow : Window
         _backupCheck = this.FindControl<BackupCheckView>("BackupCheck")!;
         _vis = this.FindControl<VisView>("Vis")!;
         _orphans = this.FindControl<OrphansView>("Orphans")!;
+        _datapoints = this.FindControl<DatapointsView>("Datapoints")!;
         _scripts = this.FindControl<ScriptsView>("Scripts")!;
         _usage = this.FindControl<UsageView>("Usage")!;
         _compare = this.FindControl<CompareView>("Compare")!;
@@ -258,6 +260,7 @@ public partial class MainWindow : Window
         Schritt("Backup-Prüfung", () => _backupCheck.SetData(data));
         Schritt("VIS-Datenpunkte", () => _vis.SetData(data, analysen));
         Schritt("Verwaiste Datenpunkte", () => _orphans.SetData(data, analysen));
+        Schritt("Datenpunkte", () => _datapoints.SetData(data));
         Schritt("Skripte", () => _scripts.SetData(data));
         Schritt("Verwendung", () => _usage.SetData(data, analysen));
         Schritt("Vergleich", () => _compare.SetData(data));

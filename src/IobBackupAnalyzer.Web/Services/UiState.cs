@@ -24,6 +24,7 @@ public sealed class UiState
     public OrphansTab Orphans { get; private set; } = new();
     public LoggingTab Logging { get; private set; } = new();
     public AliasTab Alias { get; private set; } = new();
+    public DatapointsTab Datapoints { get; private set; } = new();
     public FilesTab Files { get; private set; } = new();
     public CompareTab Compare { get; private set; } = new();
 
@@ -42,6 +43,8 @@ public sealed class UiState
         Orphans = new OrphansTab();
         Logging = new LoggingTab();
         Alias = new AliasTab();
+        Datapoints = new DatapointsTab();
+        DatapointCache = null;
         Files = new FilesTab();
         Compare = new CompareTab();
     }
@@ -119,6 +122,22 @@ public sealed class UiState
         public AliasScope Scope { get; set; } = AliasScope.All;
         public AliasRow? Selected { get; set; }
         public ConverterGenerator.Result? Generated { get; set; }
+    }
+
+    /// <summary>
+    /// Die aufbereitete Datenpunktliste. Sie steht hier und nicht im Reiter, weil ihr Aufbau
+    /// über alle state-Objekte und alle Werte läuft — bei jedem Tastendruck im Suchfeld neu
+    /// gebaut, wäre die Suche in einer großen Anlage unbenutzbar. <see cref="Reset"/> leert
+    /// sie beim Laden eines anderen Backups.
+    /// </summary>
+    public List<DatapointHit>? DatapointCache { get; set; }
+
+    public sealed class DatapointsTab
+    {
+        public string Filter { get; set; } = "";
+
+        /// <summary>Der gewählte Datenpunkt — sein Wert steht unter der Liste.</summary>
+        public DatapointHit? Selected { get; set; }
     }
 
     public sealed class FilesTab

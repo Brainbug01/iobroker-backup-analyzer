@@ -70,14 +70,21 @@ Backup fehlt.
 
 ![Verwaiste Datenpunkte](docs/bilder/windows/06-verwaiste-datenpunkte.png)
 
+Suche über Datenpunkt-ID und Name; unten steht der zuletzt gespeicherte Wert vollständig
+und lässt sich kopieren. Über dem Wertfeld die Beschreibung des Datenpunkts und die Herkunft
+des Werts. Orange stehen Werte, zu denen kein Objekt mehr existiert; grau Datenpunkte ohne
+Wert.
+
+![Datenpunkte](docs/bilder/windows/07-datenpunkte.png)
+
 Aliasse samt Ziel. Zeigt ein Alias ins Leere, steht die Zeile rot — im Beispiel zwei Stück.
 
-![Aliasse](docs/bilder/windows/08-aliasse.png)
+![Aliasse](docs/bilder/windows/09-aliasse.png)
 
 Je Datenpunkt und loggender Instanz eine Zeile: ob das Logging aktiv ist, ob nur
 Änderungen geschrieben werden und welche Entprellzeit gilt.
 
-![Logging](docs/bilder/windows/07-logging.png)
+![Logging](docs/bilder/windows/08-logging.png)
 
 Die Skriptliste mit der Spalte „Hinweise". Das ausgewählte Blockly-Skript trägt drei
 Befunde; unter der Liste stehen sie ausformuliert, jeweils mit der Baustein-ID, unter der
@@ -86,8 +93,8 @@ sie auch der Blockly-Editor führt.
 ![Skripte](docs/bilder/windows/03-skripte.png)
 
 Weitere Tabs als Bild: [Backup-Prüfung](docs/bilder/windows/02-backup-pruefung.png) ·
-[Dateien](docs/bilder/windows/09-dateien.png) ·
-[Vergleich](docs/bilder/windows/10-vergleich.png)
+[Dateien](docs/bilder/windows/10-dateien.png) ·
+[Vergleich](docs/bilder/windows/11-vergleich.png)
 
 ### Plattformübergreifende Fassung
 
@@ -519,6 +526,35 @@ Warum nicht im JavaScript-Adapter: `deleteState` darf
 dort nur eigene States löschen und meldet gegen fremde Namensräume für jede ID „Not found";
 `deleteObject` greift nicht, weil zu einer Werte-Leiche gerade kein Objekt mehr existiert.
 Nur die CLI kommt an den reinen Wert.
+
+### Tab „Datenpunkte"
+Der Weg zu einem bestimmten Wert. Gesucht wird über **Datenpunkt-ID und Name**; mehrere
+Begriffe dürfen in beliebiger Reihenfolge stehen, „wohnzimmer temp" findet den Datenpunkt
+also auch dann, wenn seine ID ganz anders aussieht als sein Name. Unten steht der zuletzt
+gespeicherte Wert vollständig und lässt sich mit einem Knopfdruck kopieren.
+
+Dafür ist der Tab da: Ein Wert, der im laufenden System überschrieben wurde, steht im Backup
+noch. Über Suchen und Kopieren kommt man schneller an ihn heran als über eine
+Wiederherstellung.
+
+**JSON-Werte erscheinen eingerückt.** Im Backup stehen sie als Text mit maskierten
+Anführungszeichen mitten in einer Zeile, die selbst JSON ist — von Hand ist daraus nur mühsam
+etwas Einsetzbares zu machen. Am Inhalt ändert sich beim Einrücken nichts, es kommt nur
+Weißraum hinzu; die Verifikation prüft das, indem sie beide Fassungen kompakt zurückschreibt
+und auf Zeichengleichheit vergleicht.
+
+Über dem Wert steht, was ihn einordnet: **Typ, Einheit, Rolle, Grenzen und Vorgabewert** aus
+der Objektdefinition, dazu die schreibende Instanz, die Quittierung und der Qualitätscode.
+Ohne Einheit ist „21.5" nicht viel wert. Fehlt zu einem Wert das Objekt — der Datenpunkt
+wurde gelöscht, sein Wert blieb stehen —, steht die Zeile orange und der Detailbereich sagt
+es ausdrücklich.
+
+Die Trefferliste zeigt höchstens 500 Zeilen. Sie ist kein Inventar, sondern der Weg zu einem
+bestimmten Datenpunkt; wer mehr sieht, hat zu unscharf gesucht. Der CSV-Export enthält immer
+alle Treffer, und zwar mit dem **vollständigen** Wert statt der gekürzten Anzeigefassung.
+
+**Geschrieben wird nichts.** Der Analyzer liest Backups. Was mit dem kopierten Wert geschieht,
+entscheidet man selbst im Admin oder in einem Skript.
 
 ### Tab „Logging"
 Je Datenpunkt und loggender Instanz (History, InfluxDB, SQL …) eine Zeile: ob das Logging

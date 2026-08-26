@@ -132,6 +132,10 @@
         <views:OrphansView Name="Orphans" />
       </TabItem>
 
+      <TabItem Header="Datenpunkte">
+        <views:DatapointsView Name="Datapoints" />
+      </TabItem>
+
       <TabItem Header="Logging">
         <views:LoggingView Name="Logging" />
       </TabItem>

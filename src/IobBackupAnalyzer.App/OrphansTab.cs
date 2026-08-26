@@ -203,6 +203,7 @@ public sealed class OrphansTab : UserControl
         _listB.Columns.Add("In Chart", 70);
         _listB.Columns.Add("Zuletzt geändert", 180);
         _listB.Columns.Add("Bewertung", 170);
+        _listB.Columns.Add(OrphansPresenter.ValueColumn, 300);
         _listB.MultiSelect = true;
         _listB.HideSelection = false;
         ListViewCopy.Attach(_listB);
@@ -318,6 +319,7 @@ public sealed class OrphansTab : UserControl
         _listC.Columns.Add("Quelle", 170);
         _listC.Columns.Add("Qualität", 180);
         _listC.Columns.Add("Quittiert", 80);
+        _listC.Columns.Add(OrphansPresenter.ValueColumn, 300);
         ListViewCopy.Attach(_listC);
         ListViewSort.Attach(_listC);
 

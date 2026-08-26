@@ -11,7 +11,8 @@ namespace IobBackupAnalyzer.Core;
 ///   • Alter der letzten Wertänderung — trennt lebende von eingeschlafenen Datenpunkten.
 ///   • Qualitätscode und fehlende Quittierung — laufende Störungen zum Backup-Zeitpunkt.
 ///
-/// Der Wert selbst wird nie geladen (siehe <see cref="StateInfo"/>).
+/// Der Wert selbst steht seit v1.25.0 zur Verfügung (siehe <see cref="StateInfo"/>); für die
+/// vier Analysen hier spielt er keine Rolle, er wird nur in die Zeilen durchgereicht.
 /// </summary>
 public static class StateAnalyzer
 {
@@ -128,6 +129,10 @@ public static class StateAnalyzer
             From = st.FromShort,
             Quality = st.Quality,
             QualityText = st.QualityText,
+            Val = st.Val,
+            HasVal = st.HasVal,
+            ValTruncated = st.ValTruncated,
+            ValLength = st.ValLength,
             Ack = st.Ack
         };
     }

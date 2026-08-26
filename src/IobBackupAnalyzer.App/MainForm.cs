@@ -22,6 +22,7 @@ public sealed class MainForm : Form
     private readonly TabPage _pageUsage = new("Verwendung");
     private readonly TabPage _pageVis = new("VIS-Datenpunkte");
     private readonly TabPage _pageOrphans = new("Verwaiste Datenpunkte");
+    private readonly TabPage _pageDatapoints = new("Datenpunkte");
     private readonly TabPage _pageLogging = new("Logging");
     private readonly TabPage _pageAliases = new("Aliasse");
     private readonly TabPage _pageFiles = new("Dateien");
@@ -35,6 +36,7 @@ public sealed class MainForm : Form
     private readonly UsageTab _usage = new();
     private readonly VisTab _vis = new();
     private readonly OrphansTab _orphans = new();
+    private readonly DatapointsTab _datapoints = new();
     private readonly LoggingTab _logging = new();
     private readonly AliasTab _aliases = new();
     private readonly FilesTab _files = new();
@@ -167,6 +169,7 @@ public sealed class MainForm : Form
         _pageUsage.Controls.Add(_usage);
         _pageVis.Controls.Add(_vis);
         _pageOrphans.Controls.Add(_orphans);
+        _pageDatapoints.Controls.Add(_datapoints);
         _pageLogging.Controls.Add(_logging);
         _pageAliases.Controls.Add(_aliases);
         _pageFiles.Controls.Add(_files);
@@ -176,7 +179,8 @@ public sealed class MainForm : Form
         _tabs.TabPages.AddRange(new[]
         {
             _pageOverview, _pageBackupCheck, _pageScripts, _pageUsage, _pageVis, _pageOrphans,
-            _pageLogging, _pageAliases, _pageFiles, _pageCompare, _pageHelp, _pageChangelog
+            _pageDatapoints, _pageLogging, _pageAliases, _pageFiles, _pageCompare, _pageHelp,
+            _pageChangelog
         });
 
         // Doppelklick auf ein Skript in der Kreuzreferenz führt zu seinem Quelltext.
@@ -425,6 +429,7 @@ public sealed class MainForm : Form
         Schritt("Backup-Prüfung", () => _backupCheck.SetData(data));
         Schritt("VIS-Datenpunkte", () => _vis.SetData(data, analysen));
         Schritt("Verwaiste Datenpunkte", () => _orphans.SetData(data, analysen));
+        Schritt("Datenpunkte", () => _datapoints.SetData(data));
         Schritt("Logging", () => _logging.SetData(data));
         Schritt("Aliasse", () => _aliases.SetData(data));
         Schritt("Dateien", () => _files.SetData(data));
@@ -447,6 +452,7 @@ public sealed class MainForm : Form
         _backupCheck.SetAvailable(full);
         _vis.SetAvailable(full);
         _orphans.SetAvailable(full);
+        _datapoints.SetAvailable(full);
         _logging.SetAvailable(full);
         _aliases.SetAvailable(full);
         _scripts.SetAvailable(data is not null);

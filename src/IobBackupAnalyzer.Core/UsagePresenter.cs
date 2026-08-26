@@ -145,7 +145,7 @@ public static class UsagePresenter
 
     public static readonly string[] ColumnsStates =
         { "Datenpunkt-ID", "Name", "Art", "Skripte", "Adapter", "liest", "schreibt",
-          "Zuletzt geändert" };
+          "Zuletzt geändert", OrphansPresenter.ValueColumn };
 
     public static readonly string[] ColumnsStateDetail =
         { "Art", "Verwender", "Zugriff", "Fundstelle", "Status" };
@@ -153,7 +153,7 @@ public static class UsagePresenter
     /// <summary>Wie <see cref="ColumnsStates"/>, zusätzlich mit allen Verwendern in einer Spalte.</summary>
     public static readonly string[] CsvColumnsStates =
         { "Datenpunkt-ID", "Name", "Art", "Skripte", "Adapter", "liest", "schreibt",
-          "Zuletzt geändert", "Alter (Tage)", "Verwendet in" };
+          "Zuletzt geändert", "Alter (Tage)", "Verwendet in", OrphansPresenter.ValueColumn };
 
     public static List<StateUsage> FilterStates(IEnumerable<StateUsage> all, UsageStateFilter filter,
                                                 string? term)
@@ -177,20 +177,22 @@ public static class UsagePresenter
         return q.ToList();
     }
 
+    /// <summary>Siehe <see cref="OrphansPresenter.DisplayRowC"/> — gekürzter Wert.</summary>
     public static string[] RowState(StateUsage s) => new[]
     {
         s.Id, s.Name, s.KindText,
         s.ScriptCount.ToString(), s.AdapterCount.ToString(),
-        s.Readers.ToString(), s.Writers.ToString(), s.LastChangeText
+        s.Readers.ToString(), s.Writers.ToString(), s.LastChangeText, s.ValText
     };
 
+    /// <summary>Siehe <see cref="OrphansPresenter.RowC"/> — vollständiger Wert.</summary>
     public static string[] CsvRowState(StateUsage s) => new[]
     {
         s.Id, s.Name, s.KindText,
         s.ScriptCount.ToString(), s.AdapterCount.ToString(),
         s.Readers.ToString(), s.Writers.ToString(),
         s.LastChange?.ToString("dd.MM.yyyy HH:mm") ?? "", s.AgeDays?.ToString() ?? "",
-        s.ScriptsText
+        s.ScriptsText, s.Val
     };
 
     /// <summary>

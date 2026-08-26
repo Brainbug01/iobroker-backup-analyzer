@@ -640,11 +640,11 @@ public static class BackupLoader
     }
 
     /// <summary>
-    /// Liest states.jsonl zeilenweise und behält je State nur die Metadaten.
+    /// Liest states.jsonl zeilenweise und behält je State die Metadaten und den Wert.
     ///
-    /// Das Feld <c>val</c> wird nie übernommen: es enthält im realen Backup Binärdaten
-    /// (ein Datenpunkt trägt ein komplettes JPEG als String). Die Zeile selbst muss zwar
-    /// vollständig geparst werden, aber nichts davon bleibt im Speicher.
+    /// Das Feld <c>val</c> wird bei <see cref="StateInfo.MaxValLength"/> Zeichen gekappt.
+    /// Die Begründung dafür steht bei <see cref="StateInfo"/>: Nicht die Gesamtmenge der
+    /// Werte ist das Problem, sondern einzelne sehr große Einträge.
     ///
     /// Anders als in objects.jsonl heißt das ID-Feld hier <c>id</c> — ohne Unterstrich.
     /// </summary>
@@ -681,9 +681,15 @@ public static class BackupLoader
                         && stateEl.ValueKind == JsonValueKind.Object
                     ? stateEl : root;
 
+                var (val, hasVal, truncated, valLength) = ReadVal(s);
+
                 result[id] = new StateInfo
                 {
                     Id = id,
+                    Val = val,
+                    HasVal = hasVal,
+                    ValTruncated = truncated,
+                    ValLength = valLength,
                     Ts = ReadEpochMs(s, "ts"),
                     Lc = ReadEpochMs(s, "lc"),
                     Ack = !(s.TryGetProperty("ack", out var ack) && ack.ValueKind == JsonValueKind.False),
@@ -704,6 +710,30 @@ public static class BackupLoader
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Liest <c>val</c> als Text und kappt ihn bei <see cref="StateInfo.MaxValLength"/>.
+    ///
+    /// Zeichenketten werden roh übernommen — ein Text soll lesbar bleiben und nicht in
+    /// JSON-Anführungszeichen mit maskierten Umlauten stehen. Alles andere (Zahl,
+    /// Wahrheitswert, Objekt, Liste) kommt als JSON, weil es dort ohnehin so gemeint ist.
+    ///
+    /// <c>null</c> und ein fehlendes Feld werden gleich behandelt: kein Wert vorhanden. Die
+    /// Unterscheidung wäre für die Anzeige ohne Nutzen, denn beides heißt „hier steht nichts".
+    /// </summary>
+    /// <returns>Der Wert, ob überhaupt einer da war, ob gekürzt wurde, und die Originallänge.</returns>
+    private static (string Val, bool HasVal, bool Truncated, int Length) ReadVal(JsonElement s)
+    {
+        if (!s.TryGetProperty("val", out var v) || v.ValueKind is JsonValueKind.Null
+                                                              or JsonValueKind.Undefined)
+            return ("", false, false, 0);
+
+        var text = v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : v.GetRawText();
+
+        return text.Length > StateInfo.MaxValLength
+            ? (text[..StateInfo.MaxValLength], true, true, text.Length)
+            : (text, true, false, text.Length);
     }
 
     /// <summary>

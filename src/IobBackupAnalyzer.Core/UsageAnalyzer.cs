@@ -145,6 +145,21 @@ public sealed class StateUsage
         : AgeDays is null ? LastChange.Value.ToString("dd.MM.yyyy")
         : $"{LastChange.Value:dd.MM.yyyy}  ({AgeDays} T)";
 
+    /// <summary>Der zuletzt geschriebene Wert. Siehe <see cref="StateInfo.Val"/>.</summary>
+    public string Val { get; init; } = "";
+
+    /// <summary>true, wenn überhaupt ein Wert vorhanden war.</summary>
+    public bool HasVal { get; init; }
+
+    /// <summary>true, wenn der Wert beim Laden gekürzt wurde.</summary>
+    public bool ValTruncated { get; init; }
+
+    /// <summary>Ursprüngliche Länge des Werts in Zeichen.</summary>
+    public int ValLength { get; init; }
+
+    /// <summary>Der Wert einzeilig für eine Tabellenzelle.</summary>
+    public string ValText => StateInfo.FormatVal(Val, HasVal, ValTruncated, ValLength);
+
     /// <summary>Alle Verwender: Skripte und Adapter-Instanzen gemeinsam.</summary>
     public List<UsageLink> Links { get; init; } = new();
 
@@ -334,7 +349,11 @@ public static class UsageAnalyzer
                 AliasTarget = o.AliasTarget ?? "",
                 HasState = hasState,
                 LastChange = lastChange,
-                AgeDays = lastChange is null ? null : (int)(reference - lastChange.Value).TotalDays
+                AgeDays = lastChange is null ? null : (int)(reference - lastChange.Value).TotalDays,
+                Val = hasState ? st!.Val : "",
+                HasVal = hasState && st!.HasVal,
+                ValTruncated = hasState && st!.ValTruncated,
+                ValLength = hasState ? st!.ValLength : 0
             };
         }
 
@@ -344,14 +363,19 @@ public static class UsageAnalyzer
         {
             if (known.ContainsKey(id)) continue;
 
-            var lastChange = data.States[id].LastChange;
+            var state = data.States[id];
+            var lastChange = state.LastChange;
             known[id] = new StateUsage
             {
                 Id = id,
                 ObjectExists = false,
                 HasState = true,
                 LastChange = lastChange,
-                AgeDays = lastChange is null ? null : (int)(reference - lastChange.Value).TotalDays
+                AgeDays = lastChange is null ? null : (int)(reference - lastChange.Value).TotalDays,
+                Val = state.Val,
+                HasVal = state.HasVal,
+                ValTruncated = state.ValTruncated,
+                ValLength = state.ValLength
             };
         }
 

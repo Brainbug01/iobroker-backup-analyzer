@@ -175,7 +175,8 @@ else
         new() { Header = "In Chart",         Width = 100, Text = u => u.InChartText },
         new() { Header = "Zuletzt geändert", Width = 215, Text = u => u.LastChangeText,
                 SortKey = u => u.LastChange },
-        new() { Header = "Bewertung",        Width = 170, Text = u => u.Verdict }
+        new() { Header = "Bewertung",        Width = 170, Text = u => u.Verdict },
+        new() { Header = OrphansPresenter.ValueColumn, Width = 300, Text = u => u.ValText }
     };
 
     private async Task CsvB() =>
@@ -229,7 +230,8 @@ else
         new() { Header = "Schreibbar",       Width = 115, Text = r => r.WritableText },
         new() { Header = "Quelle",           Width = 170, Text = r => r.From },
         new() { Header = "Qualität",         Width = 180, Text = r => r.QualityText },
-        new() { Header = "Quittiert",        Width = 105, Text = r => r.AckText, SortKey = r => r.Ack }
+        new() { Header = "Quittiert",        Width = 105, Text = r => r.AckText, SortKey = r => r.Ack },
+        new() { Header = OrphansPresenter.ValueColumn, Width = 300, Text = r => r.ValText }
     };
 
     private async Task CsvC() =>

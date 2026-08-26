@@ -321,8 +321,11 @@ public sealed class UsageTab : UserControl
         foreach (var c in columns)
         {
             // Die erste Spalte trägt die ID oder den Pfad und braucht spürbar mehr Platz.
+            // Die Wertspalte ebenfalls: Sie steht am Ende und nimmt auf, was ein Datenpunkt
+            // zuletzt geliefert hat — bei einem JSON-Wert ist das mehr als eine Zahl.
             var isFirst = list.Columns.Count == 0;
             var width = isFirst ? 340
+                : c == OrphansPresenter.ValueColumn ? 300
                 : c.Length <= 8 ? 80
                 : 160;
             list.Columns.Add(c, width);

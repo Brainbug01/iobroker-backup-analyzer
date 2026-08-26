@@ -88,6 +88,8 @@
               <DataGridTextColumn Header="schreibt"      Binding="{Binding Writers}"      Width="100" />
               <DataGridTextColumn Header="Zuletzt geändert"
                                   Binding="{Binding LastChangeText}" Width="215" />
+              <DataGridTextColumn Header="Letzter Wert"
+                                  Binding="{Binding ValText}" Width="300" />
             </DataGrid.Columns>
           </DataGrid>
 

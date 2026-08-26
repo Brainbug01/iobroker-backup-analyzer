@@ -267,7 +267,8 @@ else
         new() { Header = "schreibt",         Width = 100, Number = true,
                 Text = s => s.Writers.ToString("N0"), SortKey = s => s.Writers },
         new() { Header = "Zuletzt geändert", Width = 215, Text = s => s.LastChangeText,
-                SortKey = s => s.LastChange }
+                SortKey = s => s.LastChange },
+        new() { Header = OrphansPresenter.ValueColumn, Width = 300, Text = s => s.ValText }
     };
 
     private static readonly TableColumn<UsageLink>[] SkriptDetailSpalten =

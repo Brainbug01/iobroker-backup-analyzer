@@ -309,6 +309,21 @@ html, body {
 .feld.weit { min-width: 230px; }
 .feld.sehr-weit { min-width: 300px; }
 
+/*
+ * Das Wertfeld im Reiter „Datenpunkte“. Feste Schrift und kein Umbruch, weil ein
+ * eingerücktes JSON sonst seine Struktur verliert; die Breite füllt den Reiter, damit
+ * lange Zeilen nicht schon nach zehn Zeichen umbrechen.
+ */
+.feld.wertfeld {
+    width: 100%;
+    min-width: 0;
+    font-family: ui-monospace, Consolas, 'Courier New', monospace;
+    font-size: 0.9em;
+    white-space: pre;
+    overflow: auto;
+    resize: vertical;
+}
+
 .haken {
     display: inline-flex;
     align-items: center;

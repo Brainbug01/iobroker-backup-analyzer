@@ -201,7 +201,11 @@ public static class OrphanAnalyzer
                 InChart = chartRefs.Contains(o.Id),
                 HasState = hasState,
                 LastChange = lastChange,
-                AgeDays = lastChange is null ? null : (int)(reference - lastChange.Value).TotalDays
+                AgeDays = lastChange is null ? null : (int)(reference - lastChange.Value).TotalDays,
+                Val = hasState ? st!.Val : "",
+                HasVal = hasState && st!.HasVal,
+                ValTruncated = hasState && st!.ValTruncated,
+                ValLength = hasState ? st!.ValLength : 0
             });
         }
 

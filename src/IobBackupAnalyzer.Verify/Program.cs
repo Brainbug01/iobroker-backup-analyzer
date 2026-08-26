@@ -983,6 +983,79 @@ var implausible = fullData.States.Values
 Check("Alle Zeitstempel liegen im plausiblen Bereich", implausible.Count == 0,
       string.Join(", ", implausible.Take(3).Select(s => $"{s.Id}={s.LastChange:o}")));
 
+// --- Werte (val) -------------------------------------------------------------------
+// Der Wert wird seit v1.25.0 geladen, aber bei StateInfo.MaxValLength gekappt. Geprueft
+// wird beides: dass ueberhaupt Werte ankommen und dass die Kappung wirklich greift — ohne
+// sie liefe der Speicher an den wenigen sehr grossen Werten voll.
+var mitWert = fullData.States.Values.Count(s => s.HasVal);
+var gekappt = fullData.States.Values.Where(s => s.ValTruncated).ToList();
+var groesster = fullData.States.Values.OrderByDescending(s => s.ValLength).First();
+
+Console.WriteLine($"  States mit Wert                    : {mitWert:N0} von {fullData.States.Count:N0}");
+Console.WriteLine($"  davon gekappt (> {StateInfo.MaxValLength} Zeichen)   : {gekappt.Count}");
+Console.WriteLine($"  groesster Wert                     : {groesster.ValLength:N0} Zeichen " +
+                  $"({groesster.Id})");
+
+Check("Die meisten States tragen einen Wert",
+      mitWert > fullData.States.Count * 0.9,
+      $"{mitWert} von {fullData.States.Count}");
+
+Check("Kein gespeicherter Wert ueberschreitet die Grenze",
+      fullData.States.Values.All(s => s.Val.Length <= StateInfo.MaxValLength),
+      fullData.States.Values.FirstOrDefault(s => s.Val.Length > StateInfo.MaxValLength)?.Id);
+
+Check("Gekappte Werte kennen ihre Originallaenge",
+      gekappt.All(s => s.ValLength > StateInfo.MaxValLength),
+      gekappt.FirstOrDefault(s => s.ValLength <= StateInfo.MaxValLength)?.Id);
+
+// Ohne diesen Fall im Testbackup wuerde die Kappung nie durchlaufen und der Test nichts
+// aussagen. Die Referenzanlage hat einen Wert von rund 380.000 Zeichen — faellt der eines
+// Tages weg, soll das auffallen und nicht still die Pruefung entwerten.
+Check("Das Testbackup enthaelt mindestens einen gekappten Wert", gekappt.Count > 0);
+
+// Eine Tabellenzelle vertraegt keinen Zeilenumbruch: Die Anzeige muss einzeilig sein,
+// egal was im Wert steht (JSON mit Umbruechen, mehrzeilige Texte).
+var mehrzeilig = fullData.States.Values
+    .Where(s => s.ValText.Contains('\n') || s.ValText.Contains('\r') || s.ValText.Contains('\t'))
+    .ToList();
+Check("Kein Anzeigewert enthaelt Zeilenumbrueche", mehrzeilig.Count == 0,
+      mehrzeilig.FirstOrDefault()?.Id);
+
+Check("Anzeigewerte bleiben kurz genug fuer eine Zelle",
+      fullData.States.Values.All(s => s.ValText.Length <= StateInfo.DisplayLength + 40),
+      fullData.States.Values.OrderByDescending(s => s.ValText.Length).First().Id);
+
+// Ein fehlender Wert ist etwas anderes als ein leerer: Das eine heisst "hier steht
+// nichts", das andere "hier steht eine leere Zeichenkette".
+CheckEq("Fehlender Wert wird als Strich angezeigt",
+        StateInfo.FormatVal("", hasVal: false, truncated: false, length: 0), "—");
+CheckEq("Leerer Wert bleibt leer",
+        StateInfo.FormatVal("", hasVal: true, truncated: false, length: 0), "");
+Check("Gekappter Wert weist die Originallaenge aus",
+      StateInfo.FormatVal(new string('x', 200), hasVal: true, truncated: true, length: 380344)
+               .Contains("380.344"));
+
+// Spaltenkoepfe und Zeilen muessen zusammenpassen. Ohne diese Pruefung faellt eine
+// vergessene Spalte erst in der Oberflaeche auf — und im CSV womoeglich gar nicht.
+var beispielB = unused.First();
+var beispielC = StateAnalyzer.Analyze(fullData).All.First();
+CheckEq("Analyse B: Spaltenzahl passt zur Zeile",
+        OrphansPresenter.ColumnsB.Length, OrphansPresenter.DisplayRowB(beispielB).Length);
+CheckEq("Analyse B: CSV-Spalten passen zur CSV-Zeile",
+        OrphansPresenter.CsvColumnsB.Length, OrphansPresenter.RowB(beispielB).Length);
+CheckEq("Analyse C: Spaltenzahl passt zur Zeile",
+        OrphansPresenter.ColumnsC.Length, OrphansPresenter.DisplayRowC(beispielC).Length);
+CheckEq("Analyse C: CSV-Spalten passen zur CSV-Zeile",
+        OrphansPresenter.CsvColumnsC.Length, OrphansPresenter.RowC(beispielC).Length);
+
+// Die CSV fuehrt den vollstaendigen gespeicherten Wert, die Anzeige die gekuerzte Fassung.
+// Vertauscht waere beides unbrauchbar: eine unlesbare Tabelle und eine wertlose CSV.
+var langerWert = StateAnalyzer.Analyze(fullData).All
+    .OrderByDescending(r => r.ValLength).First();
+Check("CSV traegt den vollstaendigen gespeicherten Wert",
+      OrphansPresenter.RowC(langerWert)[^1].Length > OrphansPresenter.DisplayRowC(langerWert)[^1].Length,
+      langerWert.Id);
+
 sw.Restart();
 var stateReport = StateAnalyzer.Analyze(fullData);
 sw.Stop();
@@ -3169,6 +3242,121 @@ else
         }
     }
 }
+
+// --- Datenpunkt-Suche ---
+Console.WriteLine();
+Console.WriteLine("=== Datenpunkte: Suche und Wert ===");
+
+sw.Restart();
+var punkte = DatapointPresenter.Build(fullData);
+sw.Stop();
+Console.WriteLine($"  Aufbaudauer: {sw.ElapsedMilliseconds} ms");
+Console.WriteLine($"  Datenpunkte: {punkte.Count:N0}");
+
+Check("Aufbau dauert unter 15 s", sw.ElapsedMilliseconds < 15000, $"{sw.ElapsedMilliseconds} ms");
+
+// Die Liste deckt beide Richtungen ab: state-Objekte und Werte ohne Objekt. Fehlte eine,
+// waere ausgerechnet der Fall nicht auffindbar, in dem ein Datenpunkt nur noch als Wert
+// existiert.
+var stateObjekte = fullData.Objects.Count(o => o.Type == "state");
+var werteOhneObjekt = punkte.Count(p => !p.HasObject);
+Console.WriteLine($"  davon state-Objekte: {stateObjekte:N0}, Werte ohne Objekt: {werteOhneObjekt:N0}");
+CheckEq("Jedes state-Objekt ist auffindbar", punkte.Count(p => p.HasObject), stateObjekte);
+Check("Werte ohne Objekt sind auffindbar", werteOhneObjekt > 0);
+Check("Keine ID kommt doppelt vor",
+      punkte.Select(p => p.Id).Distinct(StringComparer.Ordinal).Count() == punkte.Count);
+
+CheckEq("Spaltenzahl passt zur Zeile",
+        DatapointPresenter.Columns.Length, DatapointPresenter.DisplayRow(punkte[0]).Length);
+CheckEq("CSV-Spalten passen zur CSV-Zeile",
+        DatapointPresenter.CsvColumns.Length, DatapointPresenter.Row(punkte[0]).Length);
+
+// Die Suche muss ueber ID und Name gehen — nur ueber die ID waere sie fuer jemanden
+// nutzlos, der den Datenpunkt unter seinem Klarnamen kennt.
+var mitNamen = punkte.FirstOrDefault(p => p.Name.Length > 3 && !p.Id.Contains(p.Name));
+if (mitNamen is not null)
+    Check("Suche findet ueber den Namen",
+          DatapointPresenter.Filter(punkte, mitNamen.Name).Any(p => p.Id == mitNamen.Id),
+          mitNamen.Name);
+
+var beispielId = punkte[punkte.Count / 2].Id;
+Check("Suche findet ueber die ID",
+      DatapointPresenter.Filter(punkte, beispielId).Any(p => p.Id == beispielId), beispielId);
+
+// Mehrere Begriffe muessen alle zutreffen, ihre Reihenfolge aber egal sein.
+var teile = beispielId.Split('.');
+if (teile.Length >= 3)
+{
+    var umgedreht = $"{teile[^1]} {teile[0]}";
+    Check("Mehrere Suchbegriffe wirken unabhaengig von der Reihenfolge",
+          DatapointPresenter.Filter(punkte, umgedreht).Any(p => p.Id == beispielId), umgedreht);
+}
+
+Check("Leere Suche liefert alles", DatapointPresenter.Filter(punkte, "").Count == punkte.Count);
+Check("Unsinnige Suche liefert nichts",
+      DatapointPresenter.Filter(punkte, "kjhgfdsaqwertz").Count == 0);
+
+// Der eigentliche Zweck: ein JSON-Wert muss eingerueckt und damit pruefbar herauskommen.
+var jsonPunkt = punkte.Where(p => !p.ValTruncated
+                                  && p.Val.TrimStart().StartsWith('{')
+                                  && p.Val.Length > 200)
+                      .OrderByDescending(p => p.Val.Length)
+                      .FirstOrDefault();
+
+Check("Das Testbackup enthaelt einen JSON-Wert zum Pruefen", jsonPunkt is not null);
+
+if (jsonPunkt is not null)
+{
+    var voll = DatapointPresenter.FullValue(jsonPunkt);
+    Console.WriteLine($"  JSON-Beispiel: {jsonPunkt.Id} ({jsonPunkt.ValLength:N0} Zeichen)");
+
+    Check("JSON wird eingerueckt ausgegeben", voll.Contains('\n'), jsonPunkt.Id);
+    Check("Eingeruecktes JSON bleibt gueltiges JSON",
+          DatapointPresenter.PrettyJson(voll) is not null, jsonPunkt.Id);
+
+    // Der Inhalt darf sich dabei nicht aendern — nur seine Formatierung. Verglichen wird
+    // deshalb nicht der Rohtext (der traegt die Einrueckung ja gerade), sondern beide Seiten
+    // erneut kompakt geschrieben. Sind sie dann zeichengleich, ist nur Weissraum dazugekommen.
+    using var rohWert = System.Text.Json.JsonDocument.Parse(jsonPunkt.Val);
+    using var formatierterWert = System.Text.Json.JsonDocument.Parse(voll);
+    CheckEq("Einruecken aendert den Inhalt nicht",
+            System.Text.Json.JsonSerializer.Serialize(rohWert.RootElement),
+            System.Text.Json.JsonSerializer.Serialize(formatierterWert.RootElement));
+}
+
+// Was kein JSON ist, muss unveraendert bleiben — eine Zahl in Anfuehrungszeichen zu
+// setzen waere eine stille Veraenderung des Werts.
+Check("Zahl bleibt unveraendert", DatapointPresenter.PrettyJson("42") is null);
+Check("Text bleibt unveraendert", DatapointPresenter.PrettyJson("eingeschaltet") is null);
+Check("Kaputtes JSON bleibt unveraendert", DatapointPresenter.PrettyJson("{\"a\":") is null);
+Check("Umlaute bleiben lesbar",
+      DatapointPresenter.PrettyJson("{\"raum\":\"Küche\"}")?.Contains("Küche") == true);
+
+// Ein gekappter Wert darf nicht als vollstaendig ausgegeben werden.
+var gekappterPunkt = punkte.FirstOrDefault(p => p.ValTruncated);
+if (gekappterPunkt is not null)
+    Check("Gekappter Wert wird nicht formatiert",
+          DatapointPresenter.FullValue(gekappterPunkt) == gekappterPunkt.Val
+          && DatapointPresenter.ValueInfo(gekappterPunkt).Contains("gekürzt"),
+          gekappterPunkt.Id);
+
+// Die Beschreibung muss die Felder zeigen, die ein Wert zum Einordnen braucht.
+var mitEinheit = punkte.FirstOrDefault(p => p.Unit.Length > 0);
+Check("Das Testbackup liefert Einheiten", mitEinheit is not null);
+if (mitEinheit is not null)
+    Check("Beschreibung nennt die Einheit",
+          DatapointPresenter.Definition(mitEinheit).Contains(mitEinheit.Unit), mitEinheit.Id);
+
+var mitRolle = punkte.FirstOrDefault(p => p.Role.Length > 0);
+Check("Das Testbackup liefert Rollen", mitRolle is not null);
+if (mitRolle is not null)
+    Check("Beschreibung nennt die Rolle",
+          DatapointPresenter.Definition(mitRolle).Contains(mitRolle.Role), mitRolle.Id);
+
+Check("Werte ohne Objekt melden die fehlende Definition",
+      DatapointPresenter.Definition(punkte.First(p => !p.HasObject)).Contains("ohne Objekt"));
+
+CheckEq("Ohne Auswahl bleibt das Wertfeld leer", DatapointPresenter.FullValue(null), "");
 
 // --- Hilfe und Aenderungsverlauf ---
 // Der Verlauf steht in der Anwendung, weil sie als einzelne Datei weitergegeben wird: Wer

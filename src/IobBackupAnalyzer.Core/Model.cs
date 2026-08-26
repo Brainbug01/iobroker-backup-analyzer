@@ -96,6 +96,21 @@ public sealed class IobObject
     /// <summary>Datentyp aus common.type (string/number/boolean …); null, wenn nicht gesetzt.</summary>
     public string? CommonType { get; init; }
 
+    /// <summary>Einheit aus common.unit (°C, %, kWh …); null, wenn nicht angegeben.</summary>
+    public string? Unit { get; init; }
+
+    /// <summary>Rolle aus common.role (value.temperature, switch …); null, wenn nicht angegeben.</summary>
+    public string? Role { get; init; }
+
+    /// <summary>Untergrenze aus common.min als Text; null, wenn nicht angegeben.</summary>
+    public string? Min { get; init; }
+
+    /// <summary>Obergrenze aus common.max als Text; null, wenn nicht angegeben.</summary>
+    public string? Max { get; init; }
+
+    /// <summary>Vorgabewert aus common.def als Text; null, wenn nicht angegeben.</summary>
+    public string? Default { get; init; }
+
     /// <summary>
     /// Von einem Chart-Objekt (type=chart) referenzierte Datenpunkt-IDs — je Chart-Linie
     /// das Feld id aus native.data.l, unabhängig von der Quell-Instanz (influxdb/history/
@@ -282,15 +297,53 @@ public sealed class ScriptInfo
 }
 
 /// <summary>
-/// Ein State aus states.jsonl — ausschließlich die Metadaten.
+/// Ein State aus states.jsonl — die Metadaten und der zuletzt geschriebene Wert.
 ///
-/// Der Wert selbst (<c>val</c>) wird bewusst nie übernommen: er enthält im realen Backup
-/// Binärdaten (ein Kamera-Snapshot trägt ein komplettes JPEG als String),
-/// und für jede Analyse zählt nur, wann und von wem zuletzt geschrieben wurde.
+/// <b>Zur Vorgeschichte:</b> Der Wert (<c>val</c>) wurde bis v1.24.0 bewusst verworfen, weil
+/// einzelne Datenpunkte im realen Backup Binärdaten tragen. Gemessen an der Referenzanlage
+/// stimmt das Bild, trifft aber nur eine Handvoll Datenpunkte: von 13.724 States liegen
+/// 65 über 1 KB und 17 über 10 KB; der größte (ein JSON-Gerätebaum) misst 380 KB, die
+/// übrigen 99,5 % bleiben unter 1 KB. Nicht die Menge war das Problem, sondern die Ausreißer.
+///
+/// Deshalb wird der Wert jetzt geladen, aber bei <see cref="MaxValLength"/> Zeichen gekappt.
+/// Das hält den Speicher bei der Größenordnung der Metadaten und kostet nur die Fähigkeit,
+/// einen sehr großen Wert vollständig zu zeigen — <see cref="ValTruncated"/> weist darauf hin.
 /// </summary>
 public sealed class StateInfo
 {
+    /// <summary>
+    /// Obergrenze des gespeicherten Werts in Zeichen.
+    ///
+    /// <b>Warum so großzügig:</b> Die erste Fassung kappte bei 4.096 Zeichen. Das genügt für
+    /// eine Tabellenzelle, aber nicht, um einen Wert vollständig herauszuholen. Die
+    /// Größenverteilung der Referenzanlage zeigt, wo die Grenze wehtut: 65 Werte liegen über
+    /// 1 KB, 17 über 10 KB, darunter mehrere Gerätelisten zwischen 26 und 42 KB. Das sind
+    /// durchweg JSON-Werte — also genau die, die man nicht abschreibt, sondern kopiert.
+    ///
+    /// Die Messung erlaubt die Großzügigkeit: Werte zu laden kostet keine messbare Ladezeit
+    /// (1.464 ms ohne, 1.388–1.434 ms mit — der Unterschied liegt im Rauschen), weil die
+    /// Zeile ohnehin geparst wird. Die Grenze schützt nur noch vor echten Ausreißern wie
+    /// einem Kamerabild als Base64-Text.
+    /// </summary>
+    public const int MaxValLength = 65536;
+
     public required string Id { get; init; }
+
+    /// <summary>
+    /// Der zuletzt geschriebene Wert als Text. Zeichenketten stehen roh darin, alles andere
+    /// (Zahl, Wahrheitswert, Objekt, Liste) in JSON-Schreibweise. Ein <c>null</c>-Wert und ein
+    /// fehlendes Feld ergeben beide die leere Zeichenkette — <see cref="HasVal"/> trennt sie.
+    /// </summary>
+    public string Val { get; init; } = "";
+
+    /// <summary>true, wenn das Feld <c>val</c> überhaupt vorhanden und nicht <c>null</c> war.</summary>
+    public bool HasVal { get; init; }
+
+    /// <summary>true, wenn der Wert länger war als <see cref="MaxValLength"/> und gekürzt wurde.</summary>
+    public bool ValTruncated { get; init; }
+
+    /// <summary>Ursprüngliche Länge des Werts in Zeichen — auch dann, wenn gekürzt wurde.</summary>
+    public int ValLength { get; init; }
 
     /// <summary>Zeitpunkt des letzten Schreibvorgangs (auch ohne Wertänderung).</summary>
     public DateTime? Ts { get; init; }
@@ -352,6 +405,40 @@ public sealed class StateInfo
         0x84 => "Sensor meldet Fehler",
         _ => $"unbekannter Code 0x{Quality:X2}"
     };
+
+    /// <summary>Der Wert einzeilig für eine Tabellenzelle. Siehe <see cref="FormatVal"/>.</summary>
+    public string ValText => FormatVal(Val, HasVal, ValTruncated, ValLength);
+
+    /// <summary>
+    /// Bereitet einen Wert für die Anzeige in einer Tabellenzeile auf.
+    ///
+    /// Zwei Eingriffe sind nötig, damit eine Zelle nicht die ganze Tabelle zerlegt: Zeilen-
+    /// umbrüche und Tabulatoren werden zu Leerzeichen, und die Anzeige endet nach
+    /// <see cref="DisplayLength"/> Zeichen. Ein gekürzter Wert bekommt die Originallänge
+    /// angehängt, damit erkennbar bleibt, dass hier etwas fehlt — sonst läse sich ein
+    /// abgeschnittenes JSON wie ein vollständiger Wert.
+    /// </summary>
+    public static string FormatVal(string val, bool hasVal, bool truncated, int length)
+    {
+        if (!hasVal) return "—";
+        if (val.Length == 0) return truncated ? $"(leer, {length:N0} Zeichen)" : "";
+
+        var flach = val;
+        if (flach.AsSpan().IndexOfAny('\r', '\n', '\t') >= 0)
+            flach = flach.Replace("\r\n", " ").Replace('\r', ' ').Replace('\n', ' ').Replace('\t', ' ');
+
+        if (flach.Length > DisplayLength)
+            return $"{flach[..DisplayLength]}… ({length:N0} Zeichen)";
+
+        return truncated ? $"{flach}… ({length:N0} Zeichen)" : flach;
+    }
+
+    /// <summary>
+    /// Wie viele Zeichen eine Tabellenzelle höchstens zeigt. Deutlich kleiner als
+    /// <see cref="MaxValLength"/>: Der gespeicherte Wert soll für die Zwischenablage taugen,
+    /// die Zelle nur für den Blick.
+    /// </summary>
+    public const int DisplayLength = 120;
 }
 
 /// <summary>Eine Adapter-Instanz für die Inventar-Tabelle (Säule 1).</summary>
@@ -471,6 +558,21 @@ public sealed class UnusedDatapoint
 
     /// <summary>Alter der letzten Wertänderung in Tagen, bezogen auf den Backup-Zeitpunkt.</summary>
     public int? AgeDays { get; init; }
+
+    /// <summary>Der zuletzt geschriebene Wert. Siehe <see cref="StateInfo.Val"/>.</summary>
+    public string Val { get; init; } = "";
+
+    /// <summary>true, wenn überhaupt ein Wert vorhanden war.</summary>
+    public bool HasVal { get; init; }
+
+    /// <summary>true, wenn der Wert beim Laden gekürzt wurde.</summary>
+    public bool ValTruncated { get; init; }
+
+    /// <summary>Ursprüngliche Länge des Werts in Zeichen.</summary>
+    public int ValLength { get; init; }
+
+    /// <summary>Der Wert einzeilig für eine Tabellenzelle.</summary>
+    public string ValText => StateInfo.FormatVal(Val, HasVal, ValTruncated, ValLength);
 
     /// <summary>Nur ein Kandidat, wenn keine der fünf Prüfungen angeschlagen hat.</summary>
     public bool IsCandidate =>
@@ -628,6 +730,21 @@ public sealed class StateRow
 
     public int Quality { get; init; }
     public string QualityText { get; init; } = "";
+
+    /// <summary>Der zuletzt geschriebene Wert. Siehe <see cref="StateInfo.Val"/>.</summary>
+    public string Val { get; init; } = "";
+
+    /// <summary>true, wenn überhaupt ein Wert vorhanden war.</summary>
+    public bool HasVal { get; init; }
+
+    /// <summary>true, wenn der Wert beim Laden gekürzt wurde.</summary>
+    public bool ValTruncated { get; init; }
+
+    /// <summary>Ursprüngliche Länge des Werts in Zeichen.</summary>
+    public int ValLength { get; init; }
+
+    /// <summary>Der Wert einzeilig für eine Tabellenzelle.</summary>
+    public string ValText => StateInfo.FormatVal(Val, HasVal, ValTruncated, ValLength);
 
     /// <summary>
     /// Meldet die Quelle ein Problem? Siehe <see cref="StateInfo.QualityIsFault"/>: Nur die

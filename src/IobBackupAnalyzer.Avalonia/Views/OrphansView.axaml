@@ -99,6 +99,7 @@
               <DataGridTextColumn Header="Zuletzt geändert" Binding="{Binding LastChangeText}"
                                   SortMemberPath="LastChange" Width="215" />
               <DataGridTextColumn Header="Bewertung"   Binding="{Binding Verdict}"       Width="170" />
+              <DataGridTextColumn Header="Letzter Wert" Binding="{Binding ValText}"      Width="300" />
             </DataGrid.Columns>
           </DataGrid>
         </Grid>
@@ -141,6 +142,7 @@
               <DataGridTextColumn Header="Quelle"    Binding="{Binding From}"        Width="170" />
               <DataGridTextColumn Header="Qualität"  Binding="{Binding QualityText}" Width="180" />
               <DataGridTextColumn Header="Quittiert" Binding="{Binding AckText}"     Width="105" />
+              <DataGridTextColumn Header="Letzter Wert" Binding="{Binding ValText}"  Width="300" />
             </DataGrid.Columns>
           </DataGrid>
         </Grid>
