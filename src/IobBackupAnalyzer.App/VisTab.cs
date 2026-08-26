@@ -23,6 +23,12 @@ public sealed class VisTab : UserControl
     private readonly Label _usageHeader = new();
     private readonly Label _placeholder = new();
 
+    // Untertab "Widget-Sätze"
+    private readonly ListView _setList = new();
+    private readonly Label _setCount = new();
+    private readonly Button _setCsv = new();
+    private List<WidgetSetRow> _sets = new();
+
     private BackupData? _data;
     private List<VisDatapoint> _all = new();
     private List<VisDatapoint> _filtered = new();
@@ -178,9 +184,99 @@ public sealed class VisTab : UserControl
         _placeholder.ForeColor = SystemColors.GrayText;
         _placeholder.Text = "Kein Backup geladen.";
 
-        Controls.Add(split);
+        // Zwei Untertabs wie im Tab "Verwaiste Datenpunkte": Die Datenpunktliste beantwortet
+        // "welcher Wert haengt wo", die Satzliste "welchen Baukasten brauche ich noch".
+        var tabs = new TabControl { Dock = DockStyle.Fill };
+
+        var seiteDp = new TabPage("Datenpunkte") { Padding = new Padding(6), UseVisualStyleBackColor = true };
+        seiteDp.Controls.Add(split);
+        seiteDp.Controls.Add(head);
+
+        tabs.TabPages.Add(seiteDp);
+        tabs.TabPages.Add(BuildWidgetSets());
+
+        Controls.Add(tabs);
         Controls.Add(_placeholder);
-        Controls.Add(head);
+    }
+
+    /// <summary>
+    /// Der Untertab "Widget-Sätze": welcher Baukasten in welcher Projektfassung steckt.
+    /// Der Warnhinweis darueber ist Teil der Aussage, siehe <see cref="WidgetSetAnalyzer.Warning"/>.
+    /// </summary>
+    private TabPage BuildWidgetSets()
+    {
+        var page = new TabPage("Widget-Sätze") { Padding = new Padding(6), UseVisualStyleBackColor = true };
+
+        var warn = new Label
+        {
+            Dock = DockStyle.Top,
+            Height = 92,
+            Text = WidgetSetAnalyzer.Warning.Replace("\n", "\r\n"),
+            ForeColor = SystemColors.GrayText,
+            Padding = new Padding(2, 4, 2, 6)
+        };
+
+        var bar = TabLayout.TopBar(40);
+
+        _setCount.Location = new Point(0, 11);
+        _setCount.Size = new Size(600, 20);
+        _setCount.ForeColor = SystemColors.GrayText;
+
+        _setCsv.Text = "Als CSV exportieren";
+        _setCsv.Size = new Size(160, 26);
+        _setCsv.Location = new Point(620, 7);
+        _setCsv.Click += (_, _) => CsvExport.Save(this, "widget-saetze.csv",
+            VisPresenter.WidgetSetCsvColumns, _sets.Select(VisPresenter.WidgetSetCsvRow));
+
+        bar.Controls.AddRange(new Control[] { _setCount, _setCsv });
+        bar.SizeChanged += (_, _) =>
+        {
+            _setCsv.Left = bar.ClientSize.Width - _setCsv.Width - 4;
+            _setCount.Width = Math.Max(60, _setCsv.Left - 8);
+        };
+
+        _setList.Dock = DockStyle.Fill;
+        _setList.View = View.Details;
+        _setList.FullRowSelect = true;
+        _setList.GridLines = true;
+        _setList.HideSelection = false;
+        _setList.Columns.Add("Widget-Satz", 260);
+        _setList.Columns.Add("Instanz", 240);
+        _setList.Columns.Add("Projekt", 110);
+        _setList.Columns.Add("Widgets", 90);
+        _setList.Columns.Add("Dateiverweise", 120);
+        _setList.Columns.Add("Befund", 420);
+        ListViewCopy.Attach(_setList);
+        ListViewSort.Attach(_setList);
+
+        page.Controls.Add(_setList);
+        page.Controls.Add(bar);
+        page.Controls.Add(warn);
+        return page;
+    }
+
+    private void FillWidgetSets()
+    {
+        _setList.BeginUpdate();
+        _setList.Items.Clear();
+
+        foreach (var s in _sets)
+        {
+            var item = new ListViewItem(VisPresenter.WidgetSetRow(s));
+
+            item.ForeColor = VisPresenter.WidgetSetEmphasis(s) switch
+            {
+                RowEmphasis.Muted => SystemColors.GrayText,
+                RowEmphasis.Warn => Color.DarkOrange,
+                RowEmphasis.Problem => Color.Firebrick,
+                _ => SystemColors.ControlText
+            };
+
+            _setList.Items.Add(item);
+        }
+
+        _setList.EndUpdate();
+        _setCount.Text = VisPresenter.WidgetSetCount(_sets);
     }
 
     public void SetAvailable(bool available)
@@ -228,6 +324,9 @@ public sealed class VisTab : UserControl
         }
 
         FillProjects();
+
+        _sets = WidgetSetAnalyzer.Analyze(data);
+        FillWidgetSets();
 
         _summary.Text = VisPresenter.SummaryText(_all, data).Replace("\n", "\r\n");
 

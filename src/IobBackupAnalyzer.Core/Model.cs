@@ -51,6 +51,12 @@ public sealed class IobObject
     /// <summary>true, wenn common.custom vorhanden ist (History/InfluxDB/SQL-Logging).</summary>
     public bool HasCustom { get; init; }
 
+    /// <summary>
+    /// Nur bei type=instance: common.onlyWWW — die Instanz liefert ausschließlich Dateien
+    /// aus und hat keinen eigenen Prozess. Siehe <see cref="AdapterInstance.OnlyWww"/>.
+    /// </summary>
+    public bool OnlyWww { get; init; }
+
     /// <summary>common.write: true = beschreibbar, false = nur lesend, null = nicht angegeben.</summary>
     public bool? Writable { get; init; }
 
@@ -506,8 +512,32 @@ public sealed class AdapterInstance
     /// </summary>
     public bool OverObjectLimit => ObjectCount > ObjectLimit;
 
+    /// <summary>
+    /// common.onlyWWW: Die Instanz hat keinen eigenen Prozess, sie liefert ausschließlich
+    /// Dateien aus — VIS-Widget-Sätze sind der Regelfall.
+    ///
+    /// <b>Warum das hier stehen muss:</b> Bei solchen Instanzen sagt <see cref="Enabled"/>
+    /// nichts über die Funktion. In der Referenzanlage steht <c>vis-timeandweather.0</c> auf
+    /// <c>enabled=false</c> und bedient trotzdem 56 Widgets einwandfrei — die Dateien liegen
+    /// im files-Bereich und werden unabhängig davon ausgeliefert. Ohne diese Unterscheidung
+    /// führt die Übersicht sie als „Nein" und dämpft die Zeile grau; wer danach aufräumt,
+    /// deinstalliert genau den Satz, den seine Ansichten brauchen.
+    /// </summary>
+    public bool OnlyWww { get; init; }
+
     public string Namespace => $"{Adapter}.{Instance}";
-    public string EnabledText => Enabled ? "Ja" : "Nein";
+
+    /// <summary>
+    /// „Ja"/„Nein" — außer bei <see cref="OnlyWww"/>: Dort ist die Frage nach dem Aktivsein
+    /// gegenstandslos, und die Antwort wäre irreführend.
+    /// </summary>
+    public string EnabledText => OnlyWww ? "nur Dateien" : Enabled ? "Ja" : "Nein";
+
+    /// <summary>
+    /// Ob die Zeile in der Anzeige gedämpft wird. Eine Datei-Instanz ist nicht abgeschaltet,
+    /// sie hat schlicht nichts zu starten.
+    /// </summary>
+    public bool Muted => !Enabled && !OnlyWww;
 }
 
 /// <summary>Ein Treffer aus Analyse A (Objekt-Leichen).</summary>

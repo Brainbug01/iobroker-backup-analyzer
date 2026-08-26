@@ -27,6 +27,10 @@ public partial class VisView : UserControl
     private readonly TextBlock _placeholder;
     private readonly Grid _split;
 
+    private readonly DataGrid _setRows;
+    private readonly TextBlock _setCount;
+    private List<WidgetSetRow> _sets = new();
+
     private BackupData? _data;
     private List<VisDatapoint> _all = new();
     private List<VisDatapoint> _filtered = new();
@@ -47,6 +51,13 @@ public partial class VisView : UserControl
         _assets = this.FindControl<CheckBox>("Assets")!;
         _zip = this.FindControl<Button>("Zip")!;
         _points = this.FindControl<DataGrid>("Points")!;
+
+        _setRows = this.FindControl<DataGrid>("SetRows")!;
+        _setCount = this.FindControl<TextBlock>("SetCount")!;
+        this.FindControl<TextBlock>("SetWarning")!.Text = WidgetSetAnalyzer.Warning;
+        this.FindControl<Button>("SetCsv")!.Click += async (_, _) => await Dialogs.SaveCsvAsync(
+            this, "widget-saetze.csv", VisPresenter.WidgetSetCsvColumns,
+            _sets.Select(VisPresenter.WidgetSetCsvRow).ToList());
         _usages = this.FindControl<DataGrid>("Usages")!;
         _usageHeader = this.FindControl<TextBlock>("UsageHeader")!;
         _placeholder = this.FindControl<TextBlock>("PlaceholderText")!;
@@ -89,6 +100,9 @@ public partial class VisView : UserControl
             _count.Text = "";
             _points.ItemsSource = null;
             _usages.ItemsSource = null;
+            _sets = new List<WidgetSetRow>();
+            _setRows.ItemsSource = null;
+            _setCount.Text = "";
             _placeholder.Text = data is null
                 ? "Kein Backup geladen.\n\nBitte oben eine Datei öffnen oder hineinziehen."
                 : "Für die VIS-Auswertung wird ein Voll-Backup benötigt.\n\n" +
@@ -101,6 +115,10 @@ public partial class VisView : UserControl
         _all = fertig?.Vis ?? VisAnalyzer.Analyze(data);
         _summary.Text = VisPresenter.SummaryText(_all, data);
         FillProjects();
+
+        _sets = WidgetSetAnalyzer.Analyze(data);
+        _setRows.ItemsSource = _sets;
+        _setCount.Text = VisPresenter.WidgetSetCount(_sets);
 
         // Ohne VIS-Views bleibt nur der erklärende Satz in der Zusammenfassung stehen.
         if (data.VisViews.Count == 0)

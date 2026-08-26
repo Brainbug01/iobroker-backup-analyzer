@@ -16,6 +16,33 @@ else
 {
     <div class="reiter-inhalt">
 
+        <nav class="unterreiter">
+            <button class="reiter-knopf @(S.Sub == 0 ? "aktiv" : null)" @onclick="() => S.Sub = 0">
+                Datenpunkte
+            </button>
+            <button class="reiter-knopf @(S.Sub == 1 ? "aktiv" : null)" @onclick="() => S.Sub = 1">
+                Widget-Sätze
+            </button>
+        </nav>
+
+        @if (S.Sub == 1)
+        {
+            <div class="kopfbereich">
+                <Warnkasten Text="@WidgetSetAnalyzer.Warning" />
+                <div class="leiste">
+                    <span class="zaehler">@VisPresenter.WidgetSetCount(Saetze)</span>
+                    <span class="dehnen"></span>
+                    <button class="knopf" @onclick="SaetzeAlsCsv">Als CSV exportieren</button>
+                </div>
+            </div>
+
+            <div class="tabellenbereich">
+                <DataTable TItem="WidgetSetRow" Items="Saetze" Columns="SatzSpalten"
+                           Emphasis="VisPresenter.WidgetSetEmphasis" />
+            </div>
+        }
+        else
+        {
         <div class="kopfbereich">
             <div>@VisPresenter.SummaryText(Alle, Daten)</div>
 
@@ -82,10 +109,30 @@ else
             </div>
         </div>
 
+        }
+
     </div>
 }
 
 @code {
+    private List<WidgetSetRow> Saetze => Bedienung.WidgetSetCache ??= WidgetSetAnalyzer.Analyze(Daten!);
+
+    private static readonly TableColumn<WidgetSetRow>[] SatzSpalten =
+    {
+        new() { Header = "Widget-Satz",   Width = 260, Text = s => s.Set },
+        new() { Header = "Instanz",       Width = 240, Text = s => s.Instance },
+        new() { Header = "Projekt",       Width = 110, Text = s => s.ProjectText },
+        new() { Header = "Widgets",       Width = 90,  Number = true,
+                Text = s => s.WidgetsText, SortKey = s => s.Widgets },
+        new() { Header = "Dateiverweise", Width = 120, Number = true,
+                Text = s => s.FilesText, SortKey = s => s.Files },
+        new() { Header = "Befund",        Width = 420, Text = s => s.Verdict }
+    };
+
+    private async Task SaetzeAlsCsv() =>
+        await Io.SaveCsvAsync("widget-saetze.csv", VisPresenter.WidgetSetCsvColumns,
+                              Saetze.Select(VisPresenter.WidgetSetCsvRow).ToList());
+
     private UiState.VisTab S => Bedienung.Vis;
 
     private bool _packt;

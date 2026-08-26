@@ -158,13 +158,19 @@ public static class HelpContent
             "als „ (deaktiviert)\" im Dateinamen. Blockly kommt als .xml (im Admin wieder importierbar) " +
             "und als bereinigtes .js."),
         new(HelpBlockKind.Text,
-            "Die Spalte „Hinweise\" meldet drei Muster im Aufbau eines Blockly-Skripts. Erstens den " +
+            "Die Spalte „Hinweise\" meldet vier Muster im Aufbau eines Blockly-Skripts. Erstens den " +
             "Auslöser im Rumpf eines anderen Auslösers: Er wird bei jeder Auslösung des äußeren erneut " +
             "angelegt und nie wieder entfernt, sodass nach einigen Stunden dieselben Aktionen vielfach " +
             "parallel laufen — der Blockly-Editor zeigt an dieser Stelle selbst ein Warndreieck. " +
             "Zweitens einen Baustein, den der javascript-Adapter mit dem Zusatz „(deprecated)\" führt; " +
             "das ist derzeit genau einer, nämlich „request\" — Nachfolger ist „HTTP-Get\". Drittens " +
-            "einen Auslöser ohne Inhalt, der also auslöst, aber nichts tut. Zu jedem Befund steht " +
+            "einen Auslöser ohne Inhalt, der also auslöst, aber nichts tut. Viertens einen Timer, der " +
+            "im Rumpf eines Auslösers startet und nirgends im Skript gelöscht wird: Löst der Auslöser " +
+            "erneut aus, bevor der Timer abgelaufen ist, wird nur die Variable überschrieben — der " +
+            "vorige Timer läuft weiter und feuert trotzdem, bei jedem Auslösen einer mehr. Abhilfe ist " +
+            "der Baustein „Timeout löschen\" mit demselben Namen vor dem Starten. Ob daraus ein " +
+            "Problem wird, hängt davon ab, wie oft der Auslöser feuert; diese Häufigkeit steht nicht " +
+            "im Backup. Zu jedem Befund steht " +
             "unter der Liste die Begründung und die Baustein-ID, mit der er sich im Blockly-Editor " +
             "wiederfinden lässt; der Filter „Nur mit Hinweisen\" zeigt die betroffenen Skripte allein."),
         new(HelpBlockKind.Text,
@@ -253,6 +259,22 @@ public static class HelpContent
             "das Backup einzuspielen. Angeboten werden nur Ordner mit einer vis-views.json; reine " +
             "Bilderordner neben dem Projekt sind keine Projekte und deshalb auch nicht in der ZIP."),
         new(HelpBlockKind.Text, VisPresenter.ImportHint),
+        new(HelpBlockKind.Text,
+            "Der zweite Untertab „Widget-Sätze\" beantwortet eine andere Frage: welchen Baukasten " +
+            "brauchen die Ansichten überhaupt noch. Je Satz steht dort, in welcher Projektfassung er " +
+            "vorkommt, wie viele Widgets ihn nutzen und ob der zugehörige Adapter installiert ist.\n" +
+            "Gezählt wird auf zwei Wegen, weil ein Satz auf zwei Arten in Anspruch genommen wird: über " +
+            "das Feld „widgetSet\" am Widget und über Dateiverweise wie /vis-icontwo/tuer-offen.png in " +
+            "einer Widget-Eigenschaft. Ein Icon-Satz kann in keinem einzigen widgetSet stehen und " +
+            "trotzdem hunderte Male als Bildpfad verwendet werden — wer nur die erste Zählung kennt, " +
+            "hält ihn für entbehrlich.\n" +
+            "Als Umstiegsrest gilt ein alter Satz nur, wenn seine VIS-2-Fassung schon installiert ist. " +
+            "Adapter, die ihre Widgets ohne solches Gegenstück für beide Fassungen mitbringen, sind " +
+            "keine Altlast und stehen weiterhin als „in Gebrauch\".\n" +
+            "Der Vorbehalt über der Liste gehört zur Aussage: VIS 2 bettet ausgewählte Symbole " +
+            "vollständig in das Projekt ein, ohne Hinweis auf ihre Herkunft. Ein Icon-Satz kann also " +
+            "die Anzeige tragen und hier trotzdem ohne einen einzigen Verweis dastehen. Vor dem " +
+            "Entfernen eines Adapters deshalb im laufenden System gegenprüfen."),
 
         new(HelpBlockKind.Heading, "Tab „Verwaiste Datenpunkte\""),
         new(HelpBlockKind.Text,

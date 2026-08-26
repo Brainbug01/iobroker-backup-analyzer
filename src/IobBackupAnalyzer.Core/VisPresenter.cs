@@ -44,6 +44,46 @@ public static class VisPresenter
           "VIS", "Projekt", "View", "Widget-ID", "Widget-Name", "Widget-Typ", "Widget-Set",
           "Feld", "Zugriff" };
 
+    // ------------------------------------------------------------------ Widget-Sätze
+
+    /// <summary>Spalten der Widget-Satz-Liste.</summary>
+    public static readonly string[] WidgetSetColumns =
+        { "Widget-Satz", "Instanz", "Projekt", "Widgets", "Dateiverweise", "Befund" };
+
+    /// <summary>Wie <see cref="WidgetSetColumns"/>, aber je Projektfassung getrennt gezählt.</summary>
+    public static readonly string[] WidgetSetCsvColumns =
+        { "Widget-Satz", "Instanz", "Widgets VIS 1", "Widgets VIS 2",
+          "Dateiverweise VIS 1", "Dateiverweise VIS 2", "Befund" };
+
+    public static string[] WidgetSetRow(WidgetSetRow r) =>
+        new[] { r.Set, r.Instance, r.ProjectText, r.WidgetsText, r.FilesText, r.Verdict };
+
+    public static string[] WidgetSetCsvRow(WidgetSetRow r) =>
+        new[] { r.Set, r.Instance, r.WidgetsVis1.ToString(), r.WidgetsVis2.ToString(),
+                r.FilesVis1.ToString(), r.FilesVis2.ToString(), r.Verdict };
+
+    /// <summary>
+    /// Farbe der Zeile. Hervorgehoben wird, was eine Entscheidung verlangt: ein VIS-1-Satz in
+    /// einer VIS-2-Ansicht und ein Satz ohne jeden Verweis. Letzterer bleibt bewusst nur
+    /// „auffällig" und nicht „Befund" — die Aussage ist die unsicherste der Liste
+    /// (siehe <see cref="WidgetSetAnalyzer.Warning"/>).
+    /// </summary>
+    public static RowEmphasis WidgetSetEmphasis(WidgetSetRow r) =>
+        r.BuiltIn ? RowEmphasis.Muted
+        : !r.Installed ? RowEmphasis.Problem
+        : r.Vis1InVis2 ? RowEmphasis.Warn
+        : r.Uncertain ? RowEmphasis.Warn
+        : RowEmphasis.None;
+
+    public static string WidgetSetCount(IReadOnlyList<WidgetSetRow> rows)
+    {
+        var ohne = rows.Count(r => r.Uncertain);
+        var alt = rows.Count(r => r.Vis1InVis2);
+
+        return $"{rows.Count} Sätze · {alt} VIS-1-Satz in VIS-2-Ansicht · " +
+               $"{ohne} ohne Verweis im Backup";
+    }
+
     /// <summary>Beschriftungen der Bereichsauswahl, in der Reihenfolge von <see cref="VisScope"/>.</summary>
     public static readonly string[] ScopeLabels =
         { "Alle", "Nur VIS 1", "Nur VIS 2", "In beiden", "Nur fehlende Datenpunkte",

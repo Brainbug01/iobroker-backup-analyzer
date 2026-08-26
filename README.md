@@ -449,6 +449,28 @@ auf den *Spaltenkopf* passt dagegen die Breite an, siehe oben.)
 Excel einfügbar —, **Strg+A** markiert alles. So muss keine Widget- oder Datenpunkt-ID
 abgetippt werden.
 
+#### Untertab „Widget-Sätze"
+Welchen Widget-Baukasten die Ansichten überhaupt noch brauchen. Je Satz steht dort, in welcher
+Projektfassung er vorkommt, wie viele Widgets ihn nutzen und ob der zugehörige Adapter
+installiert ist.
+
+**Gezählt wird auf zwei Wegen**, weil ein Satz auf zwei Arten in Anspruch genommen wird: über
+das Feld `widgetSet` am Widget und über Dateiverweise wie `/vis-icontwo/tuer-offen.png` in
+einer Widget-Eigenschaft. Am Testbackup: Ein Icon-Satz steht in **keinem einzigen** `widgetSet`
+und wird trotzdem **680-mal** als Bildpfad verwendet. Wer nur die erste Zählung kennt, hält ihn
+für entbehrlich und entfernt den Adapter, der die halbe Visualisierung trägt.
+
+**Als Umstiegsrest** gilt ein alter Satz nur, wenn seine VIS-2-Fassung bereits installiert ist —
+`vis-inventwo` neben `vis-2-widgets-inventwo` etwa. Adapter, die ihre Widgets ohne solches
+Gegenstück für beide Fassungen mitbringen, sind keine Altlast und stehen weiterhin als
+„in Gebrauch".
+
+**Der Vorbehalt gehört zur Aussage.** VIS 2 bettet ausgewählte Symbole vollständig in das
+Projekt ein (`data:image/svg+xml;base64,…`), und der eingebettete Inhalt trägt keinen Hinweis
+auf seine Herkunft — im Testbackup 519 solcher Symbole. Ein Icon-Satz kann also die Anzeige
+tragen und hier ohne einen einzigen Verweis dastehen. Die Liste ist deshalb eine **Prüfliste,
+keine Deinstallationsliste**; vor dem Entfernen eines Adapters im laufenden System gegenprüfen.
+
 ### Tab „Verwaiste Datenpunkte"
 **Analyse A** listet Objekte, deren Adapter-Instanz im Backup fehlt.
 **Analyse B** listet User-Datenpunkte, die nirgends verwendet zu werden scheinen. Geprüft

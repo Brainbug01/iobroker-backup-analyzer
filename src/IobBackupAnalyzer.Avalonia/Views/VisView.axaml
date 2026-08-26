@@ -2,6 +2,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="IobBackupAnalyzer.Avalonia.Views.VisView">
 
+  <TabControl Margin="4">
+   <TabItem Header="Datenpunkte">
   <Grid Margin="8" RowDefinitions="Auto,*">
 
     <StackPanel Grid.Row="0" Spacing="6" Margin="0,0,0,8">
@@ -113,4 +115,35 @@
     </Grid>
 
   </Grid>
+   </TabItem>
+
+   <!--
+     Welcher Widget-Baukasten steckt in welcher Projektfassung. Der Warnhinweis darueber
+     gehoert zur Aussage: "kein Verweis" heisst nicht "unbenutzt".
+   -->
+   <TabItem Header="Widget-Sätze">
+     <Grid Margin="8" RowDefinitions="Auto,Auto,*">
+       <TextBlock Name="SetWarning" Grid.Row="0" TextWrapping="Wrap" Opacity="0.75"
+                  Margin="0,0,0,8" />
+
+       <Grid Grid.Row="1" ColumnDefinitions="*,Auto" Margin="0,0,0,8">
+         <TextBlock Name="SetCount" Grid.Column="0" VerticalAlignment="Center" Opacity="0.75" />
+         <Button Name="SetCsv" Grid.Column="1" Content="Als CSV exportieren" />
+       </Grid>
+
+       <DataGrid Name="SetRows" Grid.Row="2" IsReadOnly="True" GridLinesVisibility="All"
+                 CanUserSortColumns="True" CanUserResizeColumns="True"
+                 AutoGenerateColumns="False">
+         <DataGrid.Columns>
+           <DataGridTextColumn Header="Widget-Satz"   Binding="{Binding Set}"         Width="260" />
+           <DataGridTextColumn Header="Instanz"       Binding="{Binding Instance}"    Width="240" />
+           <DataGridTextColumn Header="Projekt"       Binding="{Binding ProjectText}" Width="110" />
+           <DataGridTextColumn Header="Widgets"       Binding="{Binding WidgetsText}" Width="90" />
+           <DataGridTextColumn Header="Dateiverweise" Binding="{Binding FilesText}"   Width="120" />
+           <DataGridTextColumn Header="Befund"        Binding="{Binding Verdict}"     Width="420" />
+         </DataGrid.Columns>
+       </DataGrid>
+     </Grid>
+   </TabItem>
+  </TabControl>
 </UserControl>

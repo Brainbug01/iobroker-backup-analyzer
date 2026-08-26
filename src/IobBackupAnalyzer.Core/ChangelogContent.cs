@@ -23,6 +23,51 @@ public static class ChangelogContent
     /// <summary>Neueste Version zuerst.</summary>
     public static IReadOnlyList<ChangelogEntry> Entries { get; } = new ChangelogEntry[]
     {
+        new("1.26.0", "26.08.2026", new[]
+        {
+            "Neue Prüfung bei den Skripten: „Timer wird nie gelöscht\". Sie meldet einen " +
+            "Timeout- oder Intervall-Baustein, der im Rumpf eines Auslösers startet, zu dem " +
+            "es aber nirgends im Skript ein „Timeout löschen\" gibt. Blockly erzeugt daraus " +
+            "eine Zuweisung; löst der Auslöser erneut aus, bevor der Timer abgelaufen ist, " +
+            "wird nur die Variable überschrieben — der vorige Timer läuft weiter und feuert " +
+            "trotzdem. Bei jedem Auslösen kommt einer hinzu, und die Anlage bekommt Last, " +
+            "ohne dass die CPU auffällig würde.",
+
+            "Abgeschaltete Bausteine und Skripte werden dabei getrennt ausgewiesen. Im " +
+            "Testbackup sind von 38 gefundenen Timern 19 abgeschaltete Bausteine und 16 in " +
+            "abgeschalteten Skripten — ohne diese Unterscheidung wäre der Befund zwölfmal " +
+            "so groß und wertlos.",
+
+            "Neuer Untertab „Widget-Sätze\" bei den VIS-Datenpunkten: welcher Widget-Baukasten " +
+            "in welcher Projektfassung steckt, wie oft, und ob der zugehörige Adapter " +
+            "installiert ist. Beantwortet die Frage, welche Sätze man nach einem Umstieg auf " +
+            "VIS 2 noch braucht.",
+
+            "Gezählt werden dabei zwei Wege, nicht nur einer: das Feld „widgetSet\" am Widget " +
+            "und Dateiverweise wie /vis-icontwo/tuer-offen.png in den Widget-Eigenschaften. " +
+            "Im Testbackup steht ein Icon-Satz in keinem einzigen widgetSet und wird trotzdem " +
+            "680-mal als Bildpfad verwendet — wer nur die erste Zählung kennt, hält ihn " +
+            "fälschlich für entbehrlich.",
+
+            "Ein alter Satz gilt nur dann als Umstiegsrest, wenn seine VIS-2-Fassung bereits " +
+            "installiert ist. Adapter, die ihre Widgets ohne solches Gegenstück für beide " +
+            "Fassungen mitbringen, stehen weiterhin als „in Gebrauch\".",
+
+            "Über der Liste steht ein Vorbehalt, und er gehört zur Aussage: VIS 2 bettet " +
+            "ausgewählte Symbole vollständig in das Projekt ein, ohne Hinweis auf ihre " +
+            "Herkunft. Ein Icon-Satz kann die Anzeige tragen und trotzdem ohne einen einzigen " +
+            "Verweis dastehen. Die Liste ist deshalb eine Prüfliste, keine " +
+            "Deinstallationsliste.",
+
+            "Korrektur in der Übersicht: Adapter, die nur Dateien ausliefern und gar keinen " +
+            "eigenen Prozess haben (common.onlyWWW — VIS-Widget-Sätze sind der Regelfall), " +
+            "wurden als „Aktiviert: Nein\" geführt und grau gedämpft. Bei ihnen sagt dieses " +
+            "Feld nichts über die Funktion: Im Testbackup steht ein Satz auf „nicht " +
+            "aktiviert\" und bedient trotzdem 56 Widgets einwandfrei. Solche Instanzen zeigen " +
+            "jetzt „nur Dateien\" und werden nicht mehr gedämpft — wer nach Aufräumkandidaten " +
+            "sucht, hätte sonst ausgerechnet die entfernt, die gebraucht werden."
+        }),
+
         new("1.25.1", "26.08.2026", new[]
         {
             "Im Reiter „Datenpunkte\" steht jetzt der vollständige Name des Datenpunkts in " +

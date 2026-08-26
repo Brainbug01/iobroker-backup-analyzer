@@ -262,6 +262,9 @@ internal static class ObjectParser
             Version = version,
             Enabled = enabled,
             HasCustom = hasCustom,
+            OnlyWww = type == "instance" && hasCommon
+                      && common.TryGetProperty("onlyWWW", out var www)
+                      && www.ValueKind == JsonValueKind.True,
             Writable = writable,
             ObjectsWarnLimit = objectsWarnLimit,
             CustomLogging = customLogging,

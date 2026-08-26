@@ -1076,6 +1076,7 @@ public static class BackupLoader
                 Instance = nr,
                 Version = o.Version ?? "",
                 Enabled = o.Enabled,
+                OnlyWww = o.OnlyWww,
                 RestartSchedule = o.RestartSchedule ?? "",
                 LogLevel = o.LogLevel ?? ""
             };

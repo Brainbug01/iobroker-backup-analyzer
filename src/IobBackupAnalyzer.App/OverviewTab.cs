@@ -282,7 +282,9 @@ public sealed class OverviewTab : UserControl
         {
             var item = new ListViewItem(OverviewPresenter.DisplayRow(i)) { Tag = i };
 
-            if (!i.Enabled) item.ForeColor = SystemColors.GrayText;
+            // Nicht i.Enabled: Eine Instanz, die nur Dateien liefert, ist nicht
+            // abgeschaltet, sondern hat nichts zu starten (siehe AdapterInstance.Muted).
+            if (i.Muted) item.ForeColor = SystemColors.GrayText;
 
             // Nur die Objektzahl wird hervorgehoben, nicht die ganze Zeile: Die Instanz ist
             // in Ordnung, allein ihr Objektbestand ist zu groß. Sobald einzelne Zellen ihre

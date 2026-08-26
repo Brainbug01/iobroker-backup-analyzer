@@ -67,7 +67,8 @@ public partial class OverviewView : UserControl
         {
             var instance = e.Row.DataContext as AdapterInstance;
 
-            var enabled = instance?.Enabled ?? true;
+            // Siehe AdapterInstance.Muted: Datei-Instanzen sind nicht abgeschaltet.
+            var enabled = !(instance?.Muted ?? false);
             if (enabled) e.Row.Classes.Remove("deaktiviert");
             else if (!e.Row.Classes.Contains("deaktiviert")) e.Row.Classes.Add("deaktiviert");
 

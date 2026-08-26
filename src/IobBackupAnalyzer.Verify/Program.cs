@@ -858,6 +858,65 @@ CheckEq("Fundstellen-Zeile passt zur Spaltenzahl",
         beispielZeile.Length, VisPresenter.UsageColumns.Length);
 CheckEq("Projekt steht in der Fundstellen-Zeile", beispielZeile[1], "tablet");
 
+// --- Widget-Saetze ---
+Console.WriteLine();
+Console.WriteLine("=== VIS: Widget-Saetze ===");
+
+var saetze = WidgetSetAnalyzer.Analyze(fullData);
+Console.WriteLine($"  Saetze gefunden: {saetze.Count}");
+foreach (var s in saetze)
+    Console.WriteLine($"    {s.Set,-26} {s.Instance,-26} W1={s.WidgetsVis1,-5} W2={s.WidgetsVis2,-5} "
+                    + $"D1={s.FilesVis1,-5} D2={s.FilesVis2,-5} {s.Verdict}");
+
+Check("Widget-Saetze gefunden", saetze.Count > 0);
+CheckEq("Spaltenzahl passt zur Zeile",
+        VisPresenter.WidgetSetColumns.Length, VisPresenter.WidgetSetRow(saetze[0]).Length);
+CheckEq("CSV-Spalten passen zur CSV-Zeile",
+        VisPresenter.WidgetSetCsvColumns.Length, VisPresenter.WidgetSetCsvRow(saetze[0]).Length);
+
+// Der Kern der Auswertung: Ein Satz wird auf zwei Wegen benutzt. Wer nur widgetSet zaehlt,
+// haelt einen Icon-Satz faelschlich fuer entbehrlich.
+var nurDatei = saetze.FirstOrDefault(s => s.Widgets == 0 && s.Files > 0);
+Check("Ein Satz wird ausschliesslich ueber Dateiverweise benutzt", nurDatei is not null,
+      nurDatei?.Set);
+if (nurDatei is not null)
+    Check("Solch ein Satz gilt nicht als unbenutzt", !nurDatei.Uncertain, nurDatei.Set);
+
+// Die eingebauten Saetze duerfen nie als fehlender Adapter erscheinen.
+foreach (var eingebaut in saetze.Where(s => s.BuiltIn))
+    Check($"Eingebauter Satz {eingebaut.Set} wird nicht beanstandet",
+          eingebaut.Verdict == "Teil von VIS");
+
+// Jeder Satz mit Verweisen muss im Rohtext seiner Projektfassung vorkommen.
+var v2Roh = string.Join("\n", fullData.VisViews.Where(v => v.Version == VisVersion.Vis2)
+                                               .Select(v => v.Content));
+var v1Roh = string.Join("\n", fullData.VisViews.Where(v => v.Version == VisVersion.Vis1)
+                                               .Select(v => v.Content));
+foreach (var s in saetze.Where(s => s.WidgetsVis2 > 0).Take(5))
+    Check($"Satz {s.Set} steht wirklich im VIS-2-Text",
+          v2Roh.Contains(s.Set, StringComparison.Ordinal));
+foreach (var s in saetze.Where(s => s.FilesVis1 > 0).Take(5))
+    Check($"Dateiverweis auf {s.Set} steht wirklich im VIS-1-Text",
+          v1Roh.Contains("/" + s.Set + "/", StringComparison.Ordinal));
+
+// Der Vorbehalt ist Teil der Aussage — ohne ihn wird die Liste als Loeschliste gelesen.
+Check("Warnhinweis nennt die eingebetteten Symbole",
+      WidgetSetAnalyzer.Warning.Contains("bettet"));
+Check("Warnhinweis stellt klar, dass es keine Loeschliste ist",
+      WidgetSetAnalyzer.Warning.Contains("keine Deinstallationsliste"));
+
+// Gegenprobe: Eine Instanz, die nur Dateien liefert, darf nicht als abgeschaltet gelten.
+var nurWww = fullData.Instances.Where(i => i.OnlyWww).ToList();
+Console.WriteLine($"  Instanzen mit onlyWWW: {nurWww.Count}");
+Check("Datei-Instanzen gefunden", nurWww.Count > 0);
+Check("Datei-Instanzen werden nicht gedaempft", nurWww.All(i => !i.Muted),
+      nurWww.FirstOrDefault(i => i.Muted)?.Namespace);
+Check("Datei-Instanzen melden nicht Ja/Nein",
+      nurWww.All(i => i.EnabledText == "nur Dateien"));
+var echtAus = fullData.Instances.FirstOrDefault(i => !i.Enabled && !i.OnlyWww);
+if (echtAus is not null)
+    Check("Eine wirklich abgeschaltete Instanz bleibt gedaempft", echtAus.Muted, echtAus.Namespace);
+
 // Gegenprobe: Ein per Struktur gefundener Datenpunkt muss auch im Rohtext seiner
 // VIS-Datei vorkommen — sonst hat der Extraktor etwas erfunden.
 var sample = visDps.Where(d => d.InVis1 && !d.InVis2).Take(5).ToList();

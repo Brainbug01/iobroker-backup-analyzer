@@ -13,6 +13,8 @@ public enum ScriptHintKind
     DebugMode,
     /// <summary>Ein Trigger steht im Rumpf eines anderen Triggers.</summary>
     TriggerInTrigger,
+    /// <summary>Ein Timer wird im Rumpf eines Triggers gestartet und nirgends gelöscht.</summary>
+    TimerWithoutClear,
     /// <summary>„Steuern" auf einem eigenen Datenpunkt, den niemand quittiert.</summary>
     ControlOnOwnState,
     /// <summary>„Aktualisieren" auf einem Adapter-Datenpunkt — der Adapter führt nichts aus.</summary>
@@ -64,6 +66,7 @@ public sealed record ScriptHint(ScriptHintKind Kind, string BlockType, string Bl
     {
         ScriptHintKind.DebugMode => "Debug-Modus aktiv",
         ScriptHintKind.TriggerInTrigger => "Trigger im Trigger",
+        ScriptHintKind.TimerWithoutClear => $"Timer „{Detail}\" wird nie gelöscht",
         ScriptHintKind.ControlOnOwnState => "steuern statt aktualisieren",
         ScriptHintKind.UpdateOnAdapterState => "aktualisieren statt steuern",
         ScriptHintKind.DeprecatedBlock => $"abgelöst: {BlockType}",
@@ -92,6 +95,20 @@ public sealed record ScriptHint(ScriptHintKind Kind, string BlockType, string Bl
           + "das die Logdatei und macht die übrigen Meldungen unlesbar. Zum Suchen eines "
           + "Fehlers gedacht, nicht für den Dauerbetrieb. Abhilfe: Im Blockly-Editor unter "
           + "dem Zahnrad den Haken entfernen.",
+
+        ScriptHintKind.TimerWithoutClear =>
+            $"Timer „{Detail}\" wird im Rumpf eines Auslösers gestartet, aber nirgends im "
+          + "Skript gelöscht. Blockly erzeugt daraus eine Zuweisung der Form "
+          + $"„{Detail} = setTimeout(…)\". Löst der Auslöser erneut aus, bevor der Timer "
+          + "abgelaufen ist, wird nur die Variable überschrieben — der vorige Timer läuft "
+          + "weiter und feuert trotzdem. Bei jedem Auslösen kommt einer hinzu.\n\n"
+          + "Abhilfe: Im Blockly-Editor vor dem Starten den Baustein „Timeout löschen\" mit "
+          + "demselben Namen setzen. Genau das erzeugt den Aufruf clearTimeout, der den "
+          + "vorigen Lauf beendet.\n\n"
+          + "Ob daraus ein Problem wird, hängt davon ab, wie oft der Auslöser feuert: "
+          + "Kommt er seltener als die eingestellte Verzögerung, überlappen sich die Timer "
+          + "nie. Diese Häufigkeit steht nicht im Backup — belegt ist allein, dass der Timer "
+          + "bei jedem Auslösen neu gestartet und nirgends gelöscht wird.",
 
         ScriptHintKind.ControlOnOwnState =>
             $"„Steuern\" auf eigenem Datenpunkt ({Detail}): Der Baustein „Zustand steuern\" "
@@ -207,7 +224,103 @@ public static class ScriptQualityAnalyzer
         if (doc?.DocumentElement is null) return hints;
 
         Walk(doc.DocumentElement, insideTrigger: false, hints);
+        CollectTimerHints(doc.DocumentElement, hints);
         return hints;
+    }
+
+    /// <summary>
+    /// Timer-Bausteine, die einen Lauf starten, und ihr jeweiliges Gegenstück zum Löschen.
+    ///
+    /// <c>timeouts_settimeout_variable</c> fehlt bewusst: Dort steht der Name in einer
+    /// Variablen, und ohne festen Namen ist kein Gegenstück zuzuordnen — eine Aussage wäre
+    /// geraten.
+    /// </summary>
+    private static readonly (string Start, string Stop)[] TimerBlocks =
+    {
+        ("timeouts_settimeout", "timeouts_cleartimeout"),
+        ("timeouts_setinterval", "timeouts_clearinterval")
+    };
+
+    /// <summary>
+    /// Sucht Timer, die im Rumpf eines Auslösers gestartet und nirgends gelöscht werden.
+    ///
+    /// <b>Warum zwei Durchgänge nötig sind:</b> Der Befund entsteht erst aus dem Vergleich
+    /// zweier Mengen über das <b>ganze</b> Skript — gestartete Namen gegen gelöschte. Ein
+    /// Baustein allein trägt die Aussage nicht, denn das Löschen darf an beliebiger Stelle
+    /// stehen, auch in einem anderen Auslöser.
+    ///
+    /// <b>Zwei Einschränkungen, ohne die die Liste unbrauchbar wäre:</b>
+    /// <list type="bullet">
+    /// <item><b>Nur im Rumpf eines Auslösers.</b> Ein Timer, der einmalig beim Skriptstart
+    /// läuft, braucht kein Löschen — er wird ja nicht wiederholt gestartet.</item>
+    /// <item><b>Abgeschaltete Bausteine zählen nicht als Löschung</b>, und ein abgeschalteter
+    /// Start wird nur gedämpft gemeldet. In der Referenzanlage sind von 38 gefundenen Timern
+    /// 19 abgeschaltete Bausteine und 16 in abgeschalteten Skripten; ohne diese Unterscheidung
+    /// wäre der Befund um das Zwölffache zu hoch.</item>
+    /// </list>
+    /// </summary>
+    private static void CollectTimerHints(XmlNode root, List<ScriptHint> hints)
+    {
+        foreach (var (start, stop) in TimerBlocks)
+        {
+            var gestartet = new List<(string Name, string Id, bool InTrigger, bool Disabled)>();
+            var geloescht = new HashSet<string>(StringComparer.Ordinal);
+
+            CollectTimers(root, start, stop, insideTrigger: false, insideDisabled: false,
+                          gestartet, geloescht);
+
+            foreach (var (name, id, inTrigger, disabled) in gestartet)
+            {
+                if (!inTrigger || name.Length == 0 || geloescht.Contains(name)) continue;
+                hints.Add(new ScriptHint(ScriptHintKind.TimerWithoutClear, start, id, name, disabled));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Sammelt Start- und Löschbausteine eines Timer-Paares. Rumpf- und Abschaltzustand
+    /// folgen denselben Regeln wie in <see cref="Walk"/> — <c>next</c> führt zum Nachbarn,
+    /// nicht nach innen.
+    /// </summary>
+    private static void CollectTimers(XmlNode node, string start, string stop,
+                                      bool insideTrigger, bool insideDisabled,
+                                      List<(string, string, bool, bool)> gestartet,
+                                      HashSet<string> geloescht)
+    {
+        var isTrigger = false;
+        var disabled = insideDisabled;
+
+        if (node.NodeType == XmlNodeType.Element && node.LocalName == "block")
+        {
+            var type = node.Attributes?["type"]?.Value ?? "";
+            var id = node.Attributes?["id"]?.Value ?? "";
+
+            if (node.Attributes?["disabled"]?.Value == "true") disabled = true;
+            isTrigger = TriggerBlocks.Contains(type);
+
+            var name = FieldValue(node, "NAME");
+
+            if (type == start)
+                gestartet.Add((name, id, insideTrigger, disabled));
+
+            // Ein abgeschalteter Löschbaustein löscht nichts — er darf einen laufenden
+            // Timer deshalb nicht entlasten.
+            else if (type == stop && !disabled && name.Length > 0)
+                geloescht.Add(name);
+        }
+
+        foreach (XmlNode child in node.ChildNodes)
+        {
+            var childInside = child.NodeType == XmlNodeType.Element && child.LocalName == "next"
+                ? insideTrigger
+                : insideTrigger || isTrigger;
+
+            var childDisabled = child.NodeType == XmlNodeType.Element && child.LocalName == "next"
+                ? insideDisabled
+                : disabled;
+
+            CollectTimers(child, start, stop, childInside, childDisabled, gestartet, geloescht);
+        }
     }
 
     /// <summary>Wem ein Datenpunkt gehört — entscheidet, welcher Schreib-Baustein richtig ist.</summary>

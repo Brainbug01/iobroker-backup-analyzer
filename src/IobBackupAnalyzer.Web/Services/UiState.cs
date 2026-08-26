@@ -45,6 +45,7 @@ public sealed class UiState
         Alias = new AliasTab();
         Datapoints = new DatapointsTab();
         DatapointCache = null;
+        WidgetSetCache = null;
         Files = new FilesTab();
         Compare = new CompareTab();
     }
@@ -89,8 +90,14 @@ public sealed class UiState
         public StateUsage? SelectedState { get; set; }
     }
 
+    /// <summary>Aufbereitete Widget-Satz-Liste. Siehe <see cref="DatapointCache"/>.</summary>
+    public List<WidgetSetRow>? WidgetSetCache { get; set; }
+
     public sealed class VisTab
     {
+        /// <summary>0 = Datenpunkte, 1 = Widget-Saetze.</summary>
+        public int Sub { get; set; }
+
         public string Filter { get; set; } = "";
         public VisScope Scope { get; set; } = VisScope.All;
         public VisDatapoint? Selected { get; set; }
