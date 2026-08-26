@@ -128,9 +128,15 @@ public static class WidgetSetAnalyzer
     /// <summary>
     /// Sätze, die VIS selbst mitbringt. Sie haben keinen eigenen Adapter, und ihr Fehlen in
     /// der Instanzliste ist deshalb kein Befund.
+    ///
+    /// <c>vis-2-widgets-basic</c> gehört dazu: Trotz des Namensmusters der Zusatzpakete ist
+    /// das der Grundbaukasten von VIS 2 — das Gegenstück zu <c>basic</c> in VIS 1 — und
+    /// steckt im Adapter vis-2 selbst. Ohne diesen Eintrag meldete die Liste ihn als
+    /// „Adapter fehlt im Backup", und zwar in jedem VIS-2-Projekt.
     /// </summary>
     private static readonly HashSet<string> BuiltInSets =
-        new(StringComparer.OrdinalIgnoreCase) { "basic", "jqui", "vis" };
+        new(StringComparer.OrdinalIgnoreCase)
+        { "basic", "jqui", "vis", "vis-2-widgets-basic" };
 
     /// <summary>
     /// Ein Verweis auf eine Datei eines Adapters: <c>"/name/…</c> am Anfang eines Werts.

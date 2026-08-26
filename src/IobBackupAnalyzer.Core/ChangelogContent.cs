@@ -23,6 +23,15 @@ public static class ChangelogContent
     /// <summary>Neueste Version zuerst.</summary>
     public static IReadOnlyList<ChangelogEntry> Entries { get; } = new ChangelogEntry[]
     {
+        new("1.26.1", "26.08.2026", new[]
+        {
+            "Korrektur im neuen Untertab „Widget-Sätze\": Der Grundbaukasten von VIS 2 " +
+            "(vis-2-widgets-basic) wurde rot als „Adapter fehlt im Backup\" gemeldet. Er " +
+            "trägt zwar das Namensmuster der Zusatzpakete, steckt aber im Adapter vis-2 " +
+            "selbst — genau wie „basic\" in VIS 1 zum vis-Adapter gehört. Betroffen war " +
+            "jedes VIS-2-Projekt."
+        }),
+
         new("1.26.0", "26.08.2026", new[]
         {
             "Neue Prüfung bei den Skripten: „Timer wird nie gelöscht\". Sie meldet einen " +

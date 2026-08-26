@@ -882,6 +882,15 @@ Check("Ein Satz wird ausschliesslich ueber Dateiverweise benutzt", nurDatei is n
 if (nurDatei is not null)
     Check("Solch ein Satz gilt nicht als unbenutzt", !nurDatei.Uncertain, nurDatei.Set);
 
+// Der Grundbaukasten beider VIS-Fassungen darf nie als fehlender Adapter erscheinen — er
+// steckt im vis- bzw. vis-2-Adapter selbst und hat kein eigenes Paket.
+foreach (var grund in new[] { "basic", "jqui", "vis-2-widgets-basic" })
+{
+    var zeile = saetze.FirstOrDefault(s => string.Equals(s.Set, grund, StringComparison.OrdinalIgnoreCase));
+    if (zeile is not null)
+        Check($"Grundbaukasten {grund} gilt als Teil von VIS", zeile.BuiltIn, zeile.Verdict);
+}
+
 // Die eingebauten Saetze duerfen nie als fehlender Adapter erscheinen.
 foreach (var eingebaut in saetze.Where(s => s.BuiltIn))
     Check($"Eingebauter Satz {eingebaut.Set} wird nicht beanstandet",
