@@ -78,11 +78,27 @@ public sealed class DatapointHit
 public static class DatapointPresenter
 {
     /// <summary>
-    /// Obergrenze der Trefferliste. Ohne Suchbegriff wären es alle Datenpunkte der Anlage —
-    /// in der Referenzanlage 16.748, im Belastungstest 190.000. Die Liste ist kein Inventar,
-    /// sondern der Weg zu einem bestimmten Datenpunkt; wer mehr sieht, hat zu unscharf gesucht.
+    /// Obergrenze der <b>angezeigten</b> Zeilen. Ohne Suchbegriff wären es alle Datenpunkte
+    /// der Anlage — in der Referenzanlage 14.791, im Belastungstest 190.000.
+    ///
+    /// <b>Was die Grenze nicht tut:</b> Speicher sparen. Die vollständige Liste liegt ohnehin
+    /// im Arbeitsspeicher, sonst ließe sich darin nicht suchen. Begrenzt wird allein, wie
+    /// viele Zeilen die Oberfläche daraus aufbaut — und das ist teuer. Gemessen am
+    /// Gesamtdurchlauf über alle Reiter, mit und ohne Grenze:
+    ///
+    ///   Referenzanlage (14.791 Datenpunkte)   13,7 s → 15,8 s   (+2,1 s)
+    ///   Belastungstest (190.000 Datenpunkte)  13,1 s → 40,0 s   (+26,9 s)
+    ///
+    /// Ohne Grenze würde dieser eine Reiter in einer großen Anlage den 15-Sekunden-Zielwert
+    /// allein reißen. 2.000 Zeilen kosten davon hochgerechnet rund 0,3 Sekunden — das ist der
+    /// Preis dafür, beim Stöbern nicht schon nach 500 Zeilen abgeschnitten zu werden.
+    ///
+    /// Es ist bewusst dieselbe Zahl wie in den übrigen begrenzten Listen — der Sicht
+    /// „Älteste" (<see cref="OrphansPresenter.DisplayLimitOldest"/>) und den Fundstellen der
+    /// Widget-Sätze (<see cref="VisPresenter.WidgetSetHitLimit"/>). Eine einheitliche Grenze
+    /// ist leichter zu merken als drei verschiedene. Der CSV-Export enthält weiterhin alles.
     /// </summary>
-    public const int DisplayLimit = 500;
+    public const int DisplayLimit = OrphansPresenter.DisplayLimitOldest;
 
     public static readonly string[] Columns =
         { "Datenpunkt-ID", "Name", "Typ", "Rolle", "Zuletzt geändert", OrphansPresenter.ValueColumn };

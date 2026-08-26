@@ -1,11 +1,52 @@
 using System.Text.Json;
-using System.Text.RegularExpressions;
 
 namespace IobBackupAnalyzer.Core;
+
+/// <summary>
+/// Eine einzelne Fundstelle eines Widget-Satzes: das Widget, das ihn in Anspruch nimmt.
+/// </summary>
+public sealed class WidgetSetHit
+{
+    public required string Set { get; init; }
+
+    /// <summary>„VIS 1" oder „VIS 2".</summary>
+    public required string VersionText { get; init; }
+
+    /// <summary>Name der View, in der das Widget liegt.</summary>
+    public required string View { get; init; }
+
+    /// <summary>Widget-ID, wie sie im VIS-Editor steht — etwa <c>w00042</c>.</summary>
+    public required string WidgetId { get; init; }
+
+    /// <summary>Widget-Vorlage aus <c>tpl</c>; leer, wenn nicht angegeben.</summary>
+    public string Template { get; init; } = "";
+
+    /// <summary>
+    /// Bei einem Dateiverweis das Feld und sein Wert — <c>iImageFalse</c> mit
+    /// <c>/vis-icontwo/…</c>. Bei einem Widget-Satz-Treffer leer.
+    /// </summary>
+    public string Field { get; init; } = "";
+
+    public string Value { get; init; } = "";
+
+    /// <summary>Wie der Satz hier in Anspruch genommen wird.</summary>
+    public string KindText => Field.Length == 0 ? "Widget-Satz" : "Dateiverweis";
+
+    /// <summary>Was an dieser Stelle steht — die Vorlage oder der Dateipfad.</summary>
+    public string DetailText => Field.Length == 0 ? Template : $"{Field}: {Value}";
+}
 
 /// <summary>Wie ein Widget-Satz in einem Projekt vorkommt.</summary>
 public sealed class WidgetSetRow
 {
+    /// <summary>
+    /// Jede einzelne Stelle, an der dieser Satz vorkommt. Ohne sie beantwortet die Liste nur
+    /// „wie viele", nicht „wo" — und genau das ist die Frage, die vor dem Aufräumen zählt.
+    /// Bei einem Satz mit hunderten Verweisen ist die Liste lang; die Oberfläche zeigt sie
+    /// deshalb erst zur ausgewählten Zeile.
+    /// </summary>
+    public List<WidgetSetHit> Hits { get; } = new();
+
     /// <summary>Name aus dem Feld <c>widgetSet</c> bzw. der Verzeichnisname eines Verweises.</summary>
     public required string Set { get; init; }
 
@@ -93,7 +134,7 @@ public sealed class WidgetSetRow
 /// genommen, und wer nur den ersten prüft, kommt zu gefährlichen Schlüssen:
 /// <list type="number">
 /// <item>Als <b>Widget-Satz</b> — das Feld <c>widgetSet</c> am Widget.</item>
-/// <item>Als <b>Dateiquelle</b> — ein Pfad wie <c>/vis-icontwo/Doors_Windows/door-open.png</c>
+/// <item>Als <b>Dateiquelle</b> — ein Pfad wie <c>/vis-icontwo/Tueren/tuer-offen.png</c>
 /// in einer Widget-Eigenschaft. In der Referenzanlage steht <c>vis-icontwo</c> in keinem
 /// einzigen <c>widgetSet</c> und wird trotzdem 680-mal als Bildpfad verwendet.</item>
 /// </list>
@@ -137,15 +178,6 @@ public static class WidgetSetAnalyzer
     private static readonly HashSet<string> BuiltInSets =
         new(StringComparer.OrdinalIgnoreCase)
         { "basic", "jqui", "vis", "vis-2-widgets-basic" };
-
-    /// <summary>
-    /// Ein Verweis auf eine Datei eines Adapters: <c>"/name/…</c> am Anfang eines Werts.
-    /// Der Name muss mindestens drei Zeichen haben, sonst träfe die Regel auch Pfade wie
-    /// <c>/a/b</c> aus Freitext.
-    /// </summary>
-    private static readonly Regex FileReference =
-        new(@"""/([A-Za-z0-9][A-Za-z0-9._-]{2,40})/", RegexOptions.Compiled,
-            RegexLimits.MatchTimeout);
 
     public static List<WidgetSetRow> Analyze(BackupData data, CancellationToken ct = default)
     {
@@ -214,9 +246,7 @@ public static class WidgetSetAnalyzer
         {
             ct.ThrowIfCancellationRequested();
 
-            var istVis2 = file.Version == VisVersion.Vis2;
-            CountWidgetSets(file, istVis2, Row, ct);
-            CountFileReferences(file, istVis2, dateiQuellen, Row);
+            CountWidgets(file, Row, dateiQuellen, ct);
         }
 
         // Installierte Datei-Instanzen, zu denen gar nichts gefunden wurde, gehören ebenfalls
@@ -240,10 +270,24 @@ public static class WidgetSetAnalyzer
                    .ToList();
     }
 
-    /// <summary>Zählt die Widgets je <c>widgetSet</c> — beide Projektfassungen getrennt.</summary>
-    private static void CountWidgetSets(VisFile file, bool istVis2,
-                                        Func<string, WidgetSetRow> row, CancellationToken ct)
+    /// <summary>
+    /// Geht jedes Widget einmal durch und hält beide Arten der Inanspruchnahme fest: das Feld
+    /// <c>widgetSet</c> und Dateiverweise in den Widget-Eigenschaften. Beides landet als
+    /// Fundstelle in <see cref="WidgetSetRow.Hits"/>, samt View und Widget-ID.
+    ///
+    /// <b>Warum ein Durchgang statt zwei:</b> Die Dateiverweise wurden zunächst per regulärem
+    /// Ausdruck über den Rohtext gezählt. Das ergibt dieselbe Zahl — geprüft an der
+    /// Referenzanlage, 678 und 2 Treffer in beiden Verfahren identisch —, liefert aber keine
+    /// Fundstelle. Wer wissen will, welches Widget einen alten Satz festhält, ist mit einer
+    /// Zahl nicht bedient.
+    /// </summary>
+    private static void CountWidgets(VisFile file, Func<string, WidgetSetRow> row,
+                                     IReadOnlyDictionary<string, string> dateiQuellen,
+                                     CancellationToken ct)
     {
+        var istVis2 = file.Version == VisVersion.Vis2;
+        var versionText = file.VersionText;
+
         JsonDocument doc;
         try { doc = JsonDocument.Parse(file.Content); }
         catch (JsonException) { return; }
@@ -263,39 +307,62 @@ public static class WidgetSetAnalyzer
                 foreach (var widget in widgets.EnumerateObject())
                 {
                     if (widget.Value.ValueKind != JsonValueKind.Object) continue;
-                    if (!widget.Value.TryGetProperty("widgetSet", out var ws)) continue;
-                    if (ws.ValueKind != JsonValueKind.String) continue;
 
-                    var name = ws.GetString();
-                    if (string.IsNullOrWhiteSpace(name)) continue;
+                    var tpl = widget.Value.TryGetProperty("tpl", out var t)
+                              && t.ValueKind == JsonValueKind.String ? t.GetString() ?? "" : "";
 
-                    var r = row(name);
-                    if (istVis2) r.WidgetsVis2++; else r.WidgetsVis1++;
+                    // a) Der Satz, aus dem das Widget selbst stammt.
+                    if (widget.Value.TryGetProperty("widgetSet", out var ws)
+                        && ws.ValueKind == JsonValueKind.String
+                        && !string.IsNullOrWhiteSpace(ws.GetString()))
+                    {
+                        var name = ws.GetString()!;
+                        var r = row(name);
+                        if (istVis2) r.WidgetsVis2++; else r.WidgetsVis1++;
+
+                        r.Hits.Add(new WidgetSetHit
+                        {
+                            Set = name,
+                            VersionText = versionText,
+                            View = view.Name,
+                            WidgetId = widget.Name,
+                            Template = tpl
+                        });
+                    }
+
+                    // b) Dateien eines Satzes, die das Widget benutzt — Symbole, Bilder.
+                    if (!widget.Value.TryGetProperty("data", out var data)) continue;
+                    if (data.ValueKind != JsonValueKind.Object) continue;
+
+                    foreach (var feld in data.EnumerateObject())
+                    {
+                        if (feld.Value.ValueKind != JsonValueKind.String) continue;
+
+                        var wert = feld.Value.GetString();
+                        if (string.IsNullOrEmpty(wert) || wert[0] != '/') continue;
+
+                        var ende = wert.IndexOf('/', 1);
+                        if (ende <= 1) continue;
+
+                        var verzeichnis = wert[1..ende];
+                        if (!dateiQuellen.ContainsKey(verzeichnis)) continue;
+
+                        var r = row(verzeichnis);
+                        if (istVis2) r.FilesVis2++; else r.FilesVis1++;
+
+                        r.Hits.Add(new WidgetSetHit
+                        {
+                            Set = verzeichnis,
+                            VersionText = versionText,
+                            View = view.Name,
+                            WidgetId = widget.Name,
+                            Template = tpl,
+                            Field = feld.Name,
+                            Value = wert
+                        });
+                    }
                 }
             }
-        }
-    }
-
-    /// <summary>
-    /// Zählt Verweise auf Dateien eines Satzes. Gesucht wird im Rohtext statt Feld für Feld:
-    /// Solche Pfade stehen in beliebig benannten Eigenschaften — <c>iImageFalse</c>,
-    /// <c>src</c>, <c>signals-icon-1</c> —, und eine Liste bekannter Feldnamen wäre nach dem
-    /// nächsten Widget-Satz wieder unvollständig.
-    ///
-    /// Gezählt werden nur Verzeichnisse, die zu einer Datei-Instanz gehören; ein Verweis auf
-    /// <c>/vis.0/…</c> ist eine eigene Datei des Projekts und kein Widget-Satz.
-    /// </summary>
-    private static void CountFileReferences(VisFile file, bool istVis2,
-                                            IReadOnlyDictionary<string, string> kandidaten,
-                                            Func<string, WidgetSetRow> row)
-    {
-        foreach (Match m in FileReference.Matches(file.Content))
-        {
-            var name = m.Groups[1].Value;
-            if (!kandidaten.ContainsKey(name)) continue;
-
-            var r = row(name);
-            if (istVis2) r.FilesVis2++; else r.FilesVis1++;
         }
     }
 }

@@ -55,6 +55,39 @@ public static class VisPresenter
         { "Widget-Satz", "Instanz", "Widgets VIS 1", "Widgets VIS 2",
           "Dateiverweise VIS 1", "Dateiverweise VIS 2", "Befund" };
 
+    /// <summary>Spalten der Fundstellenliste unter der Satzliste.</summary>
+    public static readonly string[] WidgetSetHitColumns =
+        { "VIS", "View", "Widget", "Art", "Fundstelle" };
+
+    public static string[] WidgetSetHitRow(WidgetSetHit h) =>
+        new[] { h.VersionText, h.View, h.WidgetId, h.KindText, h.DetailText };
+
+    /// <summary>
+    /// Überschrift über den Fundstellen. Sie nennt die Zahl, weil die Liste begrenzt ist:
+    /// Ein Satz kann hunderte Verweise haben (in der Referenzanlage 678), und die trägt
+    /// keine Tabelle sinnvoll.
+    /// </summary>
+    public static string WidgetSetHitHeader(WidgetSetRow? r, int gezeigt)
+    {
+        if (r is null) return "Fundstellen — eine Zeile oben auswählen";
+
+        var rest = r.Hits.Count - gezeigt;
+        var suffix = rest > 0 ? $", davon {gezeigt:N0} angezeigt" : "";
+
+        return r.Hits.Count == 0
+            ? $"Fundstellen von {r.Set} — keine im Backup"
+            : $"Fundstellen von {r.Set} — {r.Hits.Count:N0}{suffix}";
+    }
+
+    /// <summary>
+    /// Obergrenze der angezeigten Fundstellen — dieselbe Zahl wie bei den übrigen begrenzten
+    /// Listen (<see cref="OrphansPresenter.DisplayLimitOldest"/>,
+    /// <see cref="DatapointPresenter.DisplayLimit"/>). Eine einheitliche Grenze ist leichter
+    /// zu merken als drei verschiedene, und der Preis ist überall derselbe: rund eine
+    /// Drittelsekunde beim Aufbau. Der CSV-Export enthält weiterhin alles.
+    /// </summary>
+    public const int WidgetSetHitLimit = OrphansPresenter.DisplayLimitOldest;
+
     public static string[] WidgetSetRow(WidgetSetRow r) =>
         new[] { r.Set, r.Instance, r.ProjectText, r.WidgetsText, r.FilesText, r.Verdict };
 

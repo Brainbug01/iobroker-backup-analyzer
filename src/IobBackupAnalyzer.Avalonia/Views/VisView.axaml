@@ -122,7 +122,7 @@
      gehoert zur Aussage: "kein Verweis" heisst nicht "unbenutzt".
    -->
    <TabItem Header="Widget-Sätze">
-     <Grid Margin="8" RowDefinitions="Auto,Auto,*">
+     <Grid Margin="8" RowDefinitions="Auto,Auto,*,Auto,2*">
        <TextBlock Name="SetWarning" Grid.Row="0" TextWrapping="Wrap" Opacity="0.75"
                   Margin="0,0,0,8" />
 
@@ -141,6 +141,21 @@
            <DataGridTextColumn Header="Widgets"       Binding="{Binding WidgetsText}" Width="90" />
            <DataGridTextColumn Header="Dateiverweise" Binding="{Binding FilesText}"   Width="120" />
            <DataGridTextColumn Header="Befund"        Binding="{Binding Verdict}"     Width="420" />
+         </DataGrid.Columns>
+       </DataGrid>
+
+       <!-- Wo der gewaehlte Satz steckt: View, Widget und Art der Verwendung. -->
+       <TextBlock Name="SetHitHeader" Grid.Row="3" FontWeight="Bold" Margin="0,8,0,4" />
+
+       <DataGrid Name="SetHits" Grid.Row="4" IsReadOnly="True" GridLinesVisibility="All"
+                 CanUserSortColumns="True" CanUserResizeColumns="True"
+                 AutoGenerateColumns="False">
+         <DataGrid.Columns>
+           <DataGridTextColumn Header="VIS"        Binding="{Binding VersionText}" Width="60" />
+           <DataGridTextColumn Header="View"       Binding="{Binding View}"        Width="220" />
+           <DataGridTextColumn Header="Widget"     Binding="{Binding WidgetId}"    Width="130" />
+           <DataGridTextColumn Header="Art"        Binding="{Binding KindText}"    Width="120" />
+           <DataGridTextColumn Header="Fundstelle" Binding="{Binding DetailText}"  Width="700" />
          </DataGrid.Columns>
        </DataGrid>
      </Grid>

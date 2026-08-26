@@ -23,6 +23,28 @@ public static class ChangelogContent
     /// <summary>Neueste Version zuerst.</summary>
     public static IReadOnlyList<ChangelogEntry> Entries { get; } = new ChangelogEntry[]
     {
+        new("1.27.0", "26.08.2026", new[]
+        {
+            "Der Untertab „Widget-Sätze\" zeigt jetzt unter der Liste, an welcher Stelle ein " +
+            "Satz steckt: View, Widget-ID und die Art der Verwendung. Bisher stand dort nur, wie " +
+            "oft — und wer einen alten Satz loswerden wollte, musste die vis-views.json " +
+            "selbst durchsuchen. Genau den Schritt soll das Werkzeug abnehmen.",
+
+            "Unterschieden wird dabei, wie der Satz in Anspruch genommen wird: als " +
+            "Widget-Satz (dann steht die Widget-Vorlage daneben) oder als Dateiverweis (dann " +
+            "das Feld und der Pfad, etwa iImageFalse mit /vis-icontwo/tuer-offen.png).",
+
+            "Die Zählung der Dateiverweise läuft dafür nicht mehr über den Rohtext, sondern " +
+            "Feld für Feld. Beide Verfahren liefern dieselbe Zahl — am Testbackup 678 und 2 " +
+            "Treffer, identisch —, aber nur das zweite weiß, in welchem Widget der Verweis " +
+            "steht.",
+
+            "Anzeigegrenzen vereinheitlicht: Die Datenpunkt-Suche, die Sicht „Älteste\" und " +
+            "die neuen Fundstellen zeigen jetzt alle höchstens 2.000 Zeilen statt 500 " +
+            "beziehungsweise 2.000. Gemessen kostet das rund eine Drittelsekunde beim " +
+            "Aufbau; der CSV-Export enthält weiterhin alles."
+        }),
+
         new("1.26.1", "26.08.2026", new[]
         {
             "Korrektur im neuen Untertab „Widget-Sätze\": Der Grundbaukasten von VIS 2 " +

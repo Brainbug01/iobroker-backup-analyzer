@@ -271,6 +271,11 @@ public static class HelpContent
             "Als Umstiegsrest gilt ein alter Satz nur, wenn seine VIS-2-Fassung schon installiert ist. " +
             "Adapter, die ihre Widgets ohne solches Gegenstück für beide Fassungen mitbringen, sind " +
             "keine Altlast und stehen weiterhin als „in Gebrauch\".\n" +
+            "Unter der Liste steht, an welcher Stelle der gewählte Satz vorkommt: View, " +
+            "Widget-ID und die Art der Verwendung — als Widget-Satz mit der Widget-Vorlage " +
+            "daneben oder als Dateiverweis mit Feld und Pfad. Damit führt der Weg von " +
+            "„dieser Satz ist eine Altlast\" zu „dieses eine Widget hält ihn fest\" ohne " +
+            "Umweg über die vis-views.json.\n" +
             "Der Vorbehalt über der Liste gehört zur Aussage: VIS 2 bettet ausgewählte Symbole " +
             "vollständig in das Projekt ein, ohne Hinweis auf ihre Herkunft. Ein Icon-Satz kann also " +
             "die Anzeige tragen und hier trotzdem ohne einen einzigen Verweis dastehen. Vor dem " +

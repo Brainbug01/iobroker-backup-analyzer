@@ -27,6 +27,8 @@ public sealed class VisTab : UserControl
     private readonly ListView _setList = new();
     private readonly Label _setCount = new();
     private readonly Button _setCsv = new();
+    private readonly ListView _setHits = new();
+    private readonly Label _setHitHeader = new();
     private List<WidgetSetRow> _sets = new();
 
     private BackupData? _data;
@@ -240,6 +242,8 @@ public sealed class VisTab : UserControl
         _setList.FullRowSelect = true;
         _setList.GridLines = true;
         _setList.HideSelection = false;
+        _setList.MultiSelect = false;
+        _setList.SelectedIndexChanged += (_, _) => ShowSetHits();
         _setList.Columns.Add("Widget-Satz", 260);
         _setList.Columns.Add("Instanz", 240);
         _setList.Columns.Add("Projekt", 110);
@@ -249,10 +253,76 @@ public sealed class VisTab : UserControl
         ListViewCopy.Attach(_setList);
         ListViewSort.Attach(_setList);
 
-        page.Controls.Add(_setList);
+        // Unterer Bereich: wo der gewaehlte Satz steckt. Ohne ihn beantwortet die Liste nur
+        // "wie viele", nicht "wo" — und das ist die Frage vor dem Aufraeumen.
+        _setHitHeader.Dock = DockStyle.Top;
+        _setHitHeader.Height = 22;
+        _setHitHeader.Padding = new Padding(2, 3, 2, 0);
+        _setHitHeader.Font = new Font(Font, FontStyle.Bold);
+        _setHitHeader.Text = VisPresenter.WidgetSetHitHeader(null, 0);
+
+        _setHits.Dock = DockStyle.Fill;
+        _setHits.View = View.Details;
+        _setHits.FullRowSelect = true;
+        _setHits.GridLines = true;
+        _setHits.HideSelection = false;
+        _setHits.MultiSelect = true;
+        _setHits.Columns.Add("VIS", 60);
+        _setHits.Columns.Add("View", 220);
+        _setHits.Columns.Add("Widget", 130);
+        _setHits.Columns.Add("Art", 120);
+        _setHits.Columns.Add("Fundstelle", 700);
+        ListViewCopy.Attach(_setHits);
+        ListViewSort.Attach(_setHits);
+
+        var split = new SplitContainer
+        {
+            Dock = DockStyle.Fill,
+            Orientation = Orientation.Horizontal,
+            Panel1MinSize = 120,
+            Panel2MinSize = 100
+        };
+
+        var splitInit = false;
+        split.SizeChanged += (_, _) =>
+        {
+            if (splitInit || split.Height < 300) return;
+            split.SplitterDistance = split.Height * 3 / 5;
+            splitInit = true;
+        };
+
+        split.Panel1.Controls.Add(_setList);
+        split.Panel2.Controls.Add(_setHits);
+        split.Panel2.Controls.Add(_setHitHeader);
+
+        page.Controls.Add(split);
         page.Controls.Add(bar);
         page.Controls.Add(warn);
         return page;
+    }
+
+    /// <summary>Die Fundstellen des gewaehlten Satzes, begrenzt auf die Anzeigegrenze.</summary>
+    private void ShowSetHits()
+    {
+        var gewaehlt = _setList.SelectedItems.Count > 0
+            ? _setList.SelectedItems[0].Tag as WidgetSetRow
+            : null;
+
+        _setHits.BeginUpdate();
+        _setHits.Items.Clear();
+
+        var gezeigt = 0;
+        if (gewaehlt is not null)
+        {
+            foreach (var h in gewaehlt.Hits.Take(VisPresenter.WidgetSetHitLimit))
+            {
+                _setHits.Items.Add(new ListViewItem(VisPresenter.WidgetSetHitRow(h)));
+                gezeigt++;
+            }
+        }
+
+        _setHits.EndUpdate();
+        _setHitHeader.Text = VisPresenter.WidgetSetHitHeader(gewaehlt, gezeigt);
     }
 
     private void FillWidgetSets()
@@ -262,7 +332,7 @@ public sealed class VisTab : UserControl
 
         foreach (var s in _sets)
         {
-            var item = new ListViewItem(VisPresenter.WidgetSetRow(s));
+            var item = new ListViewItem(VisPresenter.WidgetSetRow(s)) { Tag = s };
 
             item.ForeColor = VisPresenter.WidgetSetEmphasis(s) switch
             {
@@ -277,6 +347,7 @@ public sealed class VisTab : UserControl
 
         _setList.EndUpdate();
         _setCount.Text = VisPresenter.WidgetSetCount(_sets);
+        ShowSetHits();
     }
 
     public void SetAvailable(bool available)

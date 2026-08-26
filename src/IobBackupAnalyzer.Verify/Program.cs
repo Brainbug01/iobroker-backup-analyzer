@@ -914,6 +914,61 @@ Check("Warnhinweis nennt die eingebetteten Symbole",
 Check("Warnhinweis stellt klar, dass es keine Loeschliste ist",
       WidgetSetAnalyzer.Warning.Contains("keine Deinstallationsliste"));
 
+// Fundstellen: Die Liste beantwortet erst mit ihnen die Frage "wo steckt der Satz".
+var mitHits = saetze.Where(s => s.Total > 0).ToList();
+Check("Jeder Satz mit Verweisen hat Fundstellen",
+      mitHits.All(s => s.Hits.Count > 0),
+      mitHits.FirstOrDefault(s => s.Hits.Count == 0)?.Set);
+Check("Fundstellenzahl entspricht der Zaehlung",
+      mitHits.All(s => s.Hits.Count == s.Total),
+      mitHits.FirstOrDefault(s => s.Hits.Count != s.Total)?.Set);
+CheckEq("Spaltenzahl passt zur Fundstellen-Zeile",
+        VisPresenter.WidgetSetHitColumns.Length,
+        VisPresenter.WidgetSetHitRow(mitHits[0].Hits[0]).Length);
+
+// Beide Arten muessen vorkommen und unterscheidbar sein.
+var alleHits = saetze.SelectMany(s => s.Hits).ToList();
+Console.WriteLine($"  Fundstellen gesamt: {alleHits.Count}  "
+                + $"(Widget-Satz {alleHits.Count(h => h.KindText == "Widget-Satz")}, "
+                + $"Dateiverweis {alleHits.Count(h => h.KindText == "Dateiverweis")})");
+Check("Fundstellen vom Typ Widget-Satz", alleHits.Any(h => h.KindText == "Widget-Satz"));
+Check("Fundstellen vom Typ Dateiverweis", alleHits.Any(h => h.KindText == "Dateiverweis"));
+Check("Jede Fundstelle nennt View und Widget",
+      alleHits.All(h => h.View.Length > 0 && h.WidgetId.Length > 0));
+
+// Ein Dateiverweis muss Feld und Pfad tragen, sonst ist er nicht nachvollziehbar.
+var dateiHit = alleHits.First(h => h.KindText == "Dateiverweis");
+Check("Dateiverweis nennt Feld und Pfad",
+      dateiHit.Field.Length > 0 && dateiHit.Value.StartsWith("/" + dateiHit.Set + "/", StringComparison.Ordinal),
+      $"{dateiHit.Field}: {dateiHit.Value}");
+
+// Gegenprobe am Rohtext: Die Fundstelle muss wirklich in ihrer Projektfassung stehen.
+foreach (var h in alleHits.Where(h => h.VersionText == "VIS 2").Take(5))
+    Check($"Fundstelle {h.WidgetId} steht im VIS-2-Text",
+          v2Roh.Contains(h.WidgetId, StringComparison.Ordinal), h.View);
+
+// Der Umstiegsrest muss auf ein konkretes Widget zeigen — das ist der eigentliche Ertrag.
+var rest = saetze.FirstOrDefault(s => s.Vis1InVis2);
+if (rest is not null)
+{
+    var inVis2 = rest.Hits.Where(h => h.VersionText == "VIS 2").ToList();
+    Console.WriteLine($"  Umstiegsrest {rest.Set}: {inVis2.Count} Fundstelle(n) in VIS 2");
+    foreach (var h in inVis2.Take(4))
+        Console.WriteLine($"    View \"{h.View}\" Widget {h.WidgetId} - {h.DetailText}");
+
+    Check("Umstiegsrest nennt seine Fundstelle in VIS 2", inVis2.Count > 0, rest.Set);
+}
+
+// Die Ueberschrift muss die Begrenzung ausweisen, sonst wirkt eine gekuerzte Liste
+// vollstaendig.
+var grosserSatz = saetze.OrderByDescending(s => s.Hits.Count).First();
+var kopf = VisPresenter.WidgetSetHitHeader(grosserSatz, Math.Min(grosserSatz.Hits.Count, VisPresenter.WidgetSetHitLimit));
+Console.WriteLine($"  Groesster Satz: {grosserSatz.Set} mit {grosserSatz.Hits.Count} Fundstellen");
+if (grosserSatz.Hits.Count > VisPresenter.WidgetSetHitLimit)
+    Check("Gekuerzte Fundstellenliste weist das aus", kopf.Contains("angezeigt"), kopf);
+Check("Ohne Auswahl fordert die Ueberschrift eine an",
+      VisPresenter.WidgetSetHitHeader(null, 0).Contains("auswählen"));
+
 // Gegenprobe: Eine Instanz, die nur Dateien liefert, darf nicht als abgeschaltet gelten.
 var nurWww = fullData.Instances.Where(i => i.OnlyWww).ToList();
 Console.WriteLine($"  Instanzen mit onlyWWW: {nurWww.Count}");
@@ -3447,6 +3502,108 @@ Check("Werte ohne Objekt melden die fehlende Definition",
       DatapointPresenter.Definition(punkte.First(p => !p.HasObject)).Contains("ohne Objekt"));
 
 CheckEq("Ohne Auswahl bleibt das Wertfeld leer", DatapointPresenter.FullValue(null), "");
+
+// --- Keine Anlagendaten im veroeffentlichten Quelltext ---
+//
+// Der Quelltext liegt oeffentlich. Kommentare und Dokumentation entstehen aber beim Arbeiten
+// mit einem echten Backup, und dabei rutscht schnell ein Beispiel hinein, das aus genau
+// dieser Anlage stammt: ein View-Name, eine Widget-ID, eine Geraetekennung. Einmal
+// committet, bleibt es in der Historie.
+//
+// Diese Pruefung dreht die Blickrichtung um: Statt zu raten, was privat aussieht, nimmt sie
+// die charakteristischen Zeichenketten aus dem echten Backup und sucht sie in den Dateien,
+// die veroeffentlicht werden. Was dort woertlich vorkommt, stammt aus dieser Anlage.
+//
+// Adapternamen sind ausgenommen: Sie stehen im oeffentlichen ioBroker-Repository, und ohne
+// sie liesse sich kein Kommentar schreiben, der erklaert, warum eine Regel existiert.
+Console.WriteLine();
+Console.WriteLine("=== Anlagendaten im oeffentlichen Quelltext ===");
+
+var adapterNamen = new HashSet<string>(
+    fullData.Instances.Select(i => i.Adapter), StringComparer.OrdinalIgnoreCase);
+
+var verdaechtig = new HashSet<string>(StringComparer.Ordinal);
+
+// Geraetekennungen: lange Hex-Bloecke in IDs (Zigbee-Adressen, Shelly-Seriennummern).
+foreach (var o in fullData.Objects)
+{
+    foreach (System.Text.RegularExpressions.Match treffer in System.Text.RegularExpressions.Regex.Matches(o.Id, @"[0-9a-fA-F]{12,16}"))
+        verdaechtig.Add(treffer.Value);
+    foreach (System.Text.RegularExpressions.Match treffer in System.Text.RegularExpressions.Regex.Matches(o.Id, @"SH[A-Z]{2}-[0-9]+#[0-9A-Fa-f]+#[0-9]+"))
+        verdaechtig.Add(treffer.Value);
+}
+
+// Skript- und View-Namen, aber nur die kennzeichnenden. Viele bestehen aus einem einzigen
+// Allerweltswort, das zwangslaeufig auch in Beschriftungen des Programms vorkommt — solche
+// Namen wuerden die Pruefung mit Fehlalarmen unbrauchbar machen und verraten ohnehin nichts.
+// Kennzeichnend ist ein Name erst durch eine Ziffer, einen Unterstrich, einen Punkt oder
+// betraechtliche Laenge.
+static bool Kennzeichnend(string s) =>
+    s.Length >= 5
+    && (s.Any(char.IsDigit) || s.Contains('_') || s.Contains('.') || s.Length >= 14);
+
+foreach (var s in fullData.Scripts)
+    if (Kennzeichnend(s.Name)) verdaechtig.Add(s.Name);
+
+foreach (var v in fullData.VisViews)
+{
+    try
+    {
+        using var doc = System.Text.Json.JsonDocument.Parse(v.Content);
+        if (doc.RootElement.ValueKind != System.Text.Json.JsonValueKind.Object) continue;
+        foreach (var view in doc.RootElement.EnumerateObject())
+            if (Kennzeichnend(view.Name) && !view.Name.StartsWith("___", StringComparison.Ordinal))
+                verdaechtig.Add(view.Name);
+    }
+    catch (System.Text.Json.JsonException) { }
+}
+
+// Der Hostname der Anlage — ausser er traegt den Standardnamen. Heisst der Rechner schlicht
+// "iobroker", verraet er nichts, kommt aber im Quelltext zwangslaeufig ueberall vor.
+if (fullData.System.Hostname is { Length: > 3 } host
+    && !host.Equals("iobroker", StringComparison.OrdinalIgnoreCase))
+    verdaechtig.Add(host);
+
+// Adapternamen wieder heraus — sie sind oeffentlich und in Kommentaren unverzichtbar.
+verdaechtig.RemoveWhere(x => adapterNamen.Contains(x));
+
+Console.WriteLine($"  Geprueft wird gegen {verdaechtig.Count} Zeichenketten der Anlage");
+
+// Die Dateien, die veroeffentlicht werden. ABNAHMETESTS.md, CLAUDE.md und das Konzept
+// stehen in .git/info/exclude und bleiben lokal — sie sind hier bewusst nicht dabei.
+var oeffentlich = new List<string>();
+foreach (var muster in new[] { "*.cs", "*.razor", "*.axaml", "*.ps1", "*.yml" })
+    oeffentlich.AddRange(Directory.GetFiles(Path.Combine(root, "src"), muster,
+                                            SearchOption.AllDirectories));
+
+foreach (var name in new[] { "README.md", "STRUKTUR_VERIFIZIERUNG.md", "build.ps1",
+                             "LIESMICH_Linux.txt", "LIESMICH_macOS.txt" })
+{
+    var pfad = Path.Combine(root, name);
+    if (File.Exists(pfad)) oeffentlich.Add(pfad);
+}
+
+// bin/ und obj/ enthalten erzeugte Dateien, keinen gepflegten Quelltext.
+oeffentlich.RemoveAll(f => f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}")
+                        || f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}"));
+
+var funde = new List<string>();
+foreach (var datei in oeffentlich)
+{
+    string inhalt;
+    try { inhalt = File.ReadAllText(datei); }
+    catch (IOException) { continue; }
+
+    foreach (var wert in verdaechtig)
+        if (inhalt.Contains(wert, StringComparison.Ordinal))
+            funde.Add($"{Path.GetFileName(datei)}: \"{wert}\"");
+}
+
+Console.WriteLine($"  Gepruefte Dateien: {oeffentlich.Count}");
+foreach (var f in funde.Take(10)) Console.WriteLine($"    {f}");
+
+Check("Kein Anlagendatum im oeffentlichen Quelltext", funde.Count == 0,
+      funde.Count == 0 ? "" : string.Join(" | ", funde.Take(3)));
 
 // --- Hilfe und Aenderungsverlauf ---
 // Der Verlauf steht in der Anwendung, weil sie als einzelne Datei weitergegeben wird: Wer

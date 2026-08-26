@@ -98,6 +98,9 @@ public sealed class UiState
         /// <summary>0 = Datenpunkte, 1 = Widget-Saetze.</summary>
         public int Sub { get; set; }
 
+        /// <summary>Der gewählte Widget-Satz — seine Fundstellen stehen darunter.</summary>
+        public WidgetSetRow? SelectedSet { get; set; }
+
         public string Filter { get; set; } = "";
         public VisScope Scope { get; set; } = VisScope.All;
         public VisDatapoint? Selected { get; set; }

@@ -465,6 +465,13 @@ für entbehrlich und entfernt den Adapter, der die halbe Visualisierung trägt.
 Gegenstück für beide Fassungen mitbringen, sind keine Altlast und stehen weiterhin als
 „in Gebrauch".
 
+**Unter der Liste steht, wo der Satz steckt** — View, Widget-ID und die Art der Verwendung:
+als Widget-Satz (mit der Widget-Vorlage daneben) oder als Dateiverweis (mit Feld und Pfad).
+Das ist der eigentliche Ertrag: Aus „dieser Satz ist eine Altlast" wird „dieses eine Widget
+in dieser einen View hält ihn fest". In der geprüften Anlage lief der gesamte VIS-1-Rest der
+VIS-2-Ansichten auf ein einziges Widget hinaus, das zugleich ein altes Widget und zwei alte
+Icons benutzte. Die Liste zeigt höchstens 2.000 Fundstellen; der CSV-Export enthält alle.
+
 **Der Vorbehalt gehört zur Aussage.** VIS 2 bettet ausgewählte Symbole vollständig in das
 Projekt ein (`data:image/svg+xml;base64,…`), und der eingebettete Inhalt trägt keinen Hinweis
 auf seine Herkunft — im Testbackup 519 solcher Symbole. Ein Icon-Satz kann also die Anzeige

@@ -38,7 +38,16 @@ else
 
             <div class="tabellenbereich">
                 <DataTable TItem="WidgetSetRow" Items="Saetze" Columns="SatzSpalten"
-                           Emphasis="VisPresenter.WidgetSetEmphasis" />
+                           Emphasis="VisPresenter.WidgetSetEmphasis"
+                           Selected="S.SelectedSet" SelectedChanged="s => S.SelectedSet = s" />
+            </div>
+
+            <div class="kopfbereich">
+                <div class="fett">@VisPresenter.WidgetSetHitHeader(S.SelectedSet, SatzFundstellen.Count)</div>
+            </div>
+
+            <div class="tabellenbereich">
+                <DataTable TItem="WidgetSetHit" Items="SatzFundstellen" Columns="SatzFundstellenSpalten" />
             </div>
         }
         else
@@ -127,6 +136,18 @@ else
         new() { Header = "Dateiverweise", Width = 120, Number = true,
                 Text = s => s.FilesText, SortKey = s => s.Files },
         new() { Header = "Befund",        Width = 420, Text = s => s.Verdict }
+    };
+
+    private List<WidgetSetHit> SatzFundstellen =>
+        S.SelectedSet?.Hits.Take(VisPresenter.WidgetSetHitLimit).ToList() ?? new List<WidgetSetHit>();
+
+    private static readonly TableColumn<WidgetSetHit>[] SatzFundstellenSpalten =
+    {
+        new() { Header = "VIS",        Width = 60,  Text = h => h.VersionText },
+        new() { Header = "View",       Width = 220, Text = h => h.View },
+        new() { Header = "Widget",     Width = 130, Text = h => h.WidgetId },
+        new() { Header = "Art",        Width = 120, Text = h => h.KindText },
+        new() { Header = "Fundstelle", Width = 700, Text = h => h.DetailText }
     };
 
     private async Task SaetzeAlsCsv() =>

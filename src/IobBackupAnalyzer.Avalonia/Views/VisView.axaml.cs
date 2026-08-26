@@ -28,7 +28,9 @@ public partial class VisView : UserControl
     private readonly Grid _split;
 
     private readonly DataGrid _setRows;
+    private readonly DataGrid _setHits;
     private readonly TextBlock _setCount;
+    private readonly TextBlock _setHitHeader;
     private List<WidgetSetRow> _sets = new();
 
     private BackupData? _data;
@@ -53,7 +55,11 @@ public partial class VisView : UserControl
         _points = this.FindControl<DataGrid>("Points")!;
 
         _setRows = this.FindControl<DataGrid>("SetRows")!;
+        _setHits = this.FindControl<DataGrid>("SetHits")!;
         _setCount = this.FindControl<TextBlock>("SetCount")!;
+        _setHitHeader = this.FindControl<TextBlock>("SetHitHeader")!;
+        _setHitHeader.Text = VisPresenter.WidgetSetHitHeader(null, 0);
+        _setRows.SelectionChanged += (_, _) => ShowSetHits();
         this.FindControl<TextBlock>("SetWarning")!.Text = WidgetSetAnalyzer.Warning;
         this.FindControl<Button>("SetCsv")!.Click += async (_, _) => await Dialogs.SaveCsvAsync(
             this, "widget-saetze.csv", VisPresenter.WidgetSetCsvColumns,
@@ -102,7 +108,9 @@ public partial class VisView : UserControl
             _usages.ItemsSource = null;
             _sets = new List<WidgetSetRow>();
             _setRows.ItemsSource = null;
+            _setHits.ItemsSource = null;
             _setCount.Text = "";
+            _setHitHeader.Text = VisPresenter.WidgetSetHitHeader(null, 0);
             _placeholder.Text = data is null
                 ? "Kein Backup geladen.\n\nBitte oben eine Datei öffnen oder hineinziehen."
                 : "Für die VIS-Auswertung wird ein Voll-Backup benötigt.\n\n" +
@@ -119,6 +127,7 @@ public partial class VisView : UserControl
         _sets = WidgetSetAnalyzer.Analyze(data);
         _setRows.ItemsSource = _sets;
         _setCount.Text = VisPresenter.WidgetSetCount(_sets);
+        ShowSetHits();
 
         // Ohne VIS-Views bleibt nur der erklärende Satz in der Zusammenfassung stehen.
         if (data.VisViews.Count == 0)
@@ -134,6 +143,17 @@ public partial class VisView : UserControl
 
         ShowPlaceholder(false);
         ApplyFilter();
+    }
+
+    /// <summary>Die Fundstellen des gewaehlten Satzes, begrenzt auf die Anzeigegrenze.</summary>
+    private void ShowSetHits()
+    {
+        var gewaehlt = _setRows.SelectedItem as WidgetSetRow;
+        var gezeigt = gewaehlt?.Hits.Take(VisPresenter.WidgetSetHitLimit).ToList()
+                      ?? new List<WidgetSetHit>();
+
+        _setHits.ItemsSource = gezeigt;
+        _setHitHeader.Text = VisPresenter.WidgetSetHitHeader(gewaehlt, gezeigt.Count);
     }
 
     private void ShowPlaceholder(bool show)
