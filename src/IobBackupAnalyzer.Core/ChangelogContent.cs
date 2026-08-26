@@ -23,6 +23,16 @@ public static class ChangelogContent
     /// <summary>Neueste Version zuerst.</summary>
     public static IReadOnlyList<ChangelogEntry> Entries { get; } = new ChangelogEntry[]
     {
+        new("1.25.1", "26.08.2026", new[]
+        {
+            "Im Reiter „Datenpunkte\" steht jetzt der vollständige Name des Datenpunkts in " +
+            "der Beschreibung unter der Liste. Vorher war nicht immer erkennbar, warum eine " +
+            "Zeile in der Trefferliste steht: Manche Adapter legen ganze Sätze als Namen ab " +
+            "— im Testbackup bis zu 583 Zeichen —, und die Namensspalte schneidet sie ab. " +
+            "Eine Suche nach „fore\" traf so auf „…can take up to 24 hours before reported\", " +
+            "ohne dass die Fundstelle zu sehen war."
+        }),
+
         new("1.25.0", "26.08.2026", new[]
         {
             "Neuer Reiter „Datenpunkte\": Suche über Datenpunkt-ID und Name, darunter der " +

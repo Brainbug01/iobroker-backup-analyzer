@@ -286,6 +286,13 @@ public static class DatapointPresenter
             return sb.ToString();
         }
 
+        // Der Name steht voran, obwohl er auch in der Tabelle steht: Dort ist die Spalte
+        // begrenzt und schneidet ab. Manche Adapter legen ganze Sätze als Namen ab —
+        // „Remaining battery in %, can take up to 24 hours before reported" etwa. Sucht
+        // jemand nach „fore", trifft das genau solche Namen, und in der Tabelle ist die
+        // Fundstelle dann nicht zu sehen. Ohne diese Zeile bliebe unerklärlich, warum eine
+        // Zeile in der Trefferliste steht.
+        Add("Name", h.Name);
         Add("Typ", h.TypeText);
         Add("Einheit", h.Unit);
         Add("Rolle", h.Role);

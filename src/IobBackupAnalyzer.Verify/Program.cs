@@ -3340,6 +3340,28 @@ if (gekappterPunkt is not null)
           && DatapointPresenter.ValueInfo(gekappterPunkt).Contains("gekürzt"),
           gekappterPunkt.Id);
 
+// Ein Treffer, der nur ueber den Namen kommt, muss nachvollziehbar bleiben. Manche Adapter
+// legen ganze Saetze als Namen ab; die Tabellenspalte schneidet die dann ab, und die
+// Fundstelle ist nicht mehr zu sehen. Deshalb steht der vollstaendige Name in der
+// Beschreibung. Geprueft an einem echten langen Namen aus dem Testbackup.
+var langerName = punkte.Where(p => p.Name.Length > 40).OrderByDescending(p => p.Name.Length)
+                       .FirstOrDefault();
+Check("Das Testbackup enthaelt einen langen Datenpunktnamen", langerName is not null);
+if (langerName is not null)
+{
+    Console.WriteLine($"  Laengster Name: {langerName.Name.Length} Zeichen");
+    Check("Beschreibung nennt den vollstaendigen Namen",
+          DatapointPresenter.Definition(langerName).Contains(langerName.Name), langerName.Id);
+
+    // Gegenprobe zur Suche selbst: Ein Teilwort aus dem Namen muss den Datenpunkt finden,
+    // auch wenn es in der ID gar nicht vorkommt.
+    var wort = langerName.Name.Split(' ').FirstOrDefault(w => w.Length > 5
+                                                             && !langerName.Id.Contains(w, StringComparison.OrdinalIgnoreCase));
+    if (wort is not null)
+        Check("Suche findet ein Wort, das nur im Namen steht",
+              DatapointPresenter.Filter(punkte, wort).Any(p => p.Id == langerName.Id), wort);
+}
+
 // Die Beschreibung muss die Felder zeigen, die ein Wert zum Einordnen braucht.
 var mitEinheit = punkte.FirstOrDefault(p => p.Unit.Length > 0);
 Check("Das Testbackup liefert Einheiten", mitEinheit is not null);

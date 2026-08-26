@@ -65,10 +65,14 @@ internal sealed class DatapointsTab : UserControl
 
         // ---------- Unterer Bereich: der eigentliche Zweck des Tabs ----------
 
-        var detail = new Panel { Dock = DockStyle.Bottom, Height = 260, Padding = new Padding(0, 8, 0, 0) };
+        var detail = new Panel { Dock = DockStyle.Bottom, Height = 300, Padding = new Padding(0, 8, 0, 0) };
 
+        // Drei Zeilen hoch und umbrechend: Der Datenpunktname steht hier vollständig, und
+        // manche Adapter legen ganze Sätze als Namen ab (im Testbackup bis 583 Zeichen).
+        // Einzeilig wäre gerade der Teil abgeschnitten, wegen dem die Zeile gefunden wurde.
         _definition.Dock = DockStyle.Top;
-        _definition.Height = 22;
+        _definition.Height = 56;
+        _definition.AutoEllipsis = true;
         _definition.Text = "";
 
         _valueInfo.Dock = DockStyle.Top;

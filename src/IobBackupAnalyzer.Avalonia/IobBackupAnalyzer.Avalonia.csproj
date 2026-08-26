@@ -31,7 +31,7 @@
       IobBackupAnalyzer.App.csproj. FileVersion/AssemblyVersion leitet .NET daraus ab.
       build.ps1 liest genau dieses <Version> für die Info.plist des macOS-Bundles.
     -->
-    <Version>1.25.0</Version>
+    <Version>1.25.1</Version>
     <Copyright>Copyright (c) 2026 ioBroker Backup Analyzer — MIT-Lizenz</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <NeutralLanguage>de-DE</NeutralLanguage>
