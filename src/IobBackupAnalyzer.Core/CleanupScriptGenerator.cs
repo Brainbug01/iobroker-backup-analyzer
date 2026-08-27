@@ -10,11 +10,16 @@ namespace IobBackupAnalyzer.Core;
 /// nicht mit dem laufenden System. Ausgeführt wird es vom Nutzer auf dem ioBroker-Host.
 ///
 /// <b>Warum Shell und nicht JavaScript-Adapter?</b> Frühere Fassungen erzeugten ein
-/// JS-Skript mit <c>deleteState</c>. Das kann nicht funktionieren: <c>deleteState</c> löscht
-/// laut Adapter-Doku ausschließlich States im eigenen javascript-Namensraum — „States from
-/// other adapters cannot be deleted". Gegen die IDs eines beliebigen anderen Adapters meldet
-/// es für <i>jede</i> ID „Not found" (gemessen: Fehler für jede einzelne ID, nichts gelöscht). <c>deleteObject</c>
-/// scheitert ebenso, denn zu einem Waisen-State existiert per Definition kein Objekt mehr.
+/// JS-Skript mit <c>deleteState</c>. Das kann nicht funktionieren, und zwar aus einem
+/// Grund, der hier genau benannt sein will: <c>deleteState</c> verlangt, dass zu der ID ein
+/// <b>Objekt</b> existiert — zu einem Waisen-State existiert per Definition keines mehr.
+/// Ohne Objekt fällt der Aufruf in den letzten Zweig und meldet „Not found", für
+/// <i>jede</i> ID (gemessen: Fehler für jede einzelne, nichts gelöscht).
+///
+/// Die Adapter-Doku nennt zusätzlich eine Namensraum-Grenze — „States from other adapters
+/// cannot be deleted" —, die im Quelltext etwas weiter gefasst ist als dort beschrieben
+/// (<c>0_userdata.0.*</c> ist eingeschlossen). Am Ergebnis ändert das nichts: Über das
+/// fehlende Objekt scheitert es ohnehin. <c>deleteObject</c> scheitert aus demselben Grund.
 /// Nur <c>iobroker state delete &lt;id&gt;</c> greift auf die States-DB durch — ohne
 /// Namensraum-Beschränkung und ohne ein Objekt vorauszusetzen.
 ///

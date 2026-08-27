@@ -83,7 +83,8 @@ public sealed record ScriptHint(ScriptHintKind Kind, string BlockType, string Bl
         ScriptHintKind.DebugMode =>
             "Debug-Modus aktiv: Am Skript ist der Haken „Debuggen\" gesetzt. Das ist kein "
           + "Protokollschalter — der javascript-Adapter führt das Skript zwar aus, "
-          + "unterdrückt aber jede schreibende Operation: setState, exec und writeFile "
+          + "unterdrückt aber jede schreibende Operation: setState, exec, writeFile, "
+          + "setObject, deleteObject, das Starten und Stoppen von Skripten und weitere "
           + "passieren nicht, sondern werden nur als Warnung protokolliert "
           + "(„was not executed, while debug mode is active\"). Das Skript läuft also und "
           + "bewirkt nichts, ohne dass ein Fehler auffällt. Abhilfe: Im Blockly-Editor unter "
@@ -186,7 +187,12 @@ public static class ScriptQualityAnalyzer
     /// </summary>
     private static readonly HashSet<string> TriggerBlocks = new(StringComparer.Ordinal)
     {
-        "on", "on_ext", "schedule", "schedule_by_id", "astro", "onMessage", "onFile", "onLog"
+        "on", "on_ext", "schedule", "schedule_by_id", "astro", "onMessage", "onFile", "onLog",
+
+        // Auslöser auf die Mitglieder einer Aufzählung. Abgeglichen mit
+        // src-editor/src/Components/blockly-plugins/blocks/blocks_trigger.ts des
+        // javascript-Adapters; dort sind das die Bausteine, die einen eigenen Rumpf haben.
+        "onEnumMembers"
     };
 
     /// <summary>
@@ -232,14 +238,25 @@ public static class ScriptQualityAnalyzer
     /// <summary>
     /// Timer-Bausteine, die einen Lauf starten, und ihr jeweiliges Gegenstück zum Löschen.
     ///
-    /// <c>timeouts_settimeout_variable</c> fehlt bewusst: Dort steht der Name in einer
-    /// Variablen, und ohne festen Namen ist kein Gegenstück zuzuordnen — eine Aussage wäre
-    /// geraten.
+    /// <b>Die <c>_variable</c>-Fassungen gehören dazu.</b> Bis v1.28.1 fehlten sie mit der
+    /// Begründung, dort stehe der Name in einer Variablen und sei deshalb keinem Gegenstück
+    /// zuzuordnen. Das war ein Missverständnis des Namens: Der Adapter bildet den Blocktyp
+    /// als <c>timeouts_set&lt;art&gt;{_variable}</c>, und <c>variable</c> meint allein die
+    /// <b>Verzögerung</b> — sie kommt dann aus einem angesteckten Baustein statt aus einem
+    /// Feld. Der Name steht in beiden Fassungen im festen Feld <c>NAME</c>
+    /// (<c>blocks_timeout.ts</c>, <c>installSetBlock</c>; an einem echten Backup
+    /// gegengeprüft). Ein solcher Timer ließ sich damit nie melden, obwohl er dieselbe Falle
+    /// trägt wie die übrigen.
+    ///
+    /// Ein Gegenstück je Art genügt: Zum Löschen gibt es nur <c>timeouts_cleartimeout</c>
+    /// und <c>timeouts_clearinterval</c>, unabhängig davon, wie die Verzögerung gesetzt wurde.
     /// </summary>
     private static readonly (string Start, string Stop)[] TimerBlocks =
     {
         ("timeouts_settimeout", "timeouts_cleartimeout"),
-        ("timeouts_setinterval", "timeouts_clearinterval")
+        ("timeouts_settimeout_variable", "timeouts_cleartimeout"),
+        ("timeouts_setinterval", "timeouts_clearinterval"),
+        ("timeouts_setinterval_variable", "timeouts_clearinterval")
     };
 
     /// <summary>

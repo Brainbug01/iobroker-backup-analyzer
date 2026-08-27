@@ -23,6 +23,31 @@ public static class ChangelogContent
     /// <summary>Neueste Version zuerst.</summary>
     public static IReadOnlyList<ChangelogEntry> Entries { get; } = new ChangelogEntry[]
     {
+        new("1.28.2", "27.08.2026", new[]
+        {
+            "Timer mit berechneter Verzögerung werden jetzt mitgeprüft. Blockly kennt zwei " +
+            "Fassungen des Bausteins „Ausführen in …\": eine mit fester Zeitangabe und eine, " +
+            "bei der die Zeit aus einem angesteckten Baustein kommt. Nur die erste wurde " +
+            "geprüft — die zweite war damit von der Timer-Prüfung ausgenommen, obwohl sie " +
+            "dieselbe Falle trägt. Der Grund war ein Missverständnis: Bei der zweiten Fassung " +
+            "ist die Verzögerung berechnet, nicht der Name des Timers.",
+
+            "Ebenfalls neu erfasst: der Auslöser „bei Mitgliedern einer Aufzählung\". Ein " +
+            "Timer darin galt bisher als außerhalb eines Auslösers und wurde nicht geprüft.",
+
+            "Das Objektlimit wird gelesen wie vom js-controller: Maßgeblich ist der " +
+            "gespeicherte Wert, nicht die Vorgabe aus der Objektdefinition. Wer das Limit " +
+            "einer Instanz im Admin hochsetzt, ändert genau diesen Wert — bisher zeigte der " +
+            "Analyzer weiterhin die Vorgabe und damit eine Grenze, die im laufenden System " +
+            "längst eine andere war.",
+
+            "Genauere Texte an drei Stellen: Das erkannte Dateimuster für Voll-Backups war " +
+            "in der Hilfe falsch herum geschrieben. Beim Debug-Modus stand eine Aufzählung " +
+            "von drei unterdrückten Operationen, tatsächlich sind es elf. Und die Begründung " +
+            "beim Aufräum-Skript nannte den Namensraum als Hinderungsgrund für deleteState — " +
+            "der eigentliche Grund ist das fehlende Objekt.",
+        }),
+
         new("1.28.1", "27.08.2026", new[]
         {
             "Abgeschaltete Blockly-Bausteine werden wieder als solche erkannt. Blockly hat " +

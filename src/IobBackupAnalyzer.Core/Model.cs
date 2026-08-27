@@ -278,7 +278,7 @@ public sealed class ScriptInfo
     /// <summary>
     /// common.debug — die Schaltfläche „Debuggen" im Editor. <b>Kein Protokollschalter:</b>
     /// Der javascript-Adapter unterdrückt bei gesetztem Haken jede schreibende Operation
-    /// (setState, exec, writeFile) und protokolliert sie nur als Warnung
+    /// (setState, exec, writeFile, setObject und weitere) und protokolliert sie nur als Warnung
     /// („was not executed, while debug mode is active"). Das Skript läuft also und tut nichts.
     /// </summary>
     public bool Debug { get; init; }
@@ -566,8 +566,14 @@ public sealed class AdapterInstance
     /// Wert je Instanz im State <c>system.adapter.&lt;ns&gt;.objectsWarnLimit</c> ab; die
     /// Vorgabe steht in <c>common.def</c> desselben Objekts und ist entweder der adaptereigene
     /// Wert (<c>common.defaultObjectsWarnLimit</c>) oder die Systemvorgabe
-    /// <see cref="DefaultObjectLimit"/>. Gelesen wird nur diese Vorgabe — State-Werte lädt der
-    /// Analyzer bewusst nicht. Ein von Hand hochgesetztes Limit bleibt dadurch unsichtbar.
+    /// <see cref="DefaultObjectLimit"/>.
+    ///
+    /// <b>Maßgeblich ist der Wert des States, nicht die Vorgabe.</b> Der js-controller liest
+    /// ihn genau so: <c>typeof warnLimitState?.val === 'number' ? warnLimitState.val :
+    /// DEFAULT_OBJECTS_WARN_LIMIT</c> (<c>packages/adapter/src/lib/adapter/adapter.ts</c>).
+    /// Wer das Limit im Admin hochsetzt, ändert diesen Wert — bis v1.28.1 las der Analyzer
+    /// nur die Vorgabe und zeigte deshalb eine Grenze an, die im laufenden System längst
+    /// eine andere war. Fehlt der Wert oder ist er keine Zahl, gilt weiterhin die Vorgabe.
     /// </summary>
     public int ObjectLimit { get; set; } = DefaultObjectLimit;
 

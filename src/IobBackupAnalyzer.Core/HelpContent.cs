@@ -61,7 +61,7 @@ public static class HelpContent
         new(HelpBlockKind.Heading, "Backup laden"),
         new(HelpBlockKind.Text,
             "Oben per „Backup öffnen …\" oder Datei ins Fenster ziehen. Erkannt werden Voll-Backups " +
-            "(backupiobroker_*.tar.gz), JavaScript-Backups (javascripts_*.tar.gz) und entpackte " +
+            "(iobroker_*_backupiobroker.tar.gz), JavaScript-Backups (javascripts_*.tar.gz) und entpackte " +
             "Einzeldateien (objects.jsonl, backup.json, script.json). Ein reines Skript-Backup schaltet " +
             "nur den Tab „Skripte\" frei; alle anderen Auswertungen brauchen ein Voll-Backup."),
 
@@ -105,7 +105,7 @@ public static class HelpContent
             "Zwei der Hinweise hängen nicht am Aufbau, sondern an den beiden Schaltern unter dem " +
             "Zahnrad des Editors und gelten deshalb für jede Sprache. „Debug-Modus aktiv\" ist der " +
             "wichtigere: Der Haken „Debuggen\" ist kein Protokollschalter — der javascript-Adapter " +
-            "unterdrückt damit jede schreibende Operation (setState, exec, writeFile) und " +
+            "unterdrückt damit jede schreibende Operation (unter anderem setState, exec, writeFile) und " +
             "protokolliert sie nur als Warnung. Das Skript läuft und bewirkt nichts. " +
             "„Ausführliche Protokollausgaben\" füllt dagegen nur das Protokoll."),
         new(HelpBlockKind.Text,

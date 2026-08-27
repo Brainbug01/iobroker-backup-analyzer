@@ -317,6 +317,48 @@ var loeschenAn = Hinweise(
 CheckEq("Aktives Loeschen laesst den Befund entfallen",
         loeschenAn.Count(h => h.Kind == ScriptHintKind.TimerWithoutClear), 0);
 
+// --------------------------------------------------------------------------------------
+// Timer mit berechneter Verzoegerung
+//
+// Der Adapter bildet den Blocktyp als timeouts_set<art>{_variable}; „variable" meint allein
+// die Verzoegerung — sie kommt dann aus einem angesteckten Baustein statt aus einem Feld.
+// Der Name steht in beiden Fassungen im festen Feld NAME. Bis v1.28.1 fehlten die
+// _variable-Fassungen in TimerBlocks, ein solcher Timer war damit nie zu melden.
+
+var variableTimer = Hinweise(
+    "<block type=\"on\" id=\"A\"><statement name=\"STATEMENT\">"
+  + "<block type=\"timeouts_settimeout_variable\" id=\"T\"><field name=\"NAME\">meinTimer</field>"
+  + "<value name=\"DELAY_MS\"><block type=\"math_number\" id=\"N\">"
+  + "<field name=\"NUM\">1000</field></block></value></block></statement></block>");
+Check("Timer mit berechneter Verzoegerung wird gemeldet",
+      variableTimer.Count(h => h.Kind == ScriptHintKind.TimerWithoutClear) == 1
+      && variableTimer[0].Detail == "meinTimer",
+      string.Join(" / ", variableTimer.Select(h => h.ShortText)));
+
+var variableIntervall = Hinweise(
+    "<block type=\"on\" id=\"A\"><statement name=\"STATEMENT\">"
+  + "<block type=\"timeouts_setinterval_variable\" id=\"T\"><field name=\"NAME\">meinLauf</field>"
+  + "</block></statement></block>");
+CheckEq("Intervall mit berechneter Verzoegerung wird gemeldet",
+        variableIntervall.Count(h => h.Kind == ScriptHintKind.TimerWithoutClear), 1);
+
+// Dasselbe Gegenstueck loescht beide Fassungen — es gibt nur einen Loeschbaustein je Art.
+var variableGeloescht = Hinweise(
+    "<block type=\"on\" id=\"A\"><statement name=\"STATEMENT\">"
+  + "<block type=\"timeouts_settimeout_variable\" id=\"T\"><field name=\"NAME\">meinTimer</field>"
+  + "<next><block type=\"timeouts_cleartimeout\" id=\"C\">"
+  + "<field name=\"NAME\">meinTimer</field></block></next></block></statement></block>");
+CheckEq("Loeschen wirkt auch auf die berechnete Fassung",
+        variableGeloescht.Count(h => h.Kind == ScriptHintKind.TimerWithoutClear), 0);
+
+// Auslöser auf Aufzählungs-Mitglieder — ein Timer darin liegt im Rumpf eines Auslösers.
+var enumAusloeser = Hinweise(
+    "<block type=\"onEnumMembers\" id=\"A\"><statement name=\"STATEMENT\">"
+  + "<block type=\"timeouts_settimeout\" id=\"T\">"
+  + "<field name=\"NAME\">meinTimer</field></block></statement></block>");
+CheckEq("onEnumMembers gilt als Ausloeser",
+        enumAusloeser.Count(h => h.Kind == ScriptHintKind.TimerWithoutClear), 1);
+
 // Kein XML und kaputtes XML duerfen nicht werfen: Ein Skript ohne dekodierbares Blockly
 // ist bereits ueber BlocklyBroken gemeldet und soll hier nicht ein zweites Mal auffallen.
 CheckEq("Ohne XML: keine Hinweise", ScriptQualityAnalyzer.Analyze(null).Count, 0);
@@ -681,16 +723,33 @@ var limitAusBackup = fullData.Objects
         o => o.ObjectsWarnLimit!.Value,
         StringComparer.OrdinalIgnoreCase);
 
+// Der WERT des States hat Vorrang vor der Vorgabe aus dem Objekt — genau so liest es der
+// js-controller (typeof val === 'number' ? val : DEFAULT_OBJECTS_WARN_LIMIT). Wer das Limit
+// im Admin hochsetzt, aendert diesen Wert; common.def bleibt dabei unveraendert stehen.
+int? LimitAusState(string ns)
+{
+    var id = $"system.adapter.{ns}.objectsWarnLimit";
+    return fullData.States.TryGetValue(id, out var st) && st.HasVal
+           && int.TryParse(st.Val, out var v) && v > 0 ? v : null;
+}
+
 var zugeordnet = fullData.Instances.Count(i => limitAusBackup.ContainsKey(i.Namespace));
 Check("Limit aus dem Backup landet bei der Instanz", zugeordnet > 0
-      && fullData.Instances.All(i => !limitAusBackup.TryGetValue(i.Namespace, out var l)
-                                     || i.ObjectLimit == l),
+      && fullData.Instances.All(i =>
+             LimitAusState(i.Namespace) is { } ausState
+                 ? i.ObjectLimit == ausState
+                 : !limitAusBackup.TryGetValue(i.Namespace, out var l) || i.ObjectLimit == l),
       $"{zugeordnet}/{fullData.Instances.Count} Instanzen mit eigenem Objekt");
 
-// Ohne eigenes Objekt bleibt es bei der Systemvorgabe des js-controllers.
+var ausStates = fullData.Instances.Count(i => LimitAusState(i.Namespace) is not null);
+Console.WriteLine($"  davon {ausStates} mit gespeichertem Wert (schlaegt die Vorgabe)");
+
+// Ohne eigenes Objekt und ohne gespeicherten Wert bleibt es bei der Systemvorgabe.
 Check("Ohne eigenes Objekt gilt die Systemvorgabe",
-      fullData.Instances.Where(i => !limitAusBackup.ContainsKey(i.Namespace))
-                        .All(i => i.ObjectLimit == AdapterInstance.DefaultObjectLimit));
+      fullData.Instances
+              .Where(i => !limitAusBackup.ContainsKey(i.Namespace)
+                          && LimitAusState(i.Namespace) is null)
+              .All(i => i.ObjectLimit == AdapterInstance.DefaultObjectLimit));
 
 // Schwellenlogik: genau auf dem Limit ist noch keine Ueberschreitung — der js-controller
 // vergleicht ebenfalls echt groesser.

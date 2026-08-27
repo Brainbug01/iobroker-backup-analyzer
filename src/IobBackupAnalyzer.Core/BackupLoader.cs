@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Formats.Tar;
 using System.IO.Compression;
 using System.Text;
@@ -870,7 +871,7 @@ public static class BackupLoader
                                     List<BackupFileInfo>? files = null,
                                     LoadLog? log = null)
     {
-        var instances = BuildInstances(objects);
+        var instances = BuildInstances(objects, states);
         log?.Step("Instanzen gezaehlt");
         var adapterRefs = BuildAdapterRefs(objects, out var hasAdapterConfig);
         log?.Step("Adapter-Verweise gesammelt");
@@ -1053,7 +1054,8 @@ public static class BackupLoader
     /// Baut die Instanzliste aus system.adapter.&lt;name&gt;.&lt;nr&gt;-Objekten und zählt
     /// je Instanz die zugehörigen Objekte (Präfix &lt;name&gt;.&lt;nr&gt;.).
     /// </summary>
-    private static List<AdapterInstance> BuildInstances(List<IobObject> objects)
+    private static List<AdapterInstance> BuildInstances(List<IobObject> objects,
+                                                        Dictionary<string, StateInfo>? states)
     {
         var list = new List<AdapterInstance>();
         var byNamespace = new Dictionary<string, AdapterInstance>(StringComparer.OrdinalIgnoreCase);
@@ -1101,16 +1103,34 @@ public static class BackupLoader
         // Objektlimit je Instanz. Ohne eigenes objectsWarnLimit-Objekt bleibt es bei der
         // Systemvorgabe, die AdapterInstance bereits mitbringt — so verhält sich auch der
         // js-controller, wenn der State fehlt.
+        //
+        // Vorrang hat der WERT des States, nicht die Vorgabe aus dem Objekt: Genau den liest
+        // der js-controller (siehe AdapterInstance.ObjectLimit). Wer das Limit im Admin
+        // hochsetzt, aendert diesen Wert; die Vorgabe in common.def bleibt dabei stehen.
         const string prefix = "system.adapter.";
         const string suffix = ".objectsWarnLimit";
         foreach (var o in objects)
         {
-            if (o.ObjectsWarnLimit is not { } limit) continue;
             if (!o.Id.StartsWith(prefix, StringComparison.Ordinal)) continue;
             if (!o.Id.EndsWith(suffix, StringComparison.Ordinal)) continue;
 
             var ns = o.Id[prefix.Length..^suffix.Length];
-            if (byNamespace.TryGetValue(ns, out var inst)) inst.ObjectLimit = limit;
+            if (!byNamespace.TryGetValue(ns, out var inst)) continue;
+
+            // Zuerst der gespeicherte Wert. Nur eine Zahl zaehlt — der js-controller prueft
+            // ebenfalls auf typeof 'number' und faellt sonst auf die Vorgabe zurueck.
+            if (states is not null
+                && states.TryGetValue(o.Id, out var st)
+                && st.HasVal
+                && int.TryParse(st.Val, NumberStyles.Integer, CultureInfo.InvariantCulture,
+                                out var ausState)
+                && ausState > 0)
+            {
+                inst.ObjectLimit = ausState;
+                continue;
+            }
+
+            if (o.ObjectsWarnLimit is { } limit) inst.ObjectLimit = limit;
         }
 
         return list
