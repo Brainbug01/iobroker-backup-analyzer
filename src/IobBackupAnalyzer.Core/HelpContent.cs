@@ -97,8 +97,9 @@ public static class HelpContent
             "eine System-Meldung an. Vorgabe sind 5.000 Objekte je Instanz; manche Adapter bringen " +
             "einen eigenen Wert mit. Das ist eine Leistungswarnung, kein Defekt — viele Objekte " +
             "verlangsamen Start, Admin und Backup. Ein von Hand hochgesetztes Limit sieht der " +
-            "Analyzer allerdings nicht: Es steht im Wert des Datenpunkts, und Werte liest er " +
-            "bewusst nicht mit."),
+            "Analyzer allerdings nicht: Es steht im Wert des Datenpunkts, und als Limit gilt " +
+            "hier ausschließlich der Vorgabewert aus dem Objekt — sonst ginge der zuletzt " +
+            "geschriebene Wert eines beliebigen Datenpunkts als Schwelle durch."),
 
         new(HelpBlockKind.Text,
             "Zwei der Hinweise hängen nicht am Aufbau, sondern an den beiden Schaltern unter dem " +

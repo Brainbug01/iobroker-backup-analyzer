@@ -252,6 +252,71 @@ Check("Trigger ohne Inhalt erkannt",
       ohneRumpf.Count == 1 && ohneRumpf[0].Kind == ScriptHintKind.TriggerWithoutBody,
       string.Join(" / ", ohneRumpf.Select(h => h.ShortText)));
 
+// --------------------------------------------------------------------------------------
+// Abgeschaltete Bausteine — in BEIDEN Schreibweisen
+//
+// Blockly hat das Kennzeichen gewechselt: frueher disabled="true", seit Blockly 11
+// disabled-reasons="MANUALLY_DISABLED". Der javascript-Adapter schreibt die neue Fassung,
+// sobald ein Skript im Editor gespeichert wird — in einem Backup stehen deshalb beide
+// nebeneinander. Wird die neue uebersehen, erscheint ein Befund zu einem Baustein, der
+// gar nicht laeuft, ohne den Zusatz, der genau das sagt.
+
+static string TimerXml(string zusatz) =>
+    $"<block type=\"on\" id=\"A\"><statement name=\"STATEMENT\">"
+  + $"<block type=\"timeouts_settimeout\" id=\"T\"{zusatz}>"
+  + $"<field name=\"NAME\">meinTimer</field></block></statement></block>";
+
+var timerAn = Hinweise(TimerXml(""));
+Check("Laufender Timer ohne Loeschung wird gemeldet",
+      timerAn.Count == 1 && timerAn[0].Kind == ScriptHintKind.TimerWithoutClear
+      && !timerAn[0].Disabled,
+      string.Join(" / ", timerAn.Select(h => h.ShortText)));
+
+var timerAltAus = Hinweise(TimerXml(" disabled=\"true\""));
+Check("Alte Schreibweise disabled=\"true\" wird erkannt",
+      timerAltAus.Count == 1 && timerAltAus[0].Disabled,
+      string.Join(" / ", timerAltAus.Select(h => h.ShortText)));
+
+var timerNeuAus = Hinweise(TimerXml(" disabled-reasons=\"MANUALLY_DISABLED\""));
+Check("Neue Schreibweise disabled-reasons wird erkannt",
+      timerNeuAus.Count == 1 && timerNeuAus[0].Disabled,
+      string.Join(" / ", timerNeuAus.Select(h => h.ShortText)));
+
+Check("Abgeschalteter Baustein wird im Text als solcher benannt",
+      timerNeuAus.Count == 1
+      && timerNeuAus[0].ShortText.StartsWith("Abgeschalteter Baustein")
+      && timerNeuAus[0].LongText.Contains("laeuft derzeit nicht".Replace("ae", "ä")),
+      timerNeuAus.Count == 1 ? timerNeuAus[0].ShortText : "kein Befund");
+
+// Der Abschaltzustand vererbt sich nach innen: Steht er am Auslöser, gilt er auch für den
+// Timer darin — sonst würde ein abgeschalteter Zweig als laufend gemeldet.
+var vonAussenAus = Hinweise(
+    "<block type=\"on\" id=\"A\" disabled-reasons=\"MANUALLY_DISABLED\">"
+  + "<statement name=\"STATEMENT\"><block type=\"timeouts_settimeout\" id=\"T\">"
+  + "<field name=\"NAME\">meinTimer</field></block></statement></block>");
+Check("Abschaltung des Ausloesers gilt auch fuer den Timer darin",
+      vonAussenAus.Count == 1 && vonAussenAus[0].Disabled,
+      string.Join(" / ", vonAussenAus.Select(h => h.ShortText)));
+
+// Ein abgeschalteter Loeschbaustein zaehlt nicht als Loeschung — sonst verschwaende der
+// Befund, obwohl im laufenden Skript nichts geloescht wird.
+var loeschenAus = Hinweise(
+    "<block type=\"on\" id=\"A\"><statement name=\"STATEMENT\">"
+  + "<block type=\"timeouts_settimeout\" id=\"T\"><field name=\"NAME\">meinTimer</field>"
+  + "<next><block type=\"timeouts_cleartimeout\" id=\"C\" disabled-reasons=\"MANUALLY_DISABLED\">"
+  + "<field name=\"NAME\">meinTimer</field></block></next></block></statement></block>");
+Check("Abgeschaltetes Loeschen zaehlt nicht als Loeschung",
+      loeschenAus.Any(h => h.Kind == ScriptHintKind.TimerWithoutClear),
+      string.Join(" / ", loeschenAus.Select(h => h.ShortText)));
+
+var loeschenAn = Hinweise(
+    "<block type=\"on\" id=\"A\"><statement name=\"STATEMENT\">"
+  + "<block type=\"timeouts_settimeout\" id=\"T\"><field name=\"NAME\">meinTimer</field>"
+  + "<next><block type=\"timeouts_cleartimeout\" id=\"C\">"
+  + "<field name=\"NAME\">meinTimer</field></block></next></block></statement></block>");
+CheckEq("Aktives Loeschen laesst den Befund entfallen",
+        loeschenAn.Count(h => h.Kind == ScriptHintKind.TimerWithoutClear), 0);
+
 // Kein XML und kaputtes XML duerfen nicht werfen: Ein Skript ohne dekodierbares Blockly
 // ist bereits ueber BlocklyBroken gemeldet und soll hier nicht ein zweites Mal auffallen.
 CheckEq("Ohne XML: keine Hinweise", ScriptQualityAnalyzer.Analyze(null).Count, 0);

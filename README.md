@@ -5,11 +5,25 @@ laufendes ioBroker-System, ohne Adapter-Installation, per Doppelklick startbar.
 
 Reines Lesewerkzeug: Es schreibt nichts in ein ioBroker-System und löscht nichts.
 
+## ▶ Ohne Installation ausprobieren
+
+### **[analyzer starten →](https://brainbug01.github.io/iobroker-backup-analyzer/)**
+
+Die Seite öffnen, das Backup hineinziehen, fertig. **Hochgeladen wird nichts:** Der Server
+liefert nur das Programm aus, gelesen und ausgewertet wird ausschließlich im Browser — auf
+dem Server landet kein Byte deiner Anlage. Nachprüfbar in den Entwicklerwerkzeugen: Nach
+dem Laden der Seite steht unter „Netzwerk" keine weitere Übertragung.
+
+Beim ersten Aufruf werden rund 17 MB übertragen; danach liegt alles im Zwischenspeicher
+des Browsers. Wer die Fassung lieber selbst ausliefert, findet die Anleitung unter
+[Browser-Fassung](#browser-fassung). Zum Herunterladen als Programm geht es zu den
+[Fassungen](#es-gibt-das-werkzeug-in-drei-oberflächen).
+
 > **Mit KI erstellt.** Diese Anwendung wurde vollständig mit KI erstellt: Programmcode,
 > Auswertungslogik und sämtliche Texte stammen von Claude (Anthropic), erarbeitet in Claude
 > Code. Jede Auswertung ist gegen echte ioBroker-Backups verifiziert (siehe
-> [STRUKTUR_VERIFIZIERUNG.md](STRUKTUR_VERIFIZIERUNG.md) und den Verifikationslauf mit
-> derzeit 560 Prüfungen, davon 12 nur, wenn eine bash erreichbar ist). Trotzdem gilt:
+> [STRUKTUR_VERIFIZIERUNG.md](STRUKTUR_VERIFIZIERUNG.md) und den Verifikationslauf, der
+> grün sein muss, bevor etwas ausgeliefert wird). Trotzdem gilt:
 > Die Listen sind Prüflisten — was gelöscht oder geändert wird, entscheidest du. Der
 > Hinweis steht auch in der App: in der Titelleiste, in der Statusleiste, in der Hilfe und
 > in jeder Datei, die das Werkzeug erzeugt.
@@ -218,7 +232,19 @@ Erkannt wird am **Inhalt**, nicht am Dateinamen.
 
 ### Tab „Übersicht"
 Backup-Datum, Objekt- und State-Zahlen, Tabelle aller Adapter-Instanzen mit Version,
-Aktivierungsstatus und Anzahl zugehöriger Objekte. Spaltenklick sortiert.
+Aktivierungsstatus, Betriebsart, Anzahl zugehöriger Objekte, Protokollstufe und Zeitplan.
+Spaltenklick sortiert.
+
+**„Aktiviert" und „Betriebsart" gehören zusammen.** Nur ein Adapter im Dauerbetrieb läuft
+ständig; die übrigen Betriebsarten sind ebenso vorgesehen: *nach Zeitplan* startet zu
+festen Zeiten und beendet sich wieder, *einmalig* läuft einmal, *startet nicht* nie, und
+*in anderem Adapter* läuft innerhalb eines fremden Prozesses. Ein „Nein" unter „Aktiviert"
+ist bei diesen Betriebsarten also kein Befund, sondern der Normalzustand. Dasselbe gilt für
+*nur Dateien*: Solche Instanzen liefern Widgets oder Symbole aus und haben nichts zu starten.
+
+Die Spalte **„Zeitplan"** zeigt den Plan, der zur Betriebsart gehört — bei *nach Zeitplan*
+die Ausführungszeiten, sonst einen geplanten Neustart. Beides steht im Admin nur im
+Experten-Modus. Leer heißt: kein Plan hinterlegt.
 
 **Objektlimit je Instanz.** Liegt eine Instanz über ihrem Limit, erscheint über dem Filter
 eine Warnzeile, und ihre Objektzahl wird orange hervorgehoben. Die Grenze ist dieselbe, die
@@ -231,9 +257,11 @@ wird. Das ist eine Leistungswarnung, kein Defekt — viele Objekte verlangsamen 
 und Backup.
 
 > Ein **von Hand** hochgesetztes Limit bleibt unsichtbar: Es steht im *Wert* des Datenpunkts,
-> und State-Werte lädt der Analyzer bewusst nicht. Gelesen wird nur der Vorgabewert aus dem
-> Objekt. Deaktivierte Instanzen werden mitgezählt, aber gekennzeichnet — sie starten nicht
-> und melden im Betrieb deshalb nichts, ihre Objekte liegen aber trotzdem in der Datenbank.
+> und als Limit gilt hier ausschließlich der Vorgabewert aus dem Objekt (`common.def`). Das
+> ist Absicht — der zuletzt geschriebene Wert eines beliebigen Datenpunkts soll nicht als
+> Schwelle durchgehen. Deaktivierte Instanzen werden mitgezählt, aber gekennzeichnet: Sie
+> starten nicht und melden im Betrieb deshalb nichts, ihre Objekte liegen aber trotzdem in
+> der Datenbank.
 
 ### Tab „Backup-Prüfung"
 Prüft, ob das Backup heil ist — nach demselben Muster wie `iobroker backup` es beim Erstellen
@@ -281,13 +309,14 @@ Original und das JavaScript nur das, was der Adapter daraus erzeugt. Wer es trot
 schaltet „Bei Blockly auch das erzeugte JavaScript" ein — zum Lesen und Durchsuchen nützlich,
 in ioBroker aber nicht bearbeitbar.
 
-Die Spalte **„Hinweise"** meldet drei Muster im **Aufbau eines Blockly-Skripts**:
+Die Spalte **„Hinweise"** meldet Muster im **Aufbau eines Blockly-Skripts**:
 
 | Befund | Warum er einer ist |
 |---|---|
 | **Trigger im Trigger** | Ein Auslöser steht im Rumpf eines anderen. Er wird bei jeder Auslösung des äußeren erneut angelegt und nie wieder entfernt — nach einigen Stunden laufen dieselben Aktionen vielfach parallel. Der Blockly-Editor zeigt an dieser Stelle selbst ein Warndreieck. |
 | **Abgelöster Baustein** | Der javascript-Adapter führt ihn selbst mit dem Zusatz `(deprecated)`. Derzeit ist das genau einer: `request` — Nachfolger ist „HTTP-Get". Er funktioniert noch, wird aber nicht mehr gepflegt. |
 | **Trigger ohne Inhalt** | Ein Auslöser ohne Rumpf: Er reagiert auf Änderungen und führt nichts aus. Meist ein Überbleibsel vom Umbauen. |
+| **Timer wird nie gelöscht** | Ein Timer wird im Rumpf eines Auslösers gestartet, aber nirgends im Skript gelöscht. Blockly erzeugt daraus `name = setTimeout(…)`. Löst der Auslöser erneut aus, bevor der Timer abgelaufen ist, wird nur die Variable überschrieben — der vorige Timer läuft weiter und feuert trotzdem. Ob daraus ein Problem wird, hängt davon ab, wie oft der Auslöser feuert: Kommt er seltener als die eingestellte Verzögerung, überlappen sich die Timer nie. Diese Häufigkeit steht nicht im Backup. Abhilfe ist der Baustein „Timeout löschen" mit demselben Namen vor dem Starten. |
 | **Debug-Modus aktiv** | `common.debug` ist gesetzt. Kein Protokollschalter: Der javascript-Adapter unterdrückt jede schreibende Operation — `setState`, `exec` und `writeFile` passieren nicht, sondern werden nur als Warnung protokolliert (`was not executed, while debug mode is active`, siehe `src/lib/sandbox.ts`). Das Skript läuft und bewirkt nichts. Gilt für jede Sprache, nicht nur Blockly. |
 | **Ausführliches Protokoll** | `common.verbose` ist gesetzt. Jede interne Operation des Sandkastens landet als `info` im Log — zum Fehlersuchen gedacht, nicht für den Dauerbetrieb. Gilt ebenfalls für jede Sprache. |
 | **steuern statt aktualisieren** | „Zustand steuern" auf einem selbst angelegten Datenpunkt (`0_userdata`, `javascript`), der im Backup **unquittiert** liegt. Steuern schreibt `ack=false` — einen Befehl, den normalerweise ein Adapter quittiert. Bei einem eigenen Datenpunkt gibt es keinen; der Wert bleibt für immer ein offener Befehl. Richtig wäre „Zustand aktualisieren". **Ausgenommen sind echte Befehlskanäle:** Nimmt ein anderes Skript den Datenpunkt als Befehl entgegen — erkennbar an einem Auslöser, der etwas tut und dabei auf `ack=false` lauscht oder mit dem Baustein „quittieren" antwortet —, ist „steuern" richtig und es gibt keinen Hinweis. Ein Sammelskript, das **nur** quittiert, zählt bewusst nicht dazu: Es macht die rote Darstellung in der Objektübersicht weiß, ändert an der Ursache aber nichts. |
@@ -296,6 +325,13 @@ Die Spalte **„Hinweise"** meldet drei Muster im **Aufbau eines Blockly-Skripts
 Unter der Liste steht zu jedem Befund die Begründung und die **Baustein-ID** — dieselbe, die
 auch der Blockly-Editor führt, sodass sich die Stelle im Skript wiederfinden lässt. Der
 Filter **„Nur mit Hinweisen"** zeigt die betroffenen Skripte allein.
+
+**Abgeschaltete Bausteine** tragen den Vorsatz „Abgeschalteter Baustein". Der Befund
+verschwindet dadurch nicht: Ein abgeschalteter Baustein richtet heute keinen Schaden an, er
+tut es in dem Augenblick, in dem jemand ihn wieder einschaltet. Ihn zu verschweigen hieße,
+genau diese Falle zuzudecken; ihn wie einen laufenden zu melden, wäre unwahr. Aus demselben
+Grund zählt ein abgeschalteter Baustein „Timeout löschen" nicht als Löschung — im laufenden
+Skript löscht er nichts.
 
 Zwei Einschränkungen, damit die Spalte richtig gelesen wird. Geprüft wird **ausschließlich
 Blockly**: Dort hängt jeder Befund an einem benannten Baustein mit eigener ID. Dasselbe in
@@ -515,6 +551,12 @@ die belastbar tot sind.
 - **Störungen** — Qualitätscode ungleich „gut", etwa „Gerät nicht verbunden".
 - **Nicht quittierte Befehle** — `ack = false`, also geschrieben und nie beantwortet.
 
+Die Spalte **„Letzter Wert"** steht in beiden Analysen und im Tab „Verwendung". Bei der
+Frage, ob ein Datenpunkt weg kann, ist sein letzter Wert oft aussagekräftiger als jede
+Kennzahl daneben — ein Zählerstand oder eine Gerätekennung sagt sofort, worum es ging. In
+der Tabelle steht er gekürzt, vollständig darunter zum Kopieren; sehr große Werte werden
+bei 64 KB gekappt, was die Anzeige ausweist.
+
 Über der Tabelle steht dauerhaft die Altersverteilung aller States.
 
 > Alle drei Analysen sind **Prüflisten, keine Löschlisten.** Nutzung durch externe Systeme
@@ -680,10 +722,14 @@ versehentlich in einem Export auftauchen.
 
 ## Browser-Fassung
 
-Dieselbe Auswertung, ausgeliefert vom eigenen Webserver: einmal hochladen, danach von
-jedem Rechner im Netz aufrufen — ohne Installation, ohne Aktualisierung auf jedem
-einzelnen Gerät. Der Server muss dafür nichts können außer statische Dateien ausliefern —
-gerechnet wird im Browser des Anwenders.
+Dieselbe Auswertung im Browser, ohne Installation. Es gibt sie **fertig aufrufbar** unter
+[brainbug01.github.io/iobroker-backup-analyzer](https://brainbug01.github.io/iobroker-backup-analyzer/) —
+zum Ausprobieren genügt dieser Link.
+
+Dieser Abschnitt beschreibt den anderen Weg: sie **selbst auszuliefern**, vom eigenen
+Webserver. Einmal hochladen, danach von jedem Rechner im Netz aufrufen, ohne Aktualisierung
+auf jedem einzelnen Gerät. Der Server muss dafür nichts können außer statische Dateien
+ausliefern — gerechnet wird im Browser des Anwenders.
 
 Anleitung und Einstellungen (`.htaccess`, Prüfseite) sind auf **Apache** zugeschnitten.
 Auf einem ioBroker-Host läuft der nicht von sich aus — er ist dort wie überall sonst
@@ -698,7 +744,7 @@ ist unter „Netzwerk" keine weitere Übertragung zu sehen.
 ### Hochladen
 
 Das fertige Paket liegt nach `build.ps1` unter `dist/web/` und zusätzlich als
-`dist/ioBroker-Backup-Analyzer_Browser.zip` (rund 27 MB). Der gesamte Inhalt gehört in ein
+`dist/ioBroker-Backup-Analyzer_Browser.zip` (rund 68 MB). Der gesamte Inhalt gehört in ein
 Verzeichnis unterhalb des Web-Wurzelverzeichnisses, etwa `/var/www/html/analyzer/`.
 
 Wie das Verzeichnis heißt, spielt keine Rolle: Alle Adressen im Programm sind relativ, es
@@ -718,8 +764,8 @@ Danach geht es per Knopf weiter ins Programm; die Umleitung kommt nicht wieder.
 **Kein PHP, keine Datenbank** — es ist eine statische Seite. Pflicht ist allein der
 Dateityp `application/wasm`; ohne ihn lehnt der Browser das Programm ab, bevor es startet.
 Empfohlen sind `mod_headers`, `mod_rewrite`, `mod_deflate` und `mod_expires`: Damit werden
-die vorkomprimierten Dateien ausgeliefert, die neben jeder Programmdatei liegen — 7,5 statt
-25 MB beim ersten Aufruf. Ohne sie läuft alles genauso, nur langsamer.
+die vorkomprimierten Dateien ausgeliefert, die neben jeder Programmdatei liegen — rund 17
+statt 75 MB beim ersten Aufruf. Ohne sie läuft alles genauso, nur langsamer.
 
 ```bash
 sudo a2enmod headers rewrite deflate expires
@@ -839,7 +885,7 @@ Windows-Fassung nutzt.
 Einzelschritte von Hand:
 
 ```powershell
-dotnet run --project src/IobBackupAnalyzer.Verify     # 560 Prüfungen gegen testdaten/ (ohne bash: 548)
+dotnet run --project src/IobBackupAnalyzer.Verify     # prüft gegen testdaten/, muss grün sein
 dotnet publish src/IobBackupAnalyzer.App -c Release -o dist   # nur die Einzeldatei nach dist/
 dotnet run --project src/IobBackupAnalyzer.Avalonia           # plattformübergreifende Fassung starten
 ```

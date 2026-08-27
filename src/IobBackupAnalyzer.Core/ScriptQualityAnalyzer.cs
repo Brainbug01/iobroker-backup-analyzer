@@ -40,7 +40,8 @@ public enum ScriptHintKind
 /// </param>
 /// <param name="Disabled">
 /// true, wenn der Baustein selbst oder einer seiner übergeordneten Bausteine im Blockly-
-/// Editor abgeschaltet ist (<c>disabled="true"</c>).
+/// Editor abgeschaltet ist. Welche Schreibweise das XML dafür benutzt, entscheidet
+/// <see cref="ScriptQualityAnalyzer"/> — es sind zwei (siehe dort <c>IstAbgeschaltet</c>).
 ///
 /// Der Befund bleibt trotzdem stehen, wird aber als Möglichkeit formuliert statt als
 /// Tatsache: Ein abgeschalteter Baustein richtet heute keinen Schaden an — er tut es in dem
@@ -295,7 +296,7 @@ public static class ScriptQualityAnalyzer
             var type = node.Attributes?["type"]?.Value ?? "";
             var id = node.Attributes?["id"]?.Value ?? "";
 
-            if (node.Attributes?["disabled"]?.Value == "true") disabled = true;
+            if (IstAbgeschaltet(node)) disabled = true;
             isTrigger = TriggerBlocks.Contains(type);
 
             var name = FieldValue(node, "NAME");
@@ -543,6 +544,37 @@ public static class ScriptQualityAnalyzer
     }
 
     /// <summary>
+    /// true, wenn dieser Baustein im Editor abgeschaltet ist.
+    ///
+    /// <b>Warum zwei Schreibweisen geprüft werden.</b> Blockly hat das Kennzeichen
+    /// gewechselt: Früher stand am Baustein <c>disabled="true"</c>, seit Blockly 11 steht
+    /// dort <c>disabled-reasons="MANUALLY_DISABLED"</c> (mehrere Gründe durch Leerzeichen
+    /// getrennt). Der javascript-Adapter liefert inzwischen die neue Fassung — geschrieben
+    /// wird sie aber erst, wenn ein Skript im Editor gespeichert wird. In einem Backup
+    /// stehen deshalb <b>beide</b> nebeneinander: ältere Skripte in der alten Schreibweise,
+    /// kürzlich bearbeitete in der neuen.
+    ///
+    /// <b>Was das Übersehen anrichtet.</b> Der Abschaltzustand entscheidet, ob ein Befund
+    /// als „Abgeschalteter Baustein" gekennzeichnet wird und ob ein Löschbaustein überhaupt
+    /// zählt (siehe <see cref="CollectTimerHints"/>). Wird die neue Schreibweise nicht
+    /// erkannt, erscheint ein Hinweis auf etwas, das gar nicht läuft — ohne den Zusatz, der
+    /// das sagt. Gefunden an einem Timer, der im Editor sichtbar abgeschaltet war und
+    /// trotzdem ungekennzeichnet gemeldet wurde.
+    /// </summary>
+    private static bool IstAbgeschaltet(XmlNode block)
+    {
+        var attribute = block.Attributes;
+        if (attribute is null) return false;
+
+        if (attribute["disabled"]?.Value == "true") return true;
+
+        // Der Wert zählt die Gründe auf; jeder davon schaltet den Baustein ab. Geprüft wird
+        // deshalb nur, ob überhaupt einer dasteht — welcher, ändert nichts an der Wirkung.
+        var gruende = attribute["disabled-reasons"]?.Value;
+        return !string.IsNullOrWhiteSpace(gruende);
+    }
+
+    /// <summary>
     /// Der Wert eines Feldes des Blocks selbst. Gesucht wird nur unter den <b>direkten</b>
     /// Kindern: Ein verschachtelter Block bringt eigene Felder mit, und ein „OID" aus einem
     /// eingesetzten Wert-Baustein gehört nicht zu diesem Block.
@@ -601,7 +633,7 @@ public static class ScriptQualityAnalyzer
             var type = node.Attributes?["type"]?.Value ?? "";
             var id = node.Attributes?["id"]?.Value ?? "";
 
-            if (node.Attributes?["disabled"]?.Value == "true") disabled = true;
+            if (IstAbgeschaltet(node)) disabled = true;
 
             isTrigger = TriggerBlocks.Contains(type);
 

@@ -23,6 +23,26 @@ public static class ChangelogContent
     /// <summary>Neueste Version zuerst.</summary>
     public static IReadOnlyList<ChangelogEntry> Entries { get; } = new ChangelogEntry[]
     {
+        new("1.28.1", "27.08.2026", new[]
+        {
+            "Abgeschaltete Blockly-Bausteine werden wieder als solche erkannt. Blockly hat " +
+            "die Schreibweise gewechselt: Früher stand am Baustein disabled=\"true\", heute " +
+            "steht dort disabled-reasons. Der javascript-Adapter schreibt die neue Fassung, " +
+            "sobald ein Skript im Editor gespeichert wird — in einem Backup stehen deshalb " +
+            "beide nebeneinander, und die neue wurde übersehen.",
+
+            "Das hatte zwei Folgen. Erstens fehlte bei Befunden an abgeschalteten Bausteinen " +
+            "der Zusatz „Abgeschalteter Baustein\" — der Hinweis las sich, als liefe da " +
+            "etwas, obwohl der Baustein im Editor abgeschaltet ist. Zweitens galt ein " +
+            "abgeschalteter Baustein „Timeout löschen\" fälschlich als gültige Löschung und " +
+            "unterdrückte damit einen berechtigten Timer-Hinweis. Beides ist behoben.",
+
+            "Gefunden wurde es an einem Timer, der im Editor sichtbar abgeschaltet war und " +
+            "trotzdem ungekennzeichnet gemeldet wurde. Im Testbackup steht die neue " +
+            "Schreibweise inzwischen häufiger als die alte — es waren also mehr " +
+            "abgeschaltete Bausteine übersehen als erkannt worden.",
+        }),
+
         new("1.28.0", "27.08.2026", new[]
         {
             "Die Instanzliste in der Übersicht hat eine neue Spalte „Betriebsart\". Sie sagt, " +
