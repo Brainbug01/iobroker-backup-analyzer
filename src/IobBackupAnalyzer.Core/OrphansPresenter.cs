@@ -52,7 +52,9 @@ public static class OrphansPresenter
 
     public const string WarningB =
         "Kandidatenliste, keine Löschliste. Nutzung in externen Systemen oder per zusammengesetzten IDs " +
-        "ist hier nicht vollständig erkennbar. Vor dem Löschen im laufenden System manuell prüfen.";
+        "ist hier nicht vollständig erkennbar. Vor dem Löschen im laufenden System manuell prüfen.\n" +
+        "Steht in der Bewertung „Expertenmodus\", ist der Datenpunkt im Admin nur zu sehen, wenn dort " +
+        "der Experten-Modus eingeschaltet ist — sonst sucht man ihn dort vergeblich.";
 
     public const string WarningC =
         "Auswertung der states.jsonl — der einzigen Stelle im Backup, die etwas über die tatsächliche " +
@@ -85,7 +87,7 @@ public static class OrphansPresenter
             : $"{shown:N0} von {all.Count:N0} Objekten";
     }
 
-    public static string[] RowA(OrphanObject o) => new[] { o.MissingInstance, o.Id, o.Type, o.Name };
+    public static string[] RowA(OrphanObject o) => new[] { o.MissingInstance, o.Id, o.TypeText, o.Name };
 
     // ------------------------------------------------------------------ Analyse B
 

@@ -45,6 +45,31 @@ public sealed class IobObject
     /// </summary>
     public string? LogLevel { get; init; }
 
+    /// <summary>
+    /// Betriebsart der Instanz aus common.mode. Siehe <see cref="AdapterInstance.Mode"/>
+    /// für die Bedeutung und dafür, warum das Feld gebraucht wird.
+    /// </summary>
+    public string? Mode { get; init; }
+
+    /// <summary>
+    /// Cron-Ausdruck aus common.schedule: wann eine Instanz mit <c>mode=schedule</c> läuft.
+    /// Nicht zu verwechseln mit <see cref="RestartSchedule"/> — das gilt nur für Dauerdienste.
+    /// </summary>
+    public string? Schedule { get; init; }
+
+    /// <summary>
+    /// common.dontDelete — das Objekt darf nicht gelöscht werden. Gilt laut Typdefinition
+    /// für jeden Objekttyp, also auch für Datenpunkte. Solche Objekte bleiben aus den
+    /// Aufräumlisten heraus (siehe <see cref="OrphanAnalyzer"/>).
+    /// </summary>
+    public bool DontDelete { get; init; }
+
+    /// <summary>
+    /// common.expert — im Admin nur bei eingeschaltetem Expertenmodus sichtbar. Wird in den
+    /// Listen gekennzeichnet, damit niemand vergeblich danach sucht.
+    /// </summary>
+    public bool Expert { get; init; }
+
     /// <summary>Bei Skripten und Instanzen relevant. Fehlendes Feld gilt als aktiv.</summary>
     public bool Enabled { get; init; } = true;
 
@@ -459,8 +484,55 @@ public sealed class AdapterInstance
     /// <summary>
     /// Geplanter Neustart als Cron-Ausdruck; leer, wenn keiner eingerichtet ist. Im Admin
     /// steht das nur im Expertenmodus.
+    ///
+    /// <b>Gilt nur für Dauerdienste.</b> Die Spezifikation sagt dazu wörtlich „CRON schedule
+    /// to restart mode daemon adapters" — bei einer Instanz mit <c>mode=schedule</c> ist das
+    /// Feld gegenstandslos, dort steht der Plan in <see cref="Schedule"/>.
     /// </summary>
     public string RestartSchedule { get; init; } = "";
+
+    /// <summary>
+    /// Ausführungsplan als Cron-Ausdruck bei <c>mode=schedule</c>; sonst leer.
+    /// </summary>
+    public string Schedule { get; init; } = "";
+
+    /// <summary>
+    /// Betriebsart aus common.mode. Zulässig sind <c>daemon</c>, <c>schedule</c>,
+    /// <c>once</c>, <c>none</c> und <c>extension</c>; leer, wenn das Feld fehlt.
+    ///
+    /// <b>Warum das hier steht:</b> Nur ein <c>daemon</c> ist ein Dauerdienst, bei dem die
+    /// Frage „läuft sie oder nicht" überhaupt sinnvoll ist. Eine Instanz mit <c>schedule</c>
+    /// startet nach Plan und beendet sich wieder, <c>once</c> läuft einmal, <c>none</c> nie,
+    /// und <c>extension</c> läuft im Prozess eines anderen Adapters. Ohne diese Angabe sähe
+    /// eine abgeschaltete <c>once</c>-Instanz in der Tabelle aus wie eine vergessene — der
+    /// gleiche Fehlschluss, den <see cref="OnlyWww"/> für die Datei-Adapter bereits verhindert.
+    /// </summary>
+    public string Mode { get; init; } = "";
+
+    /// <summary>
+    /// Die Betriebsart in Worten. Leer, wenn das Backup keine nennt: Dann ist die Vorgabe
+    /// des js-controllers maßgeblich, und die steht hier nicht — also wird nichts behauptet.
+    /// </summary>
+    public string ModeText => Mode switch
+    {
+        "daemon" => "Dauerbetrieb",
+        "schedule" => "nach Zeitplan",
+        "once" => "einmalig",
+        "none" => "startet nicht",
+        "extension" => "in anderem Adapter",
+        _ => Mode          // unbekannter Wert bleibt unverändert stehen
+    };
+
+    /// <summary>
+    /// Der Zeitplan, der zur Betriebsart gehört: bei <c>schedule</c> der Ausführungsplan,
+    /// sonst der geplante Neustart. Leer, wenn keiner hinterlegt ist.
+    ///
+    /// Beides in eine Spalte zu legen ist kein Zusammenwerfen von Ungleichem: Die Frage
+    /// dahinter ist in beiden Fällen dieselbe — wann tut diese Instanz planmäßig etwas.
+    /// Welcher Fall vorliegt, sagt die Spalte „Betriebsart" daneben.
+    /// </summary>
+    public string ScheduleText =>
+        string.Equals(Mode, "schedule", StringComparison.Ordinal) ? Schedule : RestartSchedule;
 
     /// <summary>
     /// Protokollstufe der Instanz; leer, wenn nicht gesetzt. Leer heißt nicht „kein
@@ -547,6 +619,15 @@ public sealed class OrphanObject
     public string Type { get; init; } = "";
     public string Name { get; init; } = "";
     public string MissingInstance { get; init; } = "";
+
+    /// <summary>common.expert — im Admin nur im Expertenmodus sichtbar.</summary>
+    public bool Expert { get; init; }
+
+    /// <summary>
+    /// Der Objekttyp, bei einem Objekt im Expertenmodus mit dem Zusatz. Ohne ihn sucht der
+    /// Nutzer den gemeldeten Eintrag im Admin und findet ihn nicht.
+    /// </summary>
+    public string TypeText => Expert ? $"{Type} · Expertenmodus" : Type;
 }
 
 /// <summary>Wie eine Datenpunkt-ID in Skripten/VIS gefunden wurde.</summary>
@@ -642,12 +723,37 @@ public sealed class UnusedDatapoint
         : AgeDays is null ? LastChange.Value.ToString("dd.MM.yyyy")
         : $"{LastChange.Value:dd.MM.yyyy}  ({AgeDays} T)";
 
-    /// <summary>Zusammenfassende Einstufung für die Ergebnisspalte.</summary>
-    public string Verdict => !IsCandidate
-        ? "verwendet"
-        : RecentlyChanged ? "Kandidat — aber aktiv"
-        : IsStrongCandidate ? "Kandidat — und tot"
-        : "Kandidat";
+    /// <summary>common.expert — im Admin nur im Expertenmodus sichtbar.</summary>
+    public bool Expert { get; init; }
+
+    /// <summary>
+    /// Zusammenfassende Einstufung für die Ergebnisspalte.
+    ///
+    /// Bei einem Datenpunkt im Expertenmodus kommt der Zusatz dazu, und zwar bewusst hier
+    /// statt in einer elften Spalte: Diese Spalte liest, wer gleich handeln will — und genau
+    /// dann muss dastehen, dass der Eintrag im Admin ohne Expertenmodus unsichtbar ist.
+    ///
+    /// <b>Vorsorge, kein behobener Fehler.</b> In den geprüften Anlagen erreicht kein
+    /// einziger solcher Datenpunkt diese Liste: Dort tragen das Kennzeichen durchweg
+    /// Verwaltungsobjekte des JavaScript-Adapters (<c>scriptEnabled</c>,
+    /// <c>scriptProblem</c>) — und die entfernt <see cref="OrphanAnalyzer"/> bereits über
+    /// <c>JavascriptInternals</c>, aus einem ganz anderen Grund. Der Zusatz greift also
+    /// erst, wenn ein Adapter einen eigenen Datenpunkt unter <c>0_userdata.0.*</c> so
+    /// kennzeichnet.
+    /// </summary>
+    public string Verdict
+    {
+        get
+        {
+            var kern = !IsCandidate
+                ? "verwendet"
+                : RecentlyChanged ? "Kandidat — aber aktiv"
+                : IsStrongCandidate ? "Kandidat — und tot"
+                : "Kandidat";
+
+            return Expert ? $"{kern} · Expertenmodus" : kern;
+        }
+    }
 }
 
 /// <summary>

@@ -106,12 +106,15 @@ public sealed class OverviewTab : UserControl
         _list.Columns.Add("Instanz", 70, HorizontalAlignment.Right);
         _list.Columns.Add("Version", 110);
         _list.Columns.Add("Aktiviert", 90);
+        // „Aktiviert" allein beantwortet die Frage nicht: Ein Nein bei einer Instanz, die
+        // ohnehin nur einmal oder gar nicht startet, ist kein Befund.
+        _list.Columns.Add("Betriebsart", 130);
         _list.Columns.Add("Objekte", 100, HorizontalAlignment.Right);
         // Zwei Einstellungen, die im Admin nur im Expertenmodus stehen. Die Reihenfolge
         // muss zu OverviewPresenter.InstanceColumns passen — dieselbe Liste wird für den
         // CSV-Export benutzt.
         _list.Columns.Add("Protokoll", 100);
-        _list.Columns.Add("Neustart", 130);
+        _list.Columns.Add("Zeitplan", 130);
         _list.MultiSelect = true;
         _list.ColumnClick += OnColumnClick;
         ListViewCopy.Attach(_list);

@@ -79,6 +79,17 @@ public static class HelpContent
             "Unten „Installierte Adapter ohne eigene Instanz\": eine Bestandsaufnahme, keine Löschliste — " +
             "manche Adapter (z. B. Socket-Backends wie ws/socketio) laufen bewusst ohne eigene Instanz."),
         new(HelpBlockKind.Text,
+            "„Aktiviert\" und „Betriebsart\" gehören zusammen. Nur ein Adapter im Dauerbetrieb läuft " +
+            "ständig; die übrigen Betriebsarten sind ebenso vorgesehen: „nach Zeitplan\" startet zu " +
+            "festen Zeiten und beendet sich wieder, „einmalig\" läuft einmal, „startet nicht\" nie, " +
+            "und „in anderem Adapter\" läuft innerhalb eines fremden Prozesses. Ein „Nein\" unter " +
+            "„Aktiviert\" ist bei diesen Betriebsarten also kein Befund. Dasselbe gilt für „nur " +
+            "Dateien\": Solche Instanzen liefern Widgets oder Symbole aus und haben nichts zu starten."),
+        new(HelpBlockKind.Text,
+            "Die Spalte „Zeitplan\" zeigt den Plan, der zur Betriebsart gehört: bei „nach Zeitplan\" " +
+            "die Ausführungszeiten, sonst einen geplanten Neustart. Beides steht im Admin nur im " +
+            "Experten-Modus. Leer heißt: kein Plan hinterlegt."),
+        new(HelpBlockKind.Text,
             "Hat eine Instanz mehr Objekte, als ihr Limit erlaubt, erscheint über dem Filter eine " +
             "Warnzeile und die betroffene Objektzahl wird orange. Dieselbe Grenze zieht ioBroker " +
             "selbst: Der js-controller meldet bei jedem Start einer solchen Instanz " +

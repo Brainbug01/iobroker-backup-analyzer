@@ -513,6 +513,82 @@ Check("Mehrheit der Instanzen hat zugeordnete Objekte",
 // Die Uebersicht rechnet dasselbe aus dem Backup aus. Geprueft wird beides: das Lesen des
 // Limits aus dem Backup und die Schwellenlogik des Presenters.
 
+// --------------------------------------------------------------------------------------
+// Betriebsart und Zeitplan (ab 1.28.0)
+//
+// Die Spalte „Aktiviert" beantwortet nur bei einem Dauerdienst eine sinnvolle Frage. Und
+// common.restartSchedule gilt laut Spezifikation ausschliesslich fuer mode=daemon — bei
+// einer Instanz mit mode=schedule steht der Plan in common.schedule. Wer nur das erste
+// liest, zeigt bei einer geplant laufenden Instanz eine leere Spalte.
+
+Console.WriteLine();
+Console.WriteLine("Betriebsart und Zeitplan");
+
+var mitModus = fullData.Instances.Count(i => i.Mode.Length > 0);
+var nachPlan = fullData.Instances.Where(i => i.Mode == "schedule").ToList();
+var einmalig = fullData.Instances.Where(i => i.Mode == "once").ToList();
+
+Console.WriteLine($"  {mitModus} von {fullData.Instances.Count} Instanzen nennen eine Betriebsart, " +
+                  $"{nachPlan.Count} laufen nach Zeitplan, {einmalig.Count} einmalig");
+
+Check("common.mode wird gelesen", mitModus > 0, $"{mitModus}");
+Check("Jede bekannte Betriebsart hat einen Text",
+      fullData.Instances.Where(i => i.Mode.Length > 0).All(i => i.ModeText.Length > 0));
+Check("Unbekannte Betriebsart bleibt unveraendert stehen",
+      new AdapterInstance { Mode = "kraut" }.ModeText == "kraut");
+Check("Fehlende Betriebsart behauptet nichts",
+      new AdapterInstance().ModeText.Length == 0);
+
+// Der Kern von Befund 2: Bei mode=schedule zeigt die Spalte den Ausfuehrungsplan.
+Check("Instanz nach Zeitplan zeigt ihren Ausfuehrungsplan",
+      nachPlan.Count == 0 || nachPlan.All(i => i.ScheduleText == i.Schedule));
+Check("Dauerdienst zeigt weiterhin den Neustartplan",
+      fullData.Instances.Where(i => i.Mode == "daemon")
+                        .All(i => i.ScheduleText == i.RestartSchedule));
+
+var geplantMitPlan = nachPlan.Count(i => i.ScheduleText.Length > 0);
+Check("Kein geplant laufender Adapter mehr ohne Zeitplan in der Spalte",
+      nachPlan.Count == 0 || geplantMitPlan == nachPlan.Count,
+      $"{geplantMitPlan} von {nachPlan.Count}");
+
+Check("Spalten, Anzeigezeile und CSV-Zeile sind gleich lang",
+      OverviewPresenter.InstanceColumns.Length
+        == OverviewPresenter.DisplayRow(fullData.Instances[0]).Length
+      && OverviewPresenter.InstanceColumns.Length
+        == OverviewPresenter.Row(fullData.Instances[0]).Length);
+
+// --------------------------------------------------------------------------------------
+// dontDelete und expert (ab 1.28.0)
+//
+// Beide stehen in ObjectCommon und gelten damit fuer jeden Objekttyp, auch fuer einen
+// Datenpunkt. In den geprueften Anlagen kommt keiner der beiden Faelle in einer
+// Aufraeumliste an — die Pruefungen sind Vorsorge, nicht Fehlerbehebung.
+
+Console.WriteLine();
+Console.WriteLine("Nicht loeschbare und verborgene Objekte");
+
+var nichtLoeschbar = fullData.Objects.Where(o => o.DontDelete).ToList();
+var imExpertenmodus = fullData.Objects.Where(o => o.Expert).ToList();
+Console.WriteLine($"  {nichtLoeschbar.Count} Objekte mit dontDelete, " +
+                  $"{imExpertenmodus.Count} nur im Expertenmodus sichtbar");
+
+Check("common.dontDelete wird gelesen", nichtLoeschbar.Count > 0, $"{nichtLoeschbar.Count}");
+Check("common.expert wird gelesen", imExpertenmodus.Count > 0, $"{imExpertenmodus.Count}");
+
+// Der eigentliche Zweck: kein solches Objekt darf in einer Aufraeumliste stehen.
+var waisenIds = new HashSet<string>(OrphanAnalyzer.FindOrphanObjects(fullData).Select(o => o.Id),
+                                    StringComparer.Ordinal);
+Check("Kein nicht loeschbares Objekt in Analyse A",
+      nichtLoeschbar.All(o => !waisenIds.Contains(o.Id)));
+
+Check("Kennzeichnung erscheint nur bei verborgenen Objekten",
+      new OrphanObject { Type = "state" }.TypeText == "state"
+      && new OrphanObject { Type = "state", Expert = true }.TypeText.Contains("Expertenmodus"));
+
+Check("Bewertung traegt den Hinweis auf den Expertenmodus",
+      !new UnusedDatapoint().Verdict.Contains("Expertenmodus")
+      && new UnusedDatapoint { Expert = true }.Verdict.Contains("Expertenmodus"));
+
 var mitEigenemLimit = fullData.Instances.Count(i => i.ObjectLimit != AdapterInstance.DefaultObjectLimit);
 var limitObjekte = fullData.Objects.Count(o => o.ObjectsWarnLimit is not null);
 Console.WriteLine($"  Objektlimit: {limitObjekte} objectsWarnLimit-Objekte gelesen, " +
@@ -2556,11 +2632,35 @@ CheckEq("Geschriebene Dateien auf der Platte",
         Directory.GetFiles(filesRoot, "*", SearchOption.AllDirectories).Length, fullData.Files.Count);
 
 // Ein Doppelpunkt im Dateinamen (etwa eine Uhrzeit wie 07:27:54) ist unter Windows
-// verboten; der Export muss ihn ersetzen und die Aenderung ausweisen.
+// verboten; der Export muss ihn dort ersetzen und die Aenderung ausweisen.
+//
+// Unter Linux ist er erlaubt — dort waere eine Umbenennung schlicht falsch, und der Test
+// muss das Gegenteil pruefen. Gefragt wird deshalb nicht nach dem Betriebssystem, sondern
+// danach, ob DIESES Dateisystem den Doppelpunkt verbietet: Das ist die Bedingung, an der
+// auch SanitizeFileName haengt (Path.GetInvalidFileNameChars), und sie stimmt damit auch
+// auf einer Plattform, an die hier niemand gedacht hat.
+var doppelpunktVerboten = Path.GetInvalidFileNameChars().Contains(':');
 var mitDoppelpunkt = fullData.Files.Count(f => f.Name.Contains(':'));
-Console.WriteLine($"  Dateinamen mit Doppelpunkt: {mitDoppelpunkt}");
-Check("Umbenennungen werden gemeldet", expFiles.Renamed >= mitDoppelpunkt,
-      $"{expFiles.Renamed} gemeldet, {mitDoppelpunkt} erwartet");
+Console.WriteLine($"  Dateinamen mit Doppelpunkt: {mitDoppelpunkt}" +
+                  (doppelpunktVerboten ? " (hier verboten — muessen ersetzt werden)"
+                                       : " (hier erlaubt — muessen erhalten bleiben)"));
+
+if (doppelpunktVerboten)
+{
+    Check("Umbenennungen werden gemeldet", expFiles.Renamed >= mitDoppelpunkt,
+          $"{expFiles.Renamed} gemeldet, {mitDoppelpunkt} erwartet");
+}
+else
+{
+    // Die Gegenprobe am Dateisystem statt an der Zahl: Auf Linux kann es sehr wohl
+    // Umbenennungen geben (ein Name, der auf einen Punkt endet, wird ebenfalls
+    // entschaerft) — nur eben keine wegen des Doppelpunkts.
+    var erhalten = mitDoppelpunkt == 0
+                   || Directory.EnumerateFiles(filesRoot, "*", SearchOption.AllDirectories)
+                               .Any(p => Path.GetFileName(p).Contains(':'));
+    Check("Erlaubter Doppelpunkt bleibt im Dateinamen stehen", erhalten,
+          $"{mitDoppelpunkt} Dateien mit Doppelpunkt im Backup");
+}
 
 // Stichprobe: Groesse auf der Platte muss der Angabe aus dem Archiv entsprechen.
 var probe = fullData.Files.OrderByDescending(f => f.Size).First();
@@ -3716,9 +3816,24 @@ Check("Nicht existierende Datei wird sauber abgelehnt",
       Throws<NotABackupException>(() => BackupLoader.Load(Path.Combine(testdaten, "gibtsnicht.tar.gz"))));
 
 Check("Dateinamen-Bereinigung", ScriptExporter.SanitizeFileName("Modell+") == "Modell+");
-Check("Dateinamen-Bereinigung entfernt verbotene Zeichen",
-      ScriptExporter.SanitizeFileName("a/b:c*d") == "a_b_c_d",
-      ScriptExporter.SanitizeFileName("a/b:c*d"));
+
+// Welche Zeichen verboten sind, entscheidet das Dateisystem: Windows verbietet unter
+// anderem : * ? " < > |, Linux nur den Schraegstrich. Ein festgeschriebenes „a_b_c_d"
+// waere deshalb ein Windows-Ergebnis, das anderswo bauartbedingt fehlschlaegt. Die
+// Erwartung wird stattdessen nach derselben Regel gebildet, an der auch die gepruefte
+// Funktion haengt.
+const string rohName = "a/b:c*d";
+var verbotene = Path.GetInvalidFileNameChars();
+var erwartetName = new string(rohName.Select(c => verbotene.Contains(c) ? '_' : c).ToArray());
+Check("Dateinamen-Bereinigung ersetzt die hier verbotenen Zeichen",
+      ScriptExporter.SanitizeFileName(rohName) == erwartetName,
+      $"{ScriptExporter.SanitizeFileName(rohName)} (erwartet {erwartetName})");
+
+// Zwei Aussagen, die auf jeder Plattform gelten und deshalb fest stehen duerfen: Der
+// Schraegstrich ist ueberall verboten, Buchstaben bleiben ueberall unangetastet.
+Check("Schraegstrich wird ueberall ersetzt",
+      !ScriptExporter.SanitizeFileName("a/b").Contains('/')
+      && ScriptExporter.SanitizeFileName("a/b") == "a_b");
 
 // Zaehlwoerter: Bei genau einem Stueck darf keine Klammerform und keine Mehrzahl stehen.
 CheckEq("Einzahl ohne Klammerform", VisPresenter.Count(1, "Datei", "Dateien"), "1 Datei");

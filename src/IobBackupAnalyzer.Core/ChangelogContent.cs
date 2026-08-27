@@ -23,6 +23,36 @@ public static class ChangelogContent
     /// <summary>Neueste Version zuerst.</summary>
     public static IReadOnlyList<ChangelogEntry> Entries { get; } = new ChangelogEntry[]
     {
+        new("1.28.0", "27.08.2026", new[]
+        {
+            "Die Instanzliste in der Übersicht hat eine neue Spalte „Betriebsart\". Sie sagt, " +
+            "ob eine Instanz im Dauerbetrieb läuft, nach Zeitplan, einmalig, gar nicht oder " +
+            "innerhalb eines anderen Adapters. Erst zusammen mit „Aktiviert\" ergibt das ein " +
+            "vollständiges Bild: Ein „Nein\" bei einer Instanz, die ohnehin nur einmal startet, " +
+            "ist kein Befund, sondern ihr Normalzustand.",
+
+            "Aus der Spalte „Neustart\" wurde „Zeitplan\". Sie zeigte bisher nur den geplanten " +
+            "Neustart — der laut Spezifikation ausschließlich für Dauerdienste gilt. Bei einer " +
+            "Instanz, die nach Zeitplan läuft, blieb sie deshalb leer, obwohl sehr wohl ein Plan " +
+            "hinterlegt war. Jetzt steht dort der Plan, der zur Betriebsart gehört.",
+
+            "Objekte, die laut Backup nicht gelöscht werden dürfen (common.dontDelete), " +
+            "erscheinen nicht mehr in den Aufräumlisten. In den Testanlagen betrifft das nur " +
+            "Systemobjekte, die ohnehin ausgenommen sind — ein Adapter darf ein solches " +
+            "Kennzeichen aber auch an einen eigenen Datenpunkt hängen. Der wäre bisher im " +
+            "erzeugten Aufräumskript gelandet, wo das Löschen dann fehlschlägt.",
+
+            "Datenpunkte, die der Admin nur im Experten-Modus zeigt (common.expert), sind in " +
+            "den Listen als solche gekennzeichnet. Ohne diesen Hinweis sucht man einen " +
+            "gemeldeten Datenpunkt im Admin und findet ihn nicht.",
+
+            "Hintergrund zu allen vier Punkten: Sie stammen aus einem Abgleich der " +
+            "Anzeige-Regeln mit der offiziellen Spezifikation des js-controllers — also mit " +
+            "dem, was ein Adapter überhaupt über sich sagen darf. Anlass war ein früherer " +
+            "Fehlschluss: Datei-Adapter standen unter „Aktiviert\" auf „Nein\" und sahen " +
+            "aus wie vergessene Instanzen, obwohl sie schlicht nichts zu starten haben.",
+        }),
+
         new("1.27.0", "26.08.2026", new[]
         {
             "Der Untertab „Widget-Sätze\" zeigt jetzt unter der Liste, an welcher Stelle ein " +

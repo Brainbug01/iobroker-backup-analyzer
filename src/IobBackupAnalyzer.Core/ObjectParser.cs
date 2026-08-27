@@ -84,10 +84,16 @@ internal static class ObjectParser
         }
         var hasCustom = customLogging is { Count: > 0 };
 
-        // Zwei Instanz-Einstellungen, die der Admin nur im Expertenmodus zeigt: der
-        // geplante Neustart und die Protokollstufe. Beide stehen im Backup und sind sonst
-        // nirgends auf einen Blick zu sehen.
-        string? restartSchedule = null, logLevel = null;
+        // Instanz-Einstellungen, die der Admin nur im Expertenmodus zeigt: der geplante
+        // Neustart und die Protokollstufe. Beide stehen im Backup und sind sonst nirgends
+        // auf einen Blick zu sehen.
+        //
+        // Dazu die Betriebsart und ihr Zeitplan. Warum beide gebraucht werden, steht am
+        // Modell (siehe <see cref="AdapterInstance.Mode"/>): restartSchedule gilt laut
+        // Spezifikation ausschliesslich fuer mode=daemon, waehrend ein Adapter mit
+        // mode=schedule seinen Plan in common.schedule fuehrt. Wer nur das erste liest,
+        // zeigt bei einer geplant laufenden Instanz eine leere Spalte.
+        string? restartSchedule = null, logLevel = null, mode = null, schedule = null;
         if (hasCommon)
         {
             if (common.TryGetProperty("restartSchedule", out var rs) && rs.ValueKind == JsonValueKind.String)
@@ -101,7 +107,39 @@ internal static class ObjectParser
                 var wert = ll.GetString();
                 if (!string.IsNullOrWhiteSpace(wert)) logLevel = wert;
             }
+
+            if (common.TryGetProperty("mode", out var md) && md.ValueKind == JsonValueKind.String)
+            {
+                var wert = md.GetString();
+                if (!string.IsNullOrWhiteSpace(wert)) mode = wert;
+            }
+
+            if (common.TryGetProperty("schedule", out var sch) && sch.ValueKind == JsonValueKind.String)
+            {
+                var wert = sch.GetString();
+                if (!string.IsNullOrWhiteSpace(wert)) schedule = wert;
+            }
         }
+
+        // Zwei Kennzeichen, die jedes Objekt tragen darf (ObjectCommon, nicht nur States):
+        //
+        //   dontDelete — „this object may not be deleted". Ein solcher Datenpunkt darf
+        //   nicht in einer Liste landen, die zum Aufraeumen einlaedt: Der erzeugte Befehl
+        //   scheiterte, und zwar an einem Vorschlag des Programms selbst.
+        //
+        //   expert — im Admin nur bei eingeschaltetem Expertenmodus sichtbar. Ohne diesen
+        //   Hinweis sucht der Nutzer einen gemeldeten Datenpunkt dort vergeblich.
+        //
+        // Beide sind im Backup gesetzt oder gar nicht vorhanden; ein false kommt nicht vor
+        // (die Typdefinition kennt nur `?: true`). Trotzdem wird auf True geprueft und
+        // nicht auf Vorhandensein — ein ausdrueckliches false soll nicht als true gelten.
+        var dontDelete = hasCommon
+                         && common.TryGetProperty("dontDelete", out var dd)
+                         && dd.ValueKind == JsonValueKind.True;
+
+        var expert = hasCommon
+                     && common.TryGetProperty("expert", out var ex)
+                     && ex.ValueKind == JsonValueKind.True;
 
         // Aufzählungen: common.members führt die zugeordneten Objekte eines Raums oder
         // einer Funktion. Nur bei enum.* überhaupt vorhanden — die Abfrage vorweg spart
@@ -285,6 +323,10 @@ internal static class ObjectParser
             EnumMembers = enumMembers,
             RestartSchedule = restartSchedule,
             LogLevel = logLevel,
+            Mode = mode,
+            Schedule = schedule,
+            DontDelete = dontDelete,
+            Expert = expert,
             Script = script
         };
     }

@@ -30,6 +30,7 @@ public static class OrphanAnalyzer
         foreach (var o in data.Objects)
         {
             if (IsSystemNamespace(o.Id)) continue;
+            if (o.DontDelete) continue;   // siehe Begründung an DarfNichtGeloeschtWerden
 
             // Namespace ist <adapter>.<instanz> — die ersten beiden Segmente.
             var first = o.Id.IndexOf('.');
@@ -50,7 +51,8 @@ public static class OrphanAnalyzer
                 Id = o.Id,
                 Type = o.Type,
                 Name = o.Name,
-                MissingInstance = ns
+                MissingInstance = ns,
+                Expert = o.Expert
             });
         }
 
@@ -66,6 +68,26 @@ public static class OrphanAnalyzer
             if (id.StartsWith(ns, StringComparison.OrdinalIgnoreCase)) return true;
         return false;
     }
+
+    /// <summary>
+    /// Warum Objekte mit <c>common.dontDelete</c> aus beiden Analysen herausfallen.
+    ///
+    /// Die Spezifikation sagt dazu „this object may not be deleted", und das Kennzeichen
+    /// steht in <c>ObjectCommon</c> — es gilt also für jeden Objekttyp, auch für einen
+    /// Datenpunkt. Ein solcher Datenpunkt in einer Liste, die zum Aufräumen einlädt, wäre
+    /// mehr als nur nutzlos: Der erzeugte Befehl liefe ins Leere, und der Nutzer bekäme eine
+    /// Fehlermeldung für eine Zeile, die das Programm ihm selbst vorgeschlagen hat.
+    ///
+    /// <b>Vorsorge, kein behobener Fehler.</b> In den geprüften Anlagen trägt kein einziger
+    /// Datenpunkt das Kennzeichen — dort sind es ausschließlich Systemobjekte
+    /// (<c>0_userdata.0</c>, <c>alias.0</c>, <c>enum.rooms</c>, <c>system.group.*</c>), die
+    /// über <see cref="IsSystemNamespace"/> ohnehin nicht in Frage kommen. Ein Adapter darf
+    /// aber einen so gekennzeichneten Datenpunkt anlegen, und dann greift diese Prüfung.
+    /// Gefunden beim Abgleich der Aufräumlisten mit der Typdefinition des js-controllers
+    /// (<c>ObjectCommon</c> in <c>packages/types-dev/objects.d.ts</c>).
+    /// </summary>
+    private const string DarfNichtGeloeschtWerden =
+        "Objekte mit common.dontDelete gehören in keine Aufräumliste.";
 
     /// <summary>
     /// Installierte Adapter ohne eigene Instanz — eine Bestandsaufnahme, keine Löschliste.
@@ -183,6 +205,7 @@ public static class OrphanAnalyzer
             ct.ThrowIfCancellationRequested();
 
             if (o.Type != "state") continue;
+            if (o.DontDelete) continue;   // siehe Begründung an DarfNichtGeloeschtWerden
             if (!IsUserDatapoint(o.Id)) continue;
 
             var hasState = data.States.TryGetValue(o.Id, out var st);
@@ -205,7 +228,8 @@ public static class OrphanAnalyzer
                 Val = hasState ? st!.Val : "",
                 HasVal = hasState && st!.HasVal,
                 ValTruncated = hasState && st!.ValTruncated,
-                ValLength = hasState ? st!.ValLength : 0
+                ValLength = hasState ? st!.ValLength : 0,
+                Expert = o.Expert
             });
         }
 

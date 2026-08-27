@@ -93,6 +93,9 @@ else
         new() { Header = "Version",   Width = 110, Text = i => i.Version },
         // Angezeigt wird der Text, sortiert wird nach dem Wahrheitswert.
         new() { Header = "Aktiviert", Width = 95,  Text = i => i.EnabledText, SortKey = i => i.Enabled },
+        // Erst zusammen mit „Aktiviert" aussagekräftig: Ein Nein bei einer Instanz, die
+        // ohnehin nur einmal oder gar nicht startet, ist kein Befund.
+        new() { Header = "Betriebsart", Width = 130, Text = i => i.ModeText, SortKey = i => i.ModeText },
         new() { Header = "Objekte",   Width = 110, Number = true,
                 Text = i => i.ObjectCount.ToString("N0"), SortKey = i => i.ObjectCount,
                 // Hervorgehoben wird allein die Objektzahl, nicht die ganze Zeile: Die
@@ -103,7 +106,7 @@ else
         // Protokollstufe „nicht gesetzt" — dann gilt die Vorgabe des js-controllers, und
         // die steht nicht im Backup.
         new() { Header = "Protokoll", Width = 100, Text = i => i.LogLevelText },
-        new() { Header = "Neustart",  Width = 130, Text = i => i.RestartSchedule }
+        new() { Header = "Zeitplan",  Width = 130, Text = i => i.ScheduleText }
     };
 
     private static readonly TableColumn<AdapterWithoutInstance>[] OhneInstanzSpalten =

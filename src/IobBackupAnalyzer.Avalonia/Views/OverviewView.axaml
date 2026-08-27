@@ -91,6 +91,11 @@
           <!-- Angezeigt wird der Text, sortiert wird nach dem Wahrheitswert. -->
           <DataGridTextColumn Header="Aktiviert" Binding="{Binding EnabledText}"
                               SortMemberPath="Enabled" Width="95" />
+
+          <!-- Erst zusammen mit „Aktiviert" aussagekräftig: Ein Nein bei einer Instanz,
+               die ohnehin nur einmal oder gar nicht startet, ist kein Befund. -->
+          <DataGridTextColumn Header="Betriebsart" Binding="{Binding ModeText}"
+                              SortMemberPath="ModeText" Width="130" />
           <DataGridTextColumn Header="Objekte"
                               Binding="{Binding ObjectCount, StringFormat={}{0:N0}}"
                               SortMemberPath="ObjectCount" Width="110"
@@ -98,7 +103,7 @@
 
           <!-- Nur im Expertenmodus des Admins sichtbar; leer heißt „nicht gesetzt". -->
           <DataGridTextColumn Header="Protokoll" Binding="{Binding LogLevelText}" Width="100" />
-          <DataGridTextColumn Header="Neustart"  Binding="{Binding RestartSchedule}" Width="130" />
+          <DataGridTextColumn Header="Zeitplan"  Binding="{Binding ScheduleText}" Width="130" />
         </DataGrid.Columns>
       </DataGrid>
 

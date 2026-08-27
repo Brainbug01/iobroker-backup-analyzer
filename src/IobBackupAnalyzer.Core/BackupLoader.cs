@@ -1078,6 +1078,8 @@ public static class BackupLoader
                 Enabled = o.Enabled,
                 OnlyWww = o.OnlyWww,
                 RestartSchedule = o.RestartSchedule ?? "",
+                Schedule = o.Schedule ?? "",
+                Mode = o.Mode ?? "",
                 LogLevel = o.LogLevel ?? ""
             };
             list.Add(inst);
