@@ -34,7 +34,7 @@ Es gibt das Werkzeug in **drei Oberflächen** mit gemeinsamer Kernlogik:
 |---|---|---|
 | **Windows-Fassung** | Windows | WinForms |
 | **plattformübergreifende Fassung** | Windows, macOS, Linux | Avalonia |
-| **Browser-Fassung** | jeder Browser, ausgeliefert vom eigenen Webserver | Blazor WebAssembly |
+| **Browser-Fassung** | jeder Browser — [fertig online](https://brainbug01.github.io/iobroker-backup-analyzer/) oder vom eigenen Webserver | Blazor WebAssembly |
 
 Alle drei zeigen dieselben Auswertungen — die Analysen liegen in `Core` und können deshalb
 nicht je Oberfläche auseinanderlaufen. Unterschiede gibt es nur dort, wo die
@@ -256,12 +256,14 @@ einen eigenen Wert mitbringen, der dann aus `system.adapter.<ns>.objectsWarnLimi
 wird. Das ist eine Leistungswarnung, kein Defekt — viele Objekte verlangsamen Start, Admin
 und Backup.
 
-> Ein **von Hand** hochgesetztes Limit bleibt unsichtbar: Es steht im *Wert* des Datenpunkts,
-> und als Limit gilt hier ausschließlich der Vorgabewert aus dem Objekt (`common.def`). Das
-> ist Absicht — der zuletzt geschriebene Wert eines beliebigen Datenpunkts soll nicht als
-> Schwelle durchgehen. Deaktivierte Instanzen werden mitgezählt, aber gekennzeichnet: Sie
-> starten nicht und melden im Betrieb deshalb nichts, ihre Objekte liegen aber trotzdem in
-> der Datenbank.
+> **Ein hochgesetztes Limit wird berücksichtigt.** Maßgeblich ist der *gespeicherte Wert*
+> von `system.adapter.<ns>.objectsWarnLimit`, nicht die Vorgabe aus der Objektdefinition
+> (`common.def`) — genau so liest es auch der js-controller. Wer das Limit einer Instanz im
+> Admin hochsetzt, ändert diesen Wert; bis v1.28.1 zeigte der Analyzer weiterhin die Vorgabe
+> und damit eine Grenze, die im laufenden System längst eine andere war. Steht dort keine
+> Zahl, gilt wieder die Vorgabe. Deaktivierte Instanzen werden mitgezählt, aber
+> gekennzeichnet: Sie starten nicht und melden im Betrieb deshalb nichts, ihre Objekte
+> liegen aber trotzdem in der Datenbank.
 
 ### Tab „Backup-Prüfung"
 Prüft, ob das Backup heil ist — nach demselben Muster wie `iobroker backup` es beim Erstellen
@@ -374,7 +376,7 @@ Oben die Liste, unten die Gegenseite des angeklickten Eintrags.
 | **Skript → Datenpunkte** | Was fasst dieses Skript an — und liest es nur oder schreibt es auch? |
 | **Datenpunkt → Skripte** | Wer hängt an diesem Wert? |
 
-Drei Filter tragen den eigentlichen Zweck:
+Vier Filter tragen den eigentlichen Zweck:
 
 - **„Von mehreren Skripten beschrieben"** — die Erklärung für Werte, die sich scheinbar von
   allein ändern: Meist schreibt ein zweites, längst vergessenes Skript ebenfalls darauf.
@@ -762,7 +764,7 @@ ist unter „Netzwerk" keine weitere Übertragung zu sehen.
 ### Hochladen
 
 Das fertige Paket liegt nach `build.ps1` unter `dist/web/` und zusätzlich als
-`dist/ioBroker-Backup-Analyzer_Browser.zip` (rund 68 MB). Der gesamte Inhalt gehört in ein
+`dist/ioBroker-Backup-Analyzer_Browser.zip` (rund 64 MB). Der gesamte Inhalt gehört in ein
 Verzeichnis unterhalb des Web-Wurzelverzeichnisses, etwa `/var/www/html/analyzer/`.
 
 Wie das Verzeichnis heißt, spielt keine Rolle: Alle Adressen im Programm sind relativ, es
@@ -772,10 +774,20 @@ Zwei Fallen bei FTP-Programmen: Die `.htaccess` beginnt mit einem Punkt und wird
 ausgeblendet, und Ordner mit führendem Unterstrich (`_framework`) überspringen manche
 Programme. Nach der Übertragung die Dateizahl vergleichen — es sind 618.
 
-Beim ersten Aufruf leitet `index.html` einmalig auf `servertest.html` um. Diese Seite misst
-den Server durch — Dateityp für `.wasm`, ob die `.htaccess` gelesen wird, mod_rewrite,
-Kompression, Vollständigkeit — und nennt zu jedem Fehlbefund den Befehl, der ihn behebt.
-Danach geht es per Knopf weiter ins Programm; die Umleitung kommt nicht wieder.
+Beigelegt ist eine **Prüfseite**, `servertest.html`. Sie misst den Server durch — Dateityp
+für `.wasm`, ob die `.htaccess` gelesen wird, mod_rewrite, Kompression, Vollständigkeit —
+und nennt zu jedem Fehlbefund den Befehl, der ihn behebt. Aufgerufen wird sie **von Hand**
+unter `http://<adresse>/<ordner>/servertest.html`; die beiliegende `LIESMICH_Browser.txt`
+führt in Schritt 3 dorthin.
+
+> **Sie leitet niemand mehr automatisch dorthin.** Früher schickte `index.html` den ersten
+> Besucher einmalig auf die Prüfseite. Das ist entfernt: Die Weiterleitung hing am ersten
+> Aufruf statt am Fehlerfall, zeigte also gerade dann eine Diagnoseseite, wenn alles stimmte.
+> Sie erschien überdies beim falschen Menschen — eingerichtet wird eine Instanz einmal,
+> benutzt danach von mehreren, und die Markierung lag im `localStorage`, also je Browser
+> statt je Installation. Auf einem Server ohne Prüfseite (etwa GitHub Pages) schrieb die
+> Anfrage außerdem einen 404 in die Browserkonsole, den ein Anwender für einen echten Fehler
+> hielt. Die Begründung steht als Kommentar in `wwwroot/index.html`.
 
 ### Was der Apache können muss
 
@@ -846,7 +858,10 @@ src/IobBackupAnalyzer.Core/     Kernlogik und Darstellungslogik, ohne GUI testba
   OrphanAnalyzer.cs             Analysen A und B
   StateAnalyzer.cs              Analyse C: Auswertung der states.jsonl
   UsageAnalyzer.cs              Kreuzreferenz Skripte <-> Datenpunkte, beide Richtungen
+  ScriptQualityAnalyzer.cs      die Spalte „Hinweise": Muster im Aufbau eines Blockly-Skripts
   VisAnalyzer.cs                Datenpunkte aus den VIS-Views
+  WidgetSetAnalyzer.cs          Widget-Sätze: wer wird noch gebraucht, wer ist Umstiegsrest
+  VisProjectExporter.cs         VIS-Projekt als ZIP, im Aufbau des Projektimports
   LoggingAnalyzer.cs            Logging-Verbindungen je Datenpunkt und Instanz
   HistoryBackupAnalyzer.cs      eingeschaltete History-Sicherung ohne hinterlegten Pfad
   AliasAnalyzer.cs              Aliasse samt Ziel und Konvertierungsfunktion
@@ -861,7 +876,7 @@ src/IobBackupAnalyzer.Core/     Kernlogik und Darstellungslogik, ohne GUI testba
   AppIdentity.cs                Programmname und KI-Herkunftshinweis, an einer Stelle
   TarSource.cs                  Tar lesen — eingebaut auf dem Rechner, eigener Leser im
                                 Browser (siehe Abschnitt „Browser-Fassung")
-  HelpContent.cs                Text der In-App-Hilfe, für beide Oberflächen
+  HelpContent.cs                Text der In-App-Hilfe, für alle drei Oberflächen
   ChangelogContent.cs           Änderungsverlauf samt Blöcken für den Tab „Änderungen"
   UserSettings.cs               Fenstergröße, zuletzt geöffnete Datei, Darstellung
   *Presenter.cs                 Kennzahlen, Filter, Spalten und Einstufungen je Tab —
@@ -891,15 +906,21 @@ Systemen gleich ist. `NuGet.config` liegt bei, weil das self-contained Publish M
 ## Bauen
 
 Der einfachste Weg ist das Build-Skript — es läuft erst die Verifikation und legt dann
-**alle** Pakete unter `dist/` ab: die beiden Windows-Varianten und die vier
-plattformübergreifenden. Für macOS entsteht dabei ein fertiges `.app`-Bundle samt
-Programmsymbol; die `.icns` rechnet das Skript aus derselben `app.ico`, die auch die
-Windows-Fassung nutzt.
+**alle** Pakete unter `dist/` ab: die beiden Windows-Varianten, die vier
+plattformübergreifenden und die Browser-Fassung. Für macOS entsteht dabei ein fertiges
+`.app`-Bundle samt Programmsymbol; die `.icns` rechnet das Skript aus derselben `app.ico`,
+die auch die Windows-Fassung nutzt.
 
 ```powershell
-.\build.ps1                 # Verifikation + beide Varianten nach dist/
-.\build.ps1 -SkipVerify     # nur bauen, ohne Verifikationslauf
+.\build.ps1                 # Verifikation, Selbsttest und alle Pakete nach dist/
+.\build.ps1 -SkipVerify     # ohne den Verifikationslauf gegen testdaten/
+.\build.ps1 -SkipSelftest   # ohne den Selbsttest der plattformübergreifenden Oberfläche
 ```
+
+Rechne mit rund einer Viertelstunde: Die Browser-Fassung wird nach WebAssembly übersetzt
+(AOT), und das allein dauert etwa zehn Minuten. Die beiden Schalter sind Notausgänge, keine
+Abkürzungen — wer den Selbsttest überspringt, liefert die Oberfläche ungeprüft aus; das
+Skript selbst sagt im Kopf, wann das vertretbar ist.
 
 Einzelschritte von Hand:
 
@@ -949,6 +970,19 @@ macOS-Bundles. `FileVersion` und `AssemblyVersion` leitet .NET daraus ab — sie
 bewusst nicht extra in der Projektdatei, weil sie beim Hochzählen sonst übersehen werden und
 die EXE dann zwei verschiedene Stände meldet.
 
+### Releases: nur die letzten drei tragen Dateien
+
+Jede Version bekommt einen Tag und ein Release mit den fertigen Verteilfassungen. **Dateien
+hängen aber nur an den drei jüngsten Releases** — bei jeder neuen Version werden die des
+viertältesten entfernt.
+
+Der Eintrag selbst bleibt für immer stehen, mit Tag und Änderungsnotizen: Die Notizen sind
+die Dokumentation, wie sich das Werkzeug entwickelt hat, und die will man nachlesen können.
+Die Binärdateien sind es nicht — sieben Dateien mal rund 440 MB je Version summieren sich
+schnell zu einer Releases-Seite, auf der niemand mehr findet, welche Fassung die aktuelle
+ist. Wer eine ältere Fassung wirklich braucht, baut sie aus dem zugehörigen Tag:
+`git checkout v1.24.0 && pwsh ./build.ps1`.
+
 ---
 
 ## Wichtige technische Befunde
@@ -965,9 +999,9 @@ Das Wesentliche:
   Kamera-JPEG als String). Gelesen werden nur die Metadaten: Zeitstempel der letzten
   Wertänderung, schreibende Instanz, Qualitätscode, Quittierung. Sie sind die **einzige
   Quelle im Backup, die etwas über die tatsächliche Nutzung** eines Datenpunkts aussagt.
-- **VIS-Views liegen im Voll-Backup** als `files/vis*/main/vis-views.json`. Deshalb prüft
-  Analyse B vier statt drei Kriterien; das senkt die Kandidatenzahl deutlich und
-  verhindert Fehllöschungen bei nur in VIS genutzten Datenpunkten.
+- **VIS-Views liegen im Voll-Backup** als `files/vis*/main/vis-views.json`. Sie sind eines
+  der fünf Kriterien in Analyse B; das senkt die Kandidatenzahl deutlich und verhindert
+  Fehllöschungen bei nur in VIS genutzten Datenpunkten.
 - **Jedes Voll-Backup trägt eine Installations-UUID** (`system.meta.uuid`), einmal bei der
   Erstinstallation vergeben und danach unverändert. Damit lässt sich hart prüfen, ob zwei Backups
   überhaupt zusammengehören. Der Hostname ist dagegen durch `$$__hostname__$$` ersetzt und
@@ -989,7 +1023,7 @@ Das Wesentliche:
 
 MIT — siehe [LICENSE](LICENSE). Nutzung, Änderung und Weitergabe sind frei, solange
 Lizenztext und Copyright-Hinweis beiliegen. `build.ps1` legt die `LICENSE` deshalb
-automatisch in beide Verteilvarianten.
+automatisch in jede Verteilvariante.
 
 Der Lizenztext schließt jede Gewährleistung und Haftung aus — das ist bei einem Werkzeug,
 das Löschkandidaten vorschlägt, kein Beiwerk, sondern der Punkt: Die Analysen sind
@@ -1007,7 +1041,10 @@ Prüflisten, die Entscheidung trifft der Mensch davor.
 - Der Vergleich erfasst Instanzen, Skripte, Objektbestand und VIS-Views. **Nicht** verglichen
   werden Adapter-Konfigurationen (`native`), Datei-Assets und State-Werte.
 - Adapterinterne Konfigurationen (`native`) werden bewusst nirgends angezeigt — sie
-  enthalten Zugangsdaten.
+  enthalten Zugangsdaten. Gelesen werden daraus genau zwei namentlich im Quelltext
+  aufgeführte Felder von BackitUp (`historyEnabled`, `historyPath`), und auch von ihnen
+  bleiben nur zwei Wahrheitswerte übrig: ob die History-Sicherung an ist und ob ein Pfad
+  hinterlegt ist. Der Pfad selbst wird nicht übernommen.
 - Die Windows-Fassung zeigt pro Tabellenzelle höchstens 259 Zeichen (Eigenheit der
   Windows-Tabellenanzeige). Vollständig stehen solche Werte im CSV-Export und in der
   plattformübergreifenden Fassung.

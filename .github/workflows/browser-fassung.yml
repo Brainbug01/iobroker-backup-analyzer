@@ -107,11 +107,12 @@ jobs:
       # einzustellen; sie meldete lauter Fehlbefunde und nennte Befehle, die dort niemand
       # ausführen kann.
       #
-      # Folge, und die ist harmlos: index.html fragt beim ersten Aufruf per HEAD nach
-      # servertest.html, um bei Bedarf dorthin umzuleiten. Auf Pages antwortet der Server
-      # mit 404, es wird nicht umgeleitet, das Programm startet normal. In der Konsole des
-      # Browsers steht dann ein 404 zu servertest.html. Das ist der erwartete Verlauf -
-      # wer ihn "repariert", indem er die Prüfseite mitliefert, macht es schlechter.
+      # Folgenlos ist das inzwischen: index.html fragte früher beim ersten Aufruf per HEAD
+      # nach servertest.html, um bei Bedarf dorthin umzuleiten - und schrieb hier, wo es die
+      # Seite nicht gibt, einen 404 in die Browserkonsole, den ein Anwender für einen echten
+      # Fehler hielt. Diese Weiterleitung ist entfernt (Begruendung als Kommentar in
+      # wwwroot/index.html); es wird nichts mehr angefragt und nichts mehr protokolliert.
+      # Am Vorgehen hier aendert das nichts: Die Pruefseite bleibt draussen.
 
       - name: Ergebnis für Pages einpacken
         uses: actions/upload-pages-artifact@v3
