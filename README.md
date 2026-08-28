@@ -349,9 +349,14 @@ Filter **„Nur mit Hinweisen"** zeigt die betroffenen Skripte allein.
 **Abgeschaltete Bausteine** tragen den Vorsatz „Abgeschalteter Baustein". Der Befund
 verschwindet dadurch nicht: Ein abgeschalteter Baustein richtet heute keinen Schaden an, er
 tut es in dem Augenblick, in dem jemand ihn wieder einschaltet. Ihn zu verschweigen hieße,
-genau diese Falle zuzudecken; ihn wie einen laufenden zu melden, wäre unwahr. Aus demselben
-Grund zählt ein abgeschalteter Baustein „Timeout löschen" nicht als Löschung — im laufenden
-Skript löscht er nichts.
+genau diese Falle zuzudecken; ihn wie einen laufenden zu melden, wäre unwahr.
+
+Beim Timer-Befund gilt der Abschaltzustand **paarweise**: Ein abgeschalteter Baustein
+„Timeout löschen" entlastet einen **laufenden** Timer nicht — er löscht ja nichts. Ist der
+Timer-Start aber selbst abgeschaltet, entlastet er sehr wohl: Dann läuft gar kein Timer, der
+ungelöscht bliebe, und wer die Gruppe wieder einschaltet, bekommt das Löschen mit zurück.
+Ein stillgelegtes Timer-Paar ist damit kein Befund mehr (seit 1.30.0; davor wurde es als
+„wird nie gelöscht" gemeldet).
 
 Zwei Einschränkungen, damit die Spalte richtig gelesen wird. Geprüft wird **ausschließlich
 Blockly**: Dort hängt jeder Befund an einem benannten Baustein mit eigener ID. Dasselbe in
@@ -496,14 +501,21 @@ Tabellenende.
 > der plattformübergreifenden Fassung.
 
 ### Werte kopieren
-In der **Windows-Fassung** öffnet ein Rechtsklick **in eine Zelle** ein Kopiermenü — es
-benennt die getroffene Zelle direkt („`w00650`" kopieren) und bietet zusätzlich Zeile, alle
-markierten Zeilen sowie eine einzelne Spalte über alle markierten Zeilen. (Ein Rechtsklick
-auf den *Spaltenkopf* passt dagegen die Breite an, siehe oben.)
+In der **Windows-Fassung** und in der **Browser-Fassung** öffnet ein Rechtsklick **in eine
+Zelle** ein Kopiermenü — es benennt die getroffene Zelle direkt („`w00650`" kopieren) und
+bietet zusätzlich Zeile, alle markierten Zeilen sowie eine einzelne Spalte über alle
+markierten Zeilen. (Ein Rechtsklick auf den *Spaltenkopf* passt in der Windows-Fassung
+dagegen die Breite an, siehe oben.)
 
-**Strg+C** kopiert in beiden Fassungen die markierten Zeilen tabulatorgetrennt — direkt in
-Excel einfügbar —, **Strg+A** markiert alles. So muss keine Widget- oder Datenpunkt-ID
+**Strg+C** kopiert in allen drei Fassungen die markierten Zeilen tabulatorgetrennt — direkt
+in Excel einfügbar —, **Strg+A** markiert alles. So muss keine Widget- oder Datenpunkt-ID
 abgetippt werden.
+
+> **In der Browser-Fassung** greift das Menü ausschließlich in Tabellenzellen; überall sonst
+> auf der Seite bleibt das Menü des Browsers unangetastet. Hat man selbst Text mit der Maus
+> markiert, hat diese Auswahl Vorrang: Strg+C kopiert dann genau sie und nicht die ganze
+> Zeile. Nötig war das, weil eine abgeschnittene Zelle sich gar nicht vollständig markieren
+> lässt — man bekäme nur, was zu sehen ist.
 
 #### Untertab „Widget-Sätze"
 Welchen Widget-Baukasten die Ansichten überhaupt noch brauchen. Je Satz steht dort, in welcher

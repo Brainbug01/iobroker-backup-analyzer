@@ -192,7 +192,9 @@ public static class HelpContent
             "vorige Timer läuft weiter und feuert trotzdem, bei jedem Auslösen einer mehr. Abhilfe ist " +
             "der Baustein „Timeout löschen\" mit demselben Namen vor dem Starten. Ob daraus ein " +
             "Problem wird, hängt davon ab, wie oft der Auslöser feuert; diese Häufigkeit steht nicht " +
-            "im Backup. Zu jedem Befund steht " +
+            "im Backup. Sind Start und Löschung beide abgeschaltet, ruht das Paar und wird nicht " +
+            "gemeldet — ein abgeschaltetes Löschen entlastet allerdings nur einen ebenfalls " +
+            "abgeschalteten Start, niemals einen laufenden Timer. Zu jedem Befund steht " +
             "unter der Liste die Begründung und die Baustein-ID, mit der er sich im Blockly-Editor " +
             "wiederfinden lässt; der Filter „Nur mit Hinweisen\" zeigt die betroffenen Skripte allein."),
         new(HelpBlockKind.Text,
@@ -431,7 +433,14 @@ public static class HelpContent
         new(HelpBlockKind.Text,
             "Jede Tabelle lässt sich per Klick auf den Spaltenkopf sortieren (zweiter Klick dreht um), " +
             "Spalten sind per Maus verschiebbar, und über der Tabelle steht ein Textfilter. Jede " +
-            "Ergebnisliste kann als CSV exportiert werden. Zellen lassen sich mit Strg+C kopieren."),
+            "Ergebnisliste kann als CSV exportiert werden."),
+        new(HelpBlockKind.Text,
+            "Werte kopieren: Ein Rechtsklick in eine Zelle öffnet ein Menü, das den getroffenen Wert " +
+            "beim Namen nennt — dazu die ganze Zeile, alle markierten Zeilen und eine einzelne Spalte " +
+            "über alle markierten Zeilen. Strg+C kopiert die markierten Zeilen tabulatorgetrennt, wie " +
+            "Excel sie erwartet, Strg+A markiert alles. In der Browser-Fassung greift das Menü nur in " +
+            "den Tabellenzellen; hat man dort selbst Text mit der Maus markiert, kopiert Strg+C genau " +
+            "diese Auswahl."),
         new(HelpBlockKind.Text,
             "Exportiert wird immer das, was gerade in der Liste steht — Suchbegriff, Auswahllisten und " +
             "Checkboxen wirken mit. Der Knopf sagt es an: ohne Filter „Alle exportieren\", mit Filter " +

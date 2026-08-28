@@ -27,7 +27,8 @@
     Ziffern an den rechten Rand und stehen einsam neben ihrer Überschrift; dahinter kommt
     stattdessen eine leere Füllspalte.
 *@
-<div id="@_kennung" class="tabelle-rahmen @Class">
+<div id="@_kennung" class="tabelle-rahmen @Class" tabindex="0"
+     @onkeydown="TasteAsync" @onkeydown:preventDefault="_tastePreventDefault">
     <table class="tabelle" style="min-width:@(GesamtBreite)px">
         <thead>
             <tr>
@@ -56,10 +57,15 @@
                 <tr class="@ZeilenKlasse(zeile)"
                     @onclick="e => WaehlenAsync(zeile, e)"
                     @ondblclick="() => OnRowDoubleClick.InvokeAsync(zeile)">
-                    @foreach (var spalte in Columns)
+                    @for (var s = 0; s < Columns.Count; s++)
                     {
+                        var spaltenIndex = s;
+                        var spalte = Columns[s];
                         var text = spalte.Text(zeile);
-                        <td class="@(spalte.Number ? "zahl" : null) @spalte.CellClass @spalte.CellClassOf?.Invoke(zeile)" title="@text">@text</td>
+                        <td class="@(spalte.Number ? "zahl" : null) @spalte.CellClass @spalte.CellClassOf?.Invoke(zeile)"
+                            title="@text"
+                            @oncontextmenu="e => MenuOeffnenAsync(zeile, spaltenIndex, e)"
+                            @oncontextmenu:preventDefault="true">@text</td>
                     }
 
                     @if (Fuellspalte)
@@ -71,6 +77,42 @@
         </tbody>
     </table>
 </div>
+
+@*
+    Das Kopiermenü — das Gegenstück zu ListViewCopy in der Windows-Fassung.
+
+    Warum überhaupt ein eigenes: Ohne es kommt man an einen Zellwert nur heran, indem man
+    ihn zuerst mit der Maus markiert und dann das Browser-Menü benutzt. Das ist bei einer
+    abgeschnittenen Zelle nicht einmal vollständig möglich — markiert wird, was zu sehen
+    ist. Deshalb greift das Menü nur in den Tabellenzellen; überall sonst auf der Seite
+    bleibt das Menü des Browsers unangetastet.
+
+    Die Fläche darunter fängt den nächsten Klick ab und schließt. Das ist der Weg ohne
+    Javascript: ein globaler Klick-Beobachter müsste registriert und wieder abgeräumt
+    werden, und jede vergessene Abmeldung überlebt den Reiterwechsel.
+*@
+@if (_menuOffen)
+{
+    <div class="menu-flaeche" @onclick="MenuSchliessen" @oncontextmenu="MenuSchliessen"
+         @oncontextmenu:preventDefault="true"></div>
+
+    <div class="zellmenu"
+         style="left:min(@(_menuX)px, calc(100vw - 19rem)); top:min(@(_menuY)px, calc(100vh - 9rem))">
+        <button class="zellmenu-eintrag" @onclick="() => KopierenAsync(_menuZellwert)">
+            @MenuBeschriftung
+        </button>
+        <button class="zellmenu-eintrag" @onclick="() => KopierenAsync(ZeilenText(_menuZeile!))">
+            Zeile kopieren
+        </button>
+        <div class="zellmenu-trenner"></div>
+        <button class="zellmenu-eintrag" @onclick="() => KopierenAsync(MarkierteZeilenText())">
+            Markierte Zeilen kopieren (@MarkierteAnzahl)
+        </button>
+        <button class="zellmenu-eintrag" @onclick="() => KopierenAsync(SpaltenText())">
+            Diese Spalte aller markierten Zeilen kopieren
+        </button>
+    </div>
+}
 
 @code {
     /// <summary>Die Zeilen in ihrer Grundordnung — wie sie der Presenter liefert.</summary>
@@ -192,11 +234,136 @@
             .ToList();
     }
 
+    // ------------------------------------------------------------------ Kopieren
+    //
+    // Vier Wege, dieselben wie in der Windows-Fassung (ListViewCopy): der getroffene Wert,
+    // die Zeile, alle markierten Zeilen und eine Spalte über alle markierten Zeilen. Die
+    // beiden letzten sind der Grund, warum die Zwischenablage hier überhaupt gebraucht
+    // wird — was ein Mensch von Hand markieren kann, ist immer nur das Sichtbare.
+
+    private bool _menuOffen;
+    private double _menuX;
+    private double _menuY;
+    private string _menuZellwert = "";
+    private int _menuSpalte;
+    private TItem? _menuZeile;
+
+    /// <summary>
+    /// true, solange eine Taste behandelt wurde, die der Browser sonst selbst belegt.
+    ///
+    /// Blazor wertet dieses Feld beim Rendern aus, nicht beim Tastendruck — es wird
+    /// deshalb im Handler gesetzt und bleibt für den nächsten Druck stehen. Das ist
+    /// hinnehmbar: Betroffen sind allein Strg+C und Strg+A, und beide sollen in einer
+    /// Tabelle ohnehin immer die Tabelle bedienen.
+    /// </summary>
+    private bool _tastePreventDefault;
+
+    /// <summary>
+    /// Die Beschriftung nennt den Wert selbst, wie im Windows-Menü („`w00650` kopieren").
+    /// Bei einer leeren Zelle wäre das ein Menüeintrag ohne Aussage — dann bleibt es bei
+    /// der allgemeinen Form.
+    /// </summary>
+    private string MenuBeschriftung =>
+        _menuZellwert.Length == 0
+            ? "Wert kopieren"
+            : $"„{Kuerzen(_menuZellwert)}\" kopieren";
+
+    private int MarkierteAnzahl =>
+        Multiple && SelectedMany.Count > 0 ? SelectedMany.Count : Selected is null ? 0 : 1;
+
+    private static string Kuerzen(string wert) =>
+        wert.Length <= 40 ? wert : wert[..40] + "…";
+
+    private async Task MenuOeffnenAsync(TItem zeile, int spalte, MouseEventArgs e)
+    {
+        // Wie in der Windows-Fassung: Ein Rechtsklick auf eine noch nicht markierte Zeile
+        // wählt sie aus. Sonst bezöge sich „Markierte Zeilen kopieren" auf etwas anderes
+        // als das, worauf der Zeiger gerade steht.
+        var schonMarkiert = Multiple
+            ? SelectedMany.Contains(zeile)
+            : EqualityComparer<TItem>.Default.Equals(Selected, zeile);
+
+        if (!schonMarkiert)
+            await WaehlenAsync(zeile, new MouseEventArgs());
+
+        _menuZeile = zeile;
+        _menuSpalte = spalte;
+        _menuZellwert = Columns[spalte].Text(zeile);
+        _menuX = e.ClientX;
+        _menuY = e.ClientY;
+        _menuOffen = true;
+    }
+
+    private void MenuSchliessen() => _menuOffen = false;
+
+    private string ZeilenText(TItem zeile) =>
+        string.Join('\t', Columns.Select(s => s.Text(zeile)));
+
+    /// <summary>
+    /// Die markierten Zeilen in der Reihenfolge der Anzeige — nicht in der des Anklickens.
+    /// Wer drei Zeilen zusammenklickt und einfügt, erwartet sie so, wie sie vor ihm stehen.
+    /// </summary>
+    private List<TItem> MarkierteZeilen()
+    {
+        if (!Multiple || SelectedMany.Count == 0)
+            return Selected is null ? new List<TItem>() : new List<TItem> { Selected };
+
+        return _sichtbar.Where(SelectedMany.Contains).ToList();
+    }
+
+    private string MarkierteZeilenText() =>
+        string.Join('\n', MarkierteZeilen().Select(ZeilenText));
+
+    private string SpaltenText() =>
+        string.Join('\n', MarkierteZeilen().Select(z => Columns[_menuSpalte].Text(z)));
+
+    private async Task KopierenAsync(string text)
+    {
+        _menuOffen = false;
+        if (text.Length == 0) return;
+
+        await Js.InvokeAsync<bool>("iobAnalyzer.kopieren", text);
+    }
+
+    /// <summary>
+    /// Strg+C und Strg+A wie in beiden Desktop-Fassungen. Strg+A greift nur bei
+    /// Mehrfachauswahl — ohne sie gäbe es nichts, was „alles" bedeuten könnte.
+    /// </summary>
+    private async Task TasteAsync(KeyboardEventArgs e)
+    {
+        if (!e.CtrlKey && !e.MetaKey) { _tastePreventDefault = false; return; }
+
+        switch (e.Key)
+        {
+            case "c" or "C":
+                // Hat der Betrachter selbst Text markiert, gehört ihm der Vorrang: Sein
+                // Strg+C meint dann genau diese Auswahl und nicht die ganze Zeile.
+                var eigeneAuswahl = await Js.InvokeAsync<bool>("iobAnalyzer.hatTextauswahl");
+                if (eigeneAuswahl) { _tastePreventDefault = false; return; }
+
+                _tastePreventDefault = true;
+                await KopierenAsync(MarkierteZeilenText());
+                break;
+
+            case "a" or "A" when Multiple:
+                _tastePreventDefault = true;
+                var alle = new HashSet<TItem>(_sichtbar);
+                SelectedMany = alle;
+                await SelectedManyChanged.InvokeAsync(alle);
+                break;
+
+            default:
+                _tastePreventDefault = false;
+                break;
+        }
+    }
+
     private void Sortieren(int index)
     {
         if (_sortSpalte == index) _aufsteigend = !_aufsteigend;
         else { _sortSpalte = index; _aufsteigend = true; }
 
+        _menuOffen = false;
         Ordnen();
     }
 

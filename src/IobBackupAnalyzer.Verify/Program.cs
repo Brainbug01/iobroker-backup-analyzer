@@ -318,6 +318,52 @@ CheckEq("Aktives Loeschen laesst den Befund entfallen",
         loeschenAn.Count(h => h.Kind == ScriptHintKind.TimerWithoutClear), 0);
 
 // --------------------------------------------------------------------------------------
+// Beide Seiten abgeschaltet: kein Befund
+//
+// Der Fall aus der Praxis (28.08.2026): Start UND Loeschung von Hand abgeschaltet. Bis
+// v1.29.0 meldete das Werkzeug „Timer wird nie geloescht" — der abgeschaltete
+// Loeschbaustein zaehlte grundsaetzlich nicht. Das ist hier falsch: Es laeuft gar kein
+// Timer, der ungeloescht bliebe, und wer die Gruppe wieder einschaltet, bekommt das
+// Loeschen mit zurueck. Gewarnt wurde vor einer Falle, die es nicht gibt.
+var beideAus = Hinweise(
+    "<block type=\"on\" id=\"A\"><statement name=\"STATEMENT\">"
+  + "<block type=\"timeouts_settimeout\" id=\"T\" disabled-reasons=\"MANUALLY_DISABLED\">"
+  + "<field name=\"NAME\">meinTimer</field>"
+  + "<next><block type=\"timeouts_cleartimeout\" id=\"C\" disabled-reasons=\"MANUALLY_DISABLED\">"
+  + "<field name=\"NAME\">meinTimer</field></block></next></block></statement></block>");
+CheckEq("Start und Loeschen beide abgeschaltet: kein Befund",
+        beideAus.Count(h => h.Kind == ScriptHintKind.TimerWithoutClear), 0);
+
+// Die Gegenprobe zur Gegenprobe: Ohne jede Loeschung bleibt der abgeschaltete Start ein
+// Befund — gedaempft, aber vorhanden. Er wird zur Falle, sobald ihn jemand einschaltet.
+var nurStartAus = Hinweise(
+    "<block type=\"on\" id=\"A\"><statement name=\"STATEMENT\">"
+  + "<block type=\"timeouts_settimeout\" id=\"T\" disabled-reasons=\"MANUALLY_DISABLED\">"
+  + "<field name=\"NAME\">meinTimer</field></block></statement></block>");
+Check("Abgeschalteter Start ohne jede Loeschung bleibt ein Befund",
+      nurStartAus.Count(h => h.Kind == ScriptHintKind.TimerWithoutClear) == 1
+      && nurStartAus.Single(h => h.Kind == ScriptHintKind.TimerWithoutClear).Disabled,
+      string.Join(" / ", nurStartAus.Select(h => h.ShortText)));
+
+// Und der wichtigste Fall bleibt unberuehrt: Ein laufender Start wird von einem
+// abgeschalteten Loeschbaustein NICHT entlastet. Hier liegen beide Faelle nebeneinander,
+// damit die Regel nicht versehentlich auf „irgendein Loeschbaustein genuegt" verkuerzt wird.
+var startAnStopAus = Hinweise(
+    "<block type=\"on\" id=\"A\"><statement name=\"STATEMENT\">"
+  + "<block type=\"timeouts_settimeout\" id=\"T\"><field name=\"NAME\">laeuft</field>"
+  + "<next><block type=\"timeouts_cleartimeout\" id=\"C\" disabled-reasons=\"MANUALLY_DISABLED\">"
+  + "<field name=\"NAME\">laeuft</field>"
+  + "<next><block type=\"timeouts_settimeout\" id=\"T2\" disabled-reasons=\"MANUALLY_DISABLED\">"
+  + "<field name=\"NAME\">ruht</field>"
+  + "<next><block type=\"timeouts_cleartimeout\" id=\"C2\" disabled-reasons=\"MANUALLY_DISABLED\">"
+  + "<field name=\"NAME\">ruht</field></block></next></block></next></block></next>"
+  + "</block></statement></block>");
+var timerBefunde = startAnStopAus.Where(h => h.Kind == ScriptHintKind.TimerWithoutClear).ToList();
+Check("Laufender Timer wird von abgeschaltetem Loeschen nicht entlastet, der ruhende schon",
+      timerBefunde.Count == 1 && timerBefunde[0].Detail == "laeuft",
+      string.Join(" / ", timerBefunde.Select(h => h.ShortText)));
+
+// --------------------------------------------------------------------------------------
 // Timer mit berechneter Verzoegerung
 //
 // Der Adapter bildet den Blocktyp als timeouts_set<art>{_variable}; „variable" meint allein

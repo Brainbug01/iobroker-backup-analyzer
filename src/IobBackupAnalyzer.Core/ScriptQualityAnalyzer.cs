@@ -271,25 +271,50 @@ public static class ScriptQualityAnalyzer
     /// <list type="bullet">
     /// <item><b>Nur im Rumpf eines Auslösers.</b> Ein Timer, der einmalig beim Skriptstart
     /// läuft, braucht kein Löschen — er wird ja nicht wiederholt gestartet.</item>
-    /// <item><b>Abgeschaltete Bausteine zählen nicht als Löschung</b>, und ein abgeschalteter
-    /// Start wird nur gedämpft gemeldet. In der Referenzanlage sind von 38 gefundenen Timern
-    /// 19 abgeschaltete Bausteine und 16 in abgeschalteten Skripten; ohne diese Unterscheidung
-    /// wäre der Befund um das Zwölffache zu hoch.</item>
+    /// <item><b>Der Abschaltzustand zählt auf beiden Seiten</b>, und zwar zusammen — siehe
+    /// unten. Ein abgeschalteter Start wird nur gedämpft gemeldet. In der Referenzanlage
+    /// sind von 38 gefundenen Timern 19 abgeschaltete Bausteine und 16 in abgeschalteten
+    /// Skripten; ohne diese Unterscheidung wäre der Befund um das Zwölffache zu hoch.</item>
     /// </list>
+    ///
+    /// <b>Warum der Abschaltzustand paarweise gilt.</b> Ein abgeschalteter Löschbaustein
+    /// entlastet einen <i>laufenden</i> Timer nicht — er löscht ja nichts. Ist aber der
+    /// <i>Start</i> ebenfalls abgeschaltet, gibt es gar keinen Timer, der ungelöscht bliebe:
+    /// Das ganze Konstrukt ruht, und wer die Gruppe wieder einschaltet, bekommt das Löschen
+    /// mit zurück. Deshalb:
+    ///
+    /// <list type="bullet">
+    /// <item><b>Aktiver Start</b> — nur ein <b>aktiver</b> Löschbaustein entlastet.</item>
+    /// <item><b>Abgeschalteter Start</b> — jeder Löschbaustein desselben Namens entlastet,
+    /// auch ein abgeschalteter.</item>
+    /// </list>
+    ///
+    /// Ohne diese Unterscheidung meldete das Werkzeug ein stillgelegtes Timer-Paar als
+    /// „wird nie gelöscht" und warnte damit vor einer Falle, die es nicht gibt — gefunden
+    /// am 28.08.2026 an einem Skript, in dem Start und Löschung beide von Hand abgeschaltet
+    /// waren.
     /// </summary>
     private static void CollectTimerHints(XmlNode root, List<ScriptHint> hints)
     {
         foreach (var (start, stop) in TimerBlocks)
         {
             var gestartet = new List<(string Name, string Id, bool InTrigger, bool Disabled)>();
-            var geloescht = new HashSet<string>(StringComparer.Ordinal);
+            var geloeschtAktiv = new HashSet<string>(StringComparer.Ordinal);
+            var geloeschtAlle = new HashSet<string>(StringComparer.Ordinal);
 
             CollectTimers(root, start, stop, insideTrigger: false, insideDisabled: false,
-                          gestartet, geloescht);
+                          gestartet, geloeschtAktiv, geloeschtAlle);
 
             foreach (var (name, id, inTrigger, disabled) in gestartet)
             {
-                if (!inTrigger || name.Length == 0 || geloescht.Contains(name)) continue;
+                if (!inTrigger || name.Length == 0) continue;
+
+                var entlastet = disabled
+                    ? geloeschtAlle.Contains(name)
+                    : geloeschtAktiv.Contains(name);
+
+                if (entlastet) continue;
+
                 hints.Add(new ScriptHint(ScriptHintKind.TimerWithoutClear, start, id, name, disabled));
             }
         }
@@ -303,7 +328,8 @@ public static class ScriptQualityAnalyzer
     private static void CollectTimers(XmlNode node, string start, string stop,
                                       bool insideTrigger, bool insideDisabled,
                                       List<(string, string, bool, bool)> gestartet,
-                                      HashSet<string> geloescht)
+                                      HashSet<string> geloeschtAktiv,
+                                      HashSet<string> geloeschtAlle)
     {
         var isTrigger = false;
         var disabled = insideDisabled;
@@ -321,10 +347,14 @@ public static class ScriptQualityAnalyzer
             if (type == start)
                 gestartet.Add((name, id, insideTrigger, disabled));
 
-            // Ein abgeschalteter Löschbaustein löscht nichts — er darf einen laufenden
-            // Timer deshalb nicht entlasten.
-            else if (type == stop && !disabled && name.Length > 0)
-                geloescht.Add(name);
+            // Zwei Listen: Ein abgeschalteter Löschbaustein löscht nichts und darf einen
+            // laufenden Timer nicht entlasten — für einen ebenfalls abgeschalteten Start
+            // zählt er aber sehr wohl. Welche Liste gilt, entscheidet der Start.
+            else if (type == stop && name.Length > 0)
+            {
+                geloeschtAlle.Add(name);
+                if (!disabled) geloeschtAktiv.Add(name);
+            }
         }
 
         foreach (XmlNode child in node.ChildNodes)
@@ -337,7 +367,8 @@ public static class ScriptQualityAnalyzer
                 ? insideDisabled
                 : disabled;
 
-            CollectTimers(child, start, stop, childInside, childDisabled, gestartet, geloescht);
+            CollectTimers(child, start, stop, childInside, childDisabled,
+                          gestartet, geloeschtAktiv, geloeschtAlle);
         }
     }
 

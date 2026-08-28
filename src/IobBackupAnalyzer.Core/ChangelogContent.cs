@@ -23,6 +23,31 @@ public static class ChangelogContent
     /// <summary>Neueste Version zuerst.</summary>
     public static IReadOnlyList<ChangelogEntry> Entries { get; } = new ChangelogEntry[]
     {
+        new("1.30.0", "28.08.2026", new[]
+        {
+            "Ein Fehlalarm bei der Timer-Prüfung ist behoben. Sind der Timer-Start und der " +
+            "zugehörige Baustein „Timeout löschen\" beide abgeschaltet, ruht das Paar — " +
+            "gemeldet wurde trotzdem „Timer wird nie gelöscht\". Der Grund: Ein " +
+            "abgeschaltetes Löschen zählte grundsätzlich nicht als Löschung. Das ist richtig, " +
+            "solange der Timer läuft; ist der Start selbst abgeschaltet, gibt es aber gar " +
+            "keinen Timer, der ungelöscht bliebe, und wer die Gruppe wieder einschaltet, " +
+            "bekommt das Löschen mit zurück. Gewarnt wurde vor einer Falle, die es nicht gibt.",
+
+            "Unberührt bleibt der Fall, auf den es ankommt: Ein laufender Timer wird von " +
+            "einem abgeschalteten Löschbaustein weiterhin nicht entlastet.",
+
+            "Die Browser-Fassung kann Werte jetzt so kopieren wie die Windows-Fassung. Ein " +
+            "Rechtsklick in eine Zelle öffnet ein Menü, das den getroffenen Wert beim Namen " +
+            "nennt, dazu Zeile, markierte Zeilen und eine einzelne Spalte über alle " +
+            "markierten Zeilen; Strg+C und Strg+A gibt es ebenfalls. Bisher kam man an einen " +
+            "Wert nur heran, indem man ihn mit der Maus markierte — bei einer abgeschnittenen " +
+            "Zelle also gar nicht vollständig.",
+
+            "Das Menü greift ausschließlich in den Tabellenzellen; überall sonst auf der Seite " +
+            "bleibt das Menü des Browsers unangetastet. Hat man selbst Text markiert, hat " +
+            "diese Auswahl Vorrang vor der Zeile."
+        }),
+
         new("1.29.0", "28.08.2026", new[]
         {
             "Die Backup-Prüfung meldet jetzt einen Fall, der sonst erst im Ernstfall auffällt: " +

@@ -436,6 +436,53 @@ html, body {
 .tabelle tbody tr:hover { background: var(--grund-2); }
 .tabelle tbody tr.gewaehlt { background: var(--auswahl); }
 
+/* Der Rahmen ist über tabindex erreichbar, damit Strg+C ankommt. Ein Fokusring gehört
+   dorthin aber nicht: Er erschiene bei jedem Klick in die Tabelle und umrandete die
+   halbe Seite. Die Auswahl selbst zeigt schon an, wo man ist. */
+.tabelle-rahmen:focus { outline: none; }
+
+/* Kopiermenü der Tabellenzellen — das Gegenstück zum Rechtsklick-Menü der Windows-Fassung.
+   Die Fläche darunter liegt über der ganzen Seite und fängt den nächsten Klick ab. */
+.menu-flaeche {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+}
+
+.zellmenu {
+    position: fixed;
+    z-index: 41;
+    min-width: 17rem;
+    padding: 4px 0;
+    background: var(--grund-2);
+    border: 1px solid var(--rahmen);
+    border-radius: 4px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+}
+
+.zellmenu-eintrag {
+    display: block;
+    width: 100%;
+    padding: 6px 14px;
+    background: none;
+    border: none;
+    color: var(--schrift);
+    font: inherit;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+}
+
+.zellmenu-eintrag:hover { background: var(--auswahl); }
+
+.zellmenu-trenner {
+    height: 1px;
+    margin: 4px 0;
+    background: var(--rahmen);
+}
+
 /* Einstufung der Zeilen, einheitlich über alle Reiter. */
 .zeile-gedaempft { opacity: 0.55; }
 .zeile-positiv td { color: var(--gut); }

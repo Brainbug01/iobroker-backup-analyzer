@@ -95,6 +95,18 @@ window.iobAnalyzer = {
     },
 
     /**
+     * Ob der Betrachter gerade selbst Text markiert hat.
+     *
+     * Gebraucht von Strg+C in der Tabelle: Hat jemand mit der Maus einen Teil eines Wertes
+     * markiert, meint sein Strg+C genau diesen Teil. Die Tabelle hält sich dann heraus und
+     * lässt den Browser kopieren, statt ungefragt die ganze Zeile unterzuschieben.
+     */
+    hatTextauswahl() {
+        const auswahl = window.getSelection();
+        return !!auswahl && !auswahl.isCollapsed && auswahl.toString().length > 0;
+    },
+
+    /**
      * Rollt eine Tabelle an eine bestimmte Zeile.
      *
      * Nötig, weil die Tabelle nur die sichtbaren Zeilen erzeugt: Ein Sprung zu einem
