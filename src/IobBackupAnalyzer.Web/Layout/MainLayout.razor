@@ -263,8 +263,13 @@
             Zustand.Set(null, null, "", 0, ProtokollLesen(protokollPfad));
             _status = "Laden fehlgeschlagen.";
 
-            var wo = "\n\nDer Ablauf des Ladevorgangs steht im Ladeprotokoll — der Knopf " +
-                     "dafür sitzt unten rechts.";
+            // Benennt die Meldung die Ursache bereits (etwa „das Archiv enthält eine
+            // Redis-Datenbank"), entfällt der Verweis auf das Ladeprotokoll — er würde nur
+            // von der Antwort wegführen, die schon dasteht.
+            var wo = ex is NotABackupException { Erklaert: true }
+                ? ""
+                : "\n\nDer Ablauf des Ladevorgangs steht im Ladeprotokoll — der Knopf " +
+                  "dafür sitzt unten rechts.";
 
             await Dialoge.MessageAsync("Fehler",
                 (ex is NotABackupException

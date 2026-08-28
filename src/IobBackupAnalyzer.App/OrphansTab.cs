@@ -237,7 +237,7 @@ public sealed class OrphansTab : UserControl
         }
         _listB.EndUpdate();
 
-        _countB.Text = OrphansPresenter.CountB(_unused, _states?.HasStates == true);
+        _countB.Text = OrphansPresenter.CountB(_unused, _states?.HasStates == true, _showAllB.Checked);
     }
 
     private void ExportB() =>

@@ -338,7 +338,7 @@ public sealed class MainForm : Form
         }
         catch (NotABackupException ex)
         {
-            ShowLoadError(path, ex.Message, ex, log: false);
+            ShowLoadError(path, ex.Message, ex, log: false, erklaert: ex.Erklaert);
         }
         catch (InvalidDataException ex)
         {
@@ -362,7 +362,8 @@ public sealed class MainForm : Form
     /// </summary>
     private static string Wartetext(string schritt) => $"Bitte warten — {schritt}";
 
-    private void ShowLoadError(string path, string message, Exception ex, bool log)
+    private void ShowLoadError(string path, string message, Exception ex, bool log,
+                               bool erklaert = false)
     {
         if (log) Program.LogError($"Laden fehlgeschlagen: {path}", ex);
 
@@ -372,7 +373,12 @@ public sealed class MainForm : Form
         // Der Ladevorgang selbst wird ebenfalls mitgeschrieben. Der Pfad gehört hierher,
         // weil man ihn genau dann sucht — und weil das Protokoll auch dann etwas hergibt,
         // wenn gar kein Fehler kam, sondern das Fenster einfach stehen blieb.
-        extra += "\r\n\r\nDer Ablauf des Ladevorgangs steht in:\r\n" + LoadLog.DefaultPath();
+        //
+        // Nicht jedoch, wenn die Meldung die Ursache schon benennt: Wer liest, dass er eine
+        // Redis-Sicherung erwischt hat, braucht dazu kein Protokoll. Der Verweis wäre dann
+        // nur ein zweiter Weg, der ins Leere führt.
+        if (!erklaert)
+            extra += "\r\n\r\nDer Ablauf des Ladevorgangs steht in:\r\n" + LoadLog.DefaultPath();
 
         MessageBox.Show(this,
             $"Datei: {Path.GetFileName(path)}\r\n\r\n{message}{extra}",

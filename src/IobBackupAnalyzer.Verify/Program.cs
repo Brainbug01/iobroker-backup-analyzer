@@ -1531,6 +1531,50 @@ if (activeCandidates.Count > 0)
         Console.WriteLine($"    {u.Id}  ({u.LastChangeText})");
 }
 
+// Die Grundansicht von Analyse B zeigt die gerade beschriebenen Kandidaten nicht: Ein
+// Datenpunkt, der diese Woche noch einen Wert bekommen hat, ist kein Loeschkandidat,
+// sondern ein Hinweis darauf, dass die Textsuche seinen Schreiber nicht finden konnte
+// (zusammengesetzte IDs). Ueber den Schalter bleiben sie erreichbar — das darf nicht
+// still verlorengehen.
+var frischeCandidates = unused.Where(u => u.IsCandidate && u.JustWritten).ToList();
+var sichtbarB = OrphansPresenter.FilterB(unused, showAll: false, term: null);
+var alleB = OrphansPresenter.FilterB(unused, showAll: true, term: null);
+Console.WriteLine($"  Analyse B sichtbar ohne Schalter: {sichtbarB.Count}   mit Schalter: {alleB.Count}" +
+                  $"   (gerade beschrieben: {frischeCandidates.Count})");
+Check("Grundansicht zeigt keine gerade beschriebenen Kandidaten",
+      !sichtbarB.Any(u => u.JustWritten));
+Check("Grundansicht zeigt ausschliesslich Kandidaten",
+      sichtbarB.All(u => u.IsCandidate));
+Check("Grundansicht laesst genau die gerade beschriebenen weg",
+      sichtbarB.Count == candidates.Count - frischeCandidates.Count);
+Check("Der Schalter holt die gerade beschriebenen zurueck",
+      frischeCandidates.All(a => alleB.Any(u => u.Id == a.Id)));
+Check("Starke Kandidaten bleiben in der Grundansicht sichtbar",
+      strongCandidates.All(s => sichtbarB.Any(u => u.Id == s.Id)));
+
+// Die Sieben-Tage-Grenze ist enger als die Dreissig-Tage-Grenze der Bewertung. Ein
+// Kandidat, der vor drei Wochen zuletzt beschrieben wurde, bleibt deshalb sichtbar und
+// traegt weiterhin den Vermerk „aber aktiv" — genau dafuer sind es zwei Eigenschaften.
+Check("Gerade beschrieben ist Teilmenge von zuletzt geaendert",
+      unused.All(u => !u.JustWritten || u.RecentlyChanged));
+Check("Kandidat zwischen 8 und 30 Tagen bleibt sichtbar und gilt als aktiv",
+      unused.Where(u => u.IsCandidate && u.RecentlyChanged && !u.JustWritten)
+            .All(u => sichtbarB.Any(s => s.Id == u.Id) && u.Verdict.Contains("aktiv")));
+
+// Die Zaehlzeile muss zur Liste darunter passen — sonst steht ueber einer kurzen Liste
+// eine grosse Zahl, und der Nutzer sucht die fehlenden Zeilen.
+var zeileZu = OrphansPresenter.CountB(unused, hasStates: true, showAll: false);
+var zeileAuf = OrphansPresenter.CountB(unused, hasStates: true, showAll: true);
+Console.WriteLine($"  Zaehlzeile zu:  {zeileZu}");
+Console.WriteLine($"  Zaehlzeile auf: {zeileAuf}");
+Check("Zaehlzeile nennt die Zahl der wirklich gezeigten Zeilen",
+      zeileZu.StartsWith($"{sichtbarB.Count} Kandidaten", StringComparison.Ordinal));
+Check("Zaehlzeile weist die ausgeblendeten aus",
+      frischeCandidates.Count == 0
+      || zeileZu.Contains($"{frischeCandidates.Count} gerade beschriebene ausgeblendet"));
+Check("Zaehlzeile mit Schalter nennt alle Kandidaten",
+      zeileAuf.StartsWith($"{candidates.Count} Kandidaten", StringComparison.Ordinal));
+
 // ------------------------------------------- Erweiterungen (Charts/Logging/Adapter/Alias)
 
 Console.WriteLine();
@@ -4124,6 +4168,139 @@ try
 finally { File.Delete(entpackt); }
 Check("Nicht existierende Datei wird sauber abgelehnt",
       Throws<NotABackupException>(() => BackupLoader.Load(Path.Combine(testdaten, "gibtsnicht.tar.gz"))));
+
+// ------------------------------------------- Zusatzarchive von Backitup
+//
+// Backitup legt fuer jede Sicherungsart eine eigene Datei an, alle mit derselben Endung
+// _backupiobroker.tar.gz. Nur zwei davon enthalten Objekte. Die uebrigen sollen nicht mit
+// "kein ioBroker-Backup" abgewiesen werden, sondern damit, was tatsaechlich drin lag.
+//
+// Erkannt wird am Inhalt, nicht am Dateinamen — der traegt einen frei waehlbaren Zusatz,
+// meist einen Host- oder Personennamen, und hat in keiner Meldung etwas zu suchen. Deshalb
+// heissen alle Pruefarchive hier absichtlich gleich und nichtssagend.
+Console.WriteLine();
+Console.WriteLine("=== Zusatzarchive von Backitup ===");
+
+static string BaueArchiv(string ziel, params string[] eintraege)
+{
+    using var fs = File.Create(ziel);
+    using var gz = new System.IO.Compression.GZipStream(fs, System.IO.Compression.CompressionLevel.Fastest);
+    using var tw = new TarWriter(gz, TarEntryFormat.Pax);
+
+    foreach (var name in eintraege)
+    {
+        var e = new PaxTarEntry(TarEntryType.RegularFile, name);
+        e.DataStream = new MemoryStream("{}"u8.ToArray());
+        tw.WriteEntry(e);
+    }
+
+    return ziel;
+}
+
+static string LadeFehler(string archiv)
+{
+    try { BackupLoader.Load(archiv); return ""; }
+    catch (NotABackupException ex) { return ex.Message; }
+}
+
+static bool IstErklaert(string archiv)
+{
+    try { BackupLoader.Load(archiv); return false; }
+    catch (NotABackupException ex) { return ex.Erklaert; }
+}
+
+var probenDir = Path.Combine(Path.GetTempPath(), "iob_zusatzarchive");
+Directory.CreateDirectory(probenDir);
+
+try
+{
+    // Der Dateiname ist bei allen Proben derselbe — nur der Inhalt unterscheidet sie.
+    // Faellt eine Pruefung trotzdem richtig aus, kann sie nicht am Namen haengen.
+    var proben = new (string Art, string Erwartet, string[] Eintraege)[]
+    {
+        ("Verlaeufe",  "Verlaufsdaten des history-Adapters",
+                       new[] { "2026-08/history.0_userdata_0_Test.json", "2026-07/history.x.json" }),
+        ("Redis",      "Redis-Datenbank",           new[] { "dump.rdb" }),
+        ("SQL",        "SQL-Datenbank",             new[] { "mysql_2026_08_23-00_02_53_backupiobroker.sql" }),
+        ("InfluxDB",   "InfluxDB",                  new[] { "20260823T000253Z.manifest", "daten.gz" }),
+        ("Node-RED",   "Node-RED",                  new[] { "flows.json", "settings.js" }),
+        ("Zigbee",     "Zigbee-Instanz",            new[] { "nvbackup.json", "dev_names.json" }),
+        ("Zigbee2MQTT","Zigbee2MQTT",               new[] { "configuration.yaml", "state.json" }),
+    };
+
+    foreach (var (art, erwartet, eintraege) in proben)
+    {
+        var pfad = BaueArchiv(Path.Combine(probenDir, $"{art}.tar.gz"), eintraege);
+        var text = LadeFehler(pfad);
+
+        Check($"{art}: wird abgelehnt", text.Length > 0);
+        Check($"{art}: Meldung benennt den Inhalt", text.Contains(erwartet, StringComparison.Ordinal), text);
+        Check($"{art}: Meldung nennt keinen Dateinamen",
+              !text.Contains(".tar.gz", StringComparison.OrdinalIgnoreCase)
+              || text.Contains("iobroker_", StringComparison.Ordinal));
+        Check($"{art}: gilt als erklaert", IstErklaert(pfad));
+    }
+
+    // Der Sonderfall: ein Archiv, das statt Daten ein Adapterverzeichnis enthaelt. Das
+    // entsteht in Backitup, wenn zu einer Sicherungsart der Quellpfad leer bleibt —
+    // join('') ergibt in Node '.', also das Arbeitsverzeichnis des Adapters.
+    var paket = BaueArchiv(Path.Combine(probenDir, "Paketbaum.tar.gz"),
+                           "package.json", "node_modules/express/package.json",
+                           "node_modules/mqtt/index.js", "lib/restore/restore.js");
+    var paketText = LadeFehler(paket);
+    Check("Paketbaum: wird abgelehnt", paketText.Length > 0);
+    Check("Paketbaum: Meldung nennt node_modules",
+          paketText.Contains("node_modules", StringComparison.Ordinal), paketText);
+    Check("Paketbaum: Meldung nennt den leeren Quellpfad",
+          paketText.Contains("Quellpfad leer", StringComparison.Ordinal), paketText);
+    Check("Paketbaum: gilt als erklaert", IstErklaert(paket));
+
+    // Ein Node-RED-Verzeichnis bringt sein eigenes node_modules mit. Der Datenbefund muss
+    // den Paketbaum schlagen, sonst bekaeme jeder solche Nutzer die Fehlkonfigurations-
+    // Meldung zu sehen, ohne dass etwas falsch konfiguriert waere.
+    var nrMitPaketen = BaueArchiv(Path.Combine(probenDir, "NodeRedPakete.tar.gz"),
+                                  "flows.json", "node_modules/express/package.json");
+    Check("Daten schlagen Paketbaum",
+          LadeFehler(nrMitPaketen).Contains("Node-RED", StringComparison.Ordinal));
+
+    // In einem npm-Arbeitsbereich liegt node_modules eine Ebene ueber dem Paket und wird
+    // nicht mit eingepackt. Uebrig bleibt die package.json — auch daran muss ein
+    // Programmverzeichnis erkennbar sein.
+    var ohneModule = BaueArchiv(Path.Combine(probenDir, "OhneModule.tar.gz"),
+                                "package.json", "package-lock.json", "lib/restore/restore.js");
+    Check("Programmverzeichnis auch ohne node_modules erkannt",
+          LadeFehler(ohneModule).Contains("npm-Paketverzeichnis", StringComparison.Ordinal));
+
+    // Ein Archiv ohne jedes Merkmal darf nichts behaupten — dort bleibt es bei der
+    // allgemeinen Meldung, und der Verweis aufs Ladeprotokoll bleibt sinnvoll.
+    var stumm = BaueArchiv(Path.Combine(probenDir, "Stumm.tar.gz"), "irgendwas.bin", "ordner/datei.txt");
+    var stummText = LadeFehler(stumm);
+    Check("Unbekanntes Archiv behauptet nichts",
+          stummText.Contains("scheint kein ioBroker-Backup", StringComparison.Ordinal), stummText);
+    Check("Unbekanntes Archiv gilt nicht als erklaert", !IstErklaert(stumm));
+
+    // Gegenprobe: Ein echtes Voll-Backup enthaelt Zigbee-Datenordner und wird trotzdem
+    // geladen. Die Erkennung darf erst greifen, wenn gar keine Objekte gefunden wurden.
+    Check("Voll-Backup wird trotz Zigbee-Dateien geladen", fullData.Objects.Count > 0);
+
+    // Der Name luegt: Wer eine Datei vor dem Laden umbenennt — oder sie aus einem
+    // Sammelarchiv zieht —, darf damit nichts verstellen. Beide Richtungen werden geprueft,
+    // weil ein Fehler in nur einer davon im Betrieb kaum auffiele.
+    var alsHistory = Path.Combine(probenDir, "historyDB_2026_08_23-00_02_53_backupiobroker.tar.gz");
+    File.Copy(full, alsHistory, overwrite: true);
+    var trotzNamen = BackupLoader.Load(alsHistory);
+    CheckEq("Voll-Backup unter falschem Namen wird geladen",
+            trotzNamen.Objects.Count, fullData.Objects.Count);
+
+    var redisAlsVoll = BaueArchiv(
+        Path.Combine(probenDir, "iobroker_2026_08_23-00_02_53_backupiobroker.tar.gz"), "dump.rdb");
+    Check("Redis-Archiv unter dem Namen eines Voll-Backups wird als Redis erkannt",
+          LadeFehler(redisAlsVoll).Contains("Redis-Datenbank", StringComparison.Ordinal));
+}
+finally
+{
+    try { Directory.Delete(probenDir, true); } catch { /* Aufraeumen ist kein Pruefergebnis */ }
+}
 
 Check("Dateinamen-Bereinigung", ScriptExporter.SanitizeFileName("Modell+") == "Modell+");
 

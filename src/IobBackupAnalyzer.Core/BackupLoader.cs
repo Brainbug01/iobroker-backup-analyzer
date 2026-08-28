@@ -11,6 +11,17 @@ namespace IobBackupAnalyzer.Core;
 public sealed class NotABackupException : Exception
 {
     public NotABackupException(string message) : base(message) { }
+
+    public NotABackupException(string message, bool erklaert) : base(message) => Erklaert = erklaert;
+
+    /// <summary>
+    /// true, wenn die Meldung die Ursache bereits benennt — etwa „das Archiv enthält eine
+    /// Redis-Datenbank". Dann hängen die Oberflächen den Verweis auf das Ladeprotokoll
+    /// nicht mehr an: Wer die Antwort schon vor sich hat, soll nicht zusätzlich in ein
+    /// Protokoll geschickt werden. Bei einer unerklärten Datei bleibt der Verweis stehen,
+    /// denn dort ist das Protokoll der nächste sinnvolle Schritt.
+    /// </summary>
+    public bool Erklaert { get; }
 }
 
 /// <summary>
@@ -101,6 +112,7 @@ public static class BackupLoader
         var identity = new SystemIdentityReader();
         SystemIdentity? classicIdentity = null;
         var validation = new BackupValidation();
+        var merkmale = new ArchivMerkmale();
         var stateCount = 0;
         var skipped = 0;
         var isFull = false;
@@ -184,6 +196,12 @@ public static class BackupLoader
                 validation.EntriesRead++;
                 var name = entry!.Name.Replace('\\', '/');
                 log?.Detail($"Eintrag {validation.EntriesRead}: {LoadLog.Beschreibe(name, entry.Length)}");
+
+                // Nebenbei mitschreiben, wonach das Archiv aussieht. Gebraucht wird das nur,
+                // falls am Ende keine Objekte gefunden wurden — dann steht in der Meldung, was
+                // stattdessen darin lag. Kostet nichts: Ein Tar wird ohnehin einmal vorwärts
+                // gelesen, und geprüft wird allein der Eintragsname.
+                merkmale.Betrachte(name);
 
                 // Kenndaten aller Dateien aus dem files/-Baum einsammeln — im selben
                 // Durchlauf, denn ein Tar lässt sich nur einmal vorwärts lesen. Der Inhalt
@@ -312,9 +330,18 @@ public static class BackupLoader
         }
 
         if (objects is null)
+        {
+            // Steht fest, was stattdessen im Archiv lag, ersetzt das die allgemeine Meldung
+            // vollständig. „Kein ioBroker-Backup" ist zwar richtig, führt aber in die Irre:
+            // Die Datei ist meist sehr wohl ein Backitup-Erzeugnis — nur eines ohne Objekte.
+            var erkannt = merkmale.Meldung();
+            if (erkannt is not null)
+                throw new NotABackupException(erkannt, erklaert: true);
+
             throw new NotABackupException(
                 "Im Archiv wurde keine objects.jsonl, backup.json oder script.json gefunden.\r\n\r\n" +
                 "Die Datei scheint kein ioBroker-Backup zu sein.");
+        }
 
         scripts ??= objects.Where(o => o.Script is not null).Select(o => o.Script!).ToList();
 

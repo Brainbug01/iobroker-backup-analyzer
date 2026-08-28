@@ -224,7 +224,11 @@ public partial class MainWindow : Window
         {
             SetData(null);
             _lblStatus.Text = "Laden fehlgeschlagen.";
-            var wo = $"\n\nDer Ablauf des Ladevorgangs steht in:\n{LoadLog.DefaultPath()}";
+            // Benennt die Meldung die Ursache bereits (etwa „das Archiv enthält eine
+            // Redis-Datenbank"), entfällt der Verweis auf das Ladeprotokoll — er würde nur
+            // von der Antwort wegführen, die schon dasteht.
+            var erklaert = ex is NotABackupException { Erklaert: true };
+            var wo = erklaert ? "" : $"\n\nDer Ablauf des Ladevorgangs steht in:\n{LoadLog.DefaultPath()}";
             await ShowErrorAsync((ex is NotABackupException
                 ? ex.Message
                 : $"Die Datei konnte nicht gelesen werden.\n\n{ex.Message}") + wo);

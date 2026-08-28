@@ -194,7 +194,7 @@ public partial class OrphansView : UserControl
     {
         var rows = OrphansPresenter.FilterB(_unused, _showAllB.IsChecked == true, _filterB.Text);
         _listB.ItemsSource = rows;
-        _countB.Text = OrphansPresenter.CountB(_unused, _states?.HasStates == true);
+        _countB.Text = OrphansPresenter.CountB(_unused, _states?.HasStates == true, _showAllB.IsChecked == true);
     }
 
     private void FillC()

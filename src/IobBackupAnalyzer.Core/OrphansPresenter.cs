@@ -53,6 +53,9 @@ public static class OrphansPresenter
     public const string WarningB =
         "Kandidatenliste, keine Löschliste. Nutzung in externen Systemen oder per zusammengesetzten IDs " +
         "ist hier nicht vollständig erkennbar. Vor dem Löschen im laufenden System manuell prüfen.\n" +
+        "Datenpunkte, die in den letzten sieben Tagen beschrieben wurden, stehen nicht in dieser " +
+        "Liste — sie sind sichtbar in Betrieb und damit keine Löschkandidaten. Der Schalter " +
+        "daneben zeigt sie mit an.\n" +
         "Steht in der Bewertung „Expertenmodus\", ist der Datenpunkt im Admin nur zu sehen, wenn dort " +
         "der Experten-Modus eingeschaltet ist — sonst sucht man ihn dort vergeblich.";
 
@@ -101,12 +104,27 @@ public static class OrphansPresenter
           "In Chart", "Zuletzt geändert", "Alter (Tage)", "Bewertung", ValueColumn };
 
     /// <summary>
-    /// <paramref name="showAll"/> = false zeigt nur die Kandidaten; true auch die
-    /// Datenpunkte, die eine der Prüfungen bestanden haben — zum Nachvollziehen, warum.
+    /// <paramref name="showAll"/> = false zeigt nur die Kandidaten, die in der letzten
+    /// Woche nicht beschrieben wurden; true auch diese und die Datenpunkte, die eine der
+    /// Prüfungen bestanden haben — zum Nachvollziehen, warum.
+    ///
+    /// <b>Warum die gerade beschriebenen nicht in der Grundansicht stehen:</b> Ein
+    /// Datenpunkt, der heute noch einen Wert bekommen hat, ist nicht unbenutzt — er wird
+    /// nur von etwas beschrieben, das diese Analyse nicht sehen kann. Der häufigste Fall
+    /// sind Skripte, die ihre IDs zur Laufzeit zusammensetzen
+    /// (<c>"javascript." + instance + …</c>); die vollständige ID steht dann nirgends als
+    /// Text und keine Textsuche kann sie finden. Solche Treffer als Kandidaten zu führen,
+    /// kehrt die Aussage der Liste um: Statt weniger sicherer Funde stünden dort viele
+    /// falsche. Über den Schalter bleiben sie erreichbar.
+    ///
+    /// Maßgeblich ist <see cref="UnusedDatapoint.JustWritten"/> (sieben Tage), nicht
+    /// <see cref="UnusedDatapoint.RecentlyChanged"/> (dreißig): Ein Datenpunkt, der vor
+    /// drei Wochen zuletzt beschrieben wurde, ist ein Prüffall und gehört in die Liste —
+    /// er wird lediglich als „aber aktiv" gekennzeichnet.
     /// </summary>
     public static List<UnusedDatapoint> FilterB(IEnumerable<UnusedDatapoint> all, bool showAll, string? term)
     {
-        var q = showAll ? all : all.Where(u => u.IsCandidate);
+        var q = showAll ? all : all.Where(u => u.IsCandidate && !u.JustWritten);
 
         var t = (term ?? "").Trim();
         if (t.Length > 0) q = q.Where(u => u.Id.Contains(t, StringComparison.OrdinalIgnoreCase));
@@ -114,15 +132,29 @@ public static class OrphansPresenter
         return q.ToList();
     }
 
-    public static string CountB(IReadOnlyList<UnusedDatapoint> all, bool hasStates)
+    /// <summary>
+    /// Die Zählzeile muss zur Liste darunter passen: Solange die gerade beschriebenen
+    /// Kandidaten ausgeblendet sind (<paramref name="showAll"/> = false), zählt sie nur die
+    /// gezeigten und weist die ausgeblendeten getrennt aus. Sonst stünde über einer
+    /// einzeiligen Liste „19 Kandidaten".
+    /// </summary>
+    public static string CountB(IReadOnlyList<UnusedDatapoint> all, bool hasStates, bool showAll)
     {
         var candidates = all.Count(u => u.IsCandidate);
         var strong = all.Count(u => u.IsStrongCandidate);
         var active = all.Count(u => u.IsCandidate && u.RecentlyChanged);
+        var frisch = all.Count(u => u.IsCandidate && u.JustWritten);
 
-        return hasStates
-            ? $"{candidates} Kandidaten von {all.Count} · {strong} davon tot, {active} noch aktiv"
-            : $"{candidates} Kandidaten von {all.Count} geprüften";
+        if (!hasStates) return $"{candidates} Kandidaten von {all.Count} geprüften";
+
+        if (showAll)
+            return $"{candidates} Kandidaten von {all.Count} · {strong} davon tot, {active} noch aktiv";
+
+        var gezeigt = candidates - frisch;
+        return frisch == 0
+            ? $"{gezeigt} Kandidaten von {all.Count} · {strong} davon tot, {active} noch aktiv"
+            : $"{gezeigt} Kandidaten von {all.Count} · {strong} davon tot · "
+              + $"{frisch} gerade beschriebene ausgeblendet";
     }
 
     /// <summary>

@@ -62,7 +62,7 @@ else
                         @OrphansPresenter.ShowAllLabelB(Daten.VisViews.Count > 0)
                     </label>
 
-                    <span class="zaehler">@OrphansPresenter.CountB(Unbenutzte, States?.HasStates == true)</span>
+                    <span class="zaehler">@OrphansPresenter.CountB(Unbenutzte, States?.HasStates == true, S.ShowAllB)</span>
                     <span class="dehnen"></span>
                     <button class="knopf" @onclick="CsvB">Als CSV exportieren</button>
                 </div>

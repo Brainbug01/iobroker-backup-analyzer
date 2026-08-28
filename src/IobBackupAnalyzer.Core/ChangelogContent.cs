@@ -23,6 +23,41 @@ public static class ChangelogContent
     /// <summary>Neueste Version zuerst.</summary>
     public static IReadOnlyList<ChangelogEntry> Entries { get; } = new ChangelogEntry[]
     {
+        new("1.31.0", "28.08.2026", new[]
+        {
+            "Wer eine der Zusatzsicherungen lädt, erfährt jetzt, was er erwischt hat. " +
+            "Backitup legt für jede Sicherungsart eine eigene Datei an — Verläufe, Redis, " +
+            "SQL, InfluxDB, Node-RED, Zigbee —, und alle tragen dieselbe Endung. Nur das " +
+            "Voll-Backup enthält Objekte. Bisher hieß es in allen anderen Fällen bloß, die " +
+            "Datei sei kein ioBroker-Backup; jetzt steht dort, was tatsächlich darin liegt " +
+            "und welche Datei stattdessen gebraucht wird.",
+
+            "Erkannt wird das am Inhalt, nicht am Dateinamen: Ein umbenanntes Voll-Backup " +
+            "wird weiterhin gelesen, und eine Zusatzsicherung unter falschem Namen rutscht " +
+            "nicht durch.",
+
+            "Enthält so ein Archiv ein Programmverzeichnis statt der Daten, wird das eigens " +
+            "gemeldet. Das passiert, wenn in Backitup zu einer Sicherungsart der Quellpfad " +
+            "leer bleibt — gesichert wird dann der Installationsordner des Adapters. Solche " +
+            "Sicherungen sehen unauffällig aus, laufen ohne Fehlermeldung durch und sind " +
+            "beim Wiederherstellen wertlos.",
+
+            "Benennt eine Fehlermeldung die Ursache bereits, entfällt der Verweis auf das " +
+            "Ladeprotokoll. Er bleibt, wo er weiterhilft: bei einer Datei, die sich nicht " +
+            "einordnen lässt.",
+
+            "In „Unbenutzte User-Datenpunkte\" stehen Datenpunkte, die in den letzten sieben " +
+            "Tagen beschrieben wurden, nicht mehr in der Kandidatenliste. Sie sind sichtbar " +
+            "in Betrieb und damit keine Löschkandidaten — meist von Skripten, die ihre IDs " +
+            "erst zur Laufzeit zusammensetzen und deshalb von keiner Textsuche zu finden " +
+            "sind. Der Schalter daneben zeigt sie weiterhin an, und die Zählzeile nennt, " +
+            "wie viele ausgeblendet wurden.",
+
+            "Die Dreißig-Tage-Grenze der Bewertung bleibt davon unberührt: Ein Datenpunkt, " +
+            "der vor drei Wochen zuletzt beschrieben wurde, steht weiter in der Liste und " +
+            "trägt wie bisher den Vermerk „aber aktiv\"."
+        }),
+
         new("1.30.0", "28.08.2026", new[]
         {
             "Ein Fehlalarm bei der Timer-Prüfung ist behoben. Sind der Timer-Start und der " +

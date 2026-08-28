@@ -732,6 +732,20 @@ public sealed class UnusedDatapoint
     public bool RecentlyChanged => AgeDays is >= 0 and <= 30;
 
     /// <summary>
+    /// Der Wert ist so frisch, dass der Datenpunkt sichtbar in Betrieb ist — er wird
+    /// gerade beschrieben, nicht „vielleicht noch". Nur diese Treffer bleiben aus der
+    /// Grundansicht von Analyse B heraus.
+    ///
+    /// <b>Warum sieben Tage und nicht dreißig:</b> <see cref="RecentlyChanged"/> beantwortet
+    /// eine andere Frage — es warnt davor, dass ein Kandidat noch Leben zeigt, und färbt
+    /// die Zeile entsprechend. Zum Ausblenden taugt diese Grenze nicht: Ein Datenpunkt, der
+    /// zuletzt vor drei Wochen beschrieben wurde, ist ein legitimer Prüffall und gehört in
+    /// die Liste. Ausgeblendet gehört nur, was offensichtlich läuft — etwa ein Skript, das
+    /// seine IDs zur Laufzeit zusammensetzt und deshalb von keiner Textsuche gefunden wird.
+    /// </summary>
+    public bool JustWritten => AgeDays is >= 0 and <= 7;
+
+    /// <summary>
     /// Kandidat, der zusätzlich seit über einem Jahr unverändert ist oder nie einen Wert
     /// hatte — die belastbarste Aussage, die das Backup über einen toten Datenpunkt zulässt.
     /// </summary>

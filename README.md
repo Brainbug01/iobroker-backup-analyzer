@@ -224,11 +224,27 @@ Akzeptierte Eingaben:
 | dieselben Archive **ohne** gzip-Hülle (`.tar`) | wie oben |
 | entpackte `objects.jsonl`, `backup.json`, `script.json` | je nach Inhalt |
 
-Erkannt wird am **Inhalt**, nicht am Dateinamen.
+Erkannt wird am **Inhalt**, nicht am Dateinamen. Ein umbenanntes Backup wird deshalb
+genauso gelesen wie ein unbenanntes.
 
 > **Warum auch `.tar`?** Safari und iCloud Drive packen `.gz` beim Herunterladen von sich aus
 > aus — auf einem Mac landet also oft ein reines `.tar` im Download-Ordner. Es wird an der
 > Tar-Kennung erkannt und genauso gelesen.
+
+**Die übrigen Backitup-Archive werden abgewiesen — mit Angabe, was darin liegt.** Backitup
+legt für jede aktivierte Sicherungsart eine eigene Datei an, und alle enden auf
+`_backupiobroker.tar.gz`; nur die beiden oben genannten enthalten ioBroker-Objekte. Wer eine
+Sicherung von Verläufen, Redis, einer SQL-Datenbank, InfluxDB, Node-RED oder Zigbee lädt,
+bekommt das genannt und dazu den Hinweis, welche Datei stattdessen gebraucht wird. Auch das
+läuft über den Inhalt: Eine Zusatzsicherung rutscht auch unter dem Namen eines Voll-Backups
+nicht durch.
+
+> **Ein Sonderfall verdient Beachtung.** Enthält so ein Archiv statt der Daten ein
+> Programmverzeichnis (`node_modules`), wird das eigens gemeldet: In Backitup ist dann zu
+> einer Sicherungsart der Quellpfad leer geblieben, und gesichert wurde der
+> Installationsordner des Adapters. Solche Sicherungen laufen ohne Fehlermeldung durch, sehen
+> an der Dateigröße unauffällig aus und sind beim Wiederherstellen wertlos — auffallen würde
+> es erst dann, wenn man sie braucht.
 
 ### Tab „Übersicht"
 Backup-Datum, Objekt- und State-Zahlen, Tabelle aller Adapter-Instanzen mit Version,
@@ -567,6 +583,16 @@ was die fünf Prüfungen übriglassen, entpuppt sich als noch aktiv beschrieben 
 Datenpunkte, deren IDs ein Skript erst zur Laufzeit zusammensetzt. Übrig bleiben die wenigen,
 die belastbar tot sind.
 
+**Was in den letzten sieben Tagen beschrieben wurde, steht gar nicht erst in der Liste.**
+Ein Datenpunkt, der gestern noch einen Wert bekommen hat, ist kein Löschkandidat, sondern
+ein Hinweis darauf, dass die Textsuche seinen Schreiber nicht finden konnte. Ein Skript wie
+`setState("javascript." + instance + "." + pfad + ".Zeiten." + nr, …)` hinterlässt die
+vollständige ID nirgends als Text — keine Suche kann sie finden, und ein Dutzend solcher
+Datenpunkte füllt die Liste, ohne dass einer davon entbehrlich wäre. Der Schalter
+**„Alle geprüften Datenpunkte anzeigen"** holt sie zurück; die Zählzeile nennt, wie viele
+ausgeblendet sind. Die Dreißig-Tage-Grenze der Bewertung bleibt davon unberührt — was vor
+drei Wochen zuletzt beschrieben wurde, steht weiter in der Liste und gilt als „aber aktiv".
+
 **Analyse C — States** wertet `states.jsonl` in fünf Sichten aus:
 
 - **States ohne Objekt** — Werte-Leichen in der States-Datenbank. Analyse A findet sie
@@ -776,7 +802,7 @@ ist unter „Netzwerk" keine weitere Übertragung zu sehen.
 ### Hochladen
 
 Das fertige Paket liegt nach `build.ps1` unter `dist/web/` und zusätzlich als
-`dist/ioBroker-Backup-Analyzer_Browser.zip` (rund 64 MB). Der gesamte Inhalt gehört in ein
+`dist/ioBroker-Backup-Analyzer_Browser.zip` (rund 69 MB). Der gesamte Inhalt gehört in ein
 Verzeichnis unterhalb des Web-Wurzelverzeichnisses, etwa `/var/www/html/analyzer/`.
 
 Wie das Verzeichnis heißt, spielt keine Rolle: Alle Adressen im Programm sind relativ, es
