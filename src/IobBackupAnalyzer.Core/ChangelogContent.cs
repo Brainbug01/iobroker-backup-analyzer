@@ -23,6 +23,25 @@ public static class ChangelogContent
     /// <summary>Neueste Version zuerst.</summary>
     public static IReadOnlyList<ChangelogEntry> Entries { get; } = new ChangelogEntry[]
     {
+        new("1.29.0", "28.08.2026", new[]
+        {
+            "Die Backup-Prüfung meldet jetzt einen Fall, der sonst erst im Ernstfall auffällt: " +
+            "Ist in BackitUp die History-Sicherung eingeschaltet, aber kein Pfad hinterlegt, " +
+            "entsteht trotzdem ein Archiv — die Verlaufsdaten fehlen darin, und gemeldet wird " +
+            "das nirgends. Das Backup gilt als erfolgreich. Wer das erst beim " +
+            "Wiederherstellen bemerkt, steht ohne seine Verläufe da.",
+
+            "Verläufe sind in einem gewöhnlichen Voll-Backup grundsätzlich nicht enthalten: " +
+            "Gesichert werden nur die Datenordner der Adapter, die einen anmelden, und der " +
+            "history-Adapter tut das nicht. Die eigene History-Sicherung von BackitUp ist " +
+            "der einzige Weg — deshalb diese Prüfung.",
+
+            "Die Zeile erscheint ausschließlich in genau diesem Fall. Läuft kein " +
+            "History-Adapter, ist die Sicherung bewusst abgeschaltet oder steht ein Pfad " +
+            "darin, sagt die Prüfung dazu nichts — auch keine Bestätigung. Wer nichts falsch " +
+            "gemacht hat, merkt von der neuen Prüfung nichts."
+        }),
+
         new("1.28.2", "27.08.2026", new[]
         {
             "Timer mit berechneter Verzögerung werden jetzt mitgeprüft. Blockly kennt zwei " +

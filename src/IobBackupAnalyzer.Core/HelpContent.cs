@@ -157,6 +157,16 @@ public static class HelpContent
             "sind deine eigenen Inhalte; eine vis-views.json ist eine komplette Ansicht. Die ist " +
             "nach dem Löschen weg, also vorher ein aktuelles Backup ziehen. Das Werkzeug sagt " +
             "dir in beiden Fällen, welcher davon vorliegt."),
+        new(HelpBlockKind.Text,
+            "Eine Zeile in dieser Tabelle handelt nicht von einer Datei, sondern von einer " +
+            "Einstellung: Ist in BackitUp die History-Sicherung eingeschaltet, aber kein Pfad " +
+            "hinterlegt, entsteht zwar ein Archiv — die Verlaufsdaten sind darin aber nicht " +
+            "enthalten, und gemeldet wird das nirgends. Das fällt erst auf, wenn man sie braucht. " +
+            "Nötig ist diese Prüfung, weil Verläufe in einem gewöhnlichen Voll-Backup grundsätzlich " +
+            "fehlen: Der js-controller sichert nur die Datenordner der Adapter, die einen anmelden, " +
+            "und der history-Adapter tut das nicht. Die Zeile erscheint ausschließlich in genau " +
+            "diesem Fall — läuft kein History-Adapter, ist die Sicherung bewusst aus oder steht ein " +
+            "Pfad darin, steht dazu nichts in der Tabelle, auch keine Bestätigung."),
 
         new(HelpBlockKind.Heading, "Tab „Skripte\""),
         new(HelpBlockKind.Text,
@@ -444,7 +454,10 @@ public static class HelpContent
         new(HelpBlockKind.Heading, "Datenschutz & Grenzen"),
         new(HelpBlockKind.Text,
             "Ein ioBroker-Backup enthält Zugangsdaten (in den native-Abschnitten der Adapter). Diese " +
-            "werden hier bewusst nirgends angezeigt. Trotzdem: Backup nicht weitergeben und vor einem " +
+            "werden hier bewusst nirgends angezeigt. Aus einem native-Abschnitt gelesen werden genau " +
+            "zwei Angaben, beide von BackitUp und beide für die Prüfung der History-Sicherung: ob sie " +
+            "eingeschaltet ist und ob ein Pfad hinterlegt ist. Der Pfad selbst wird nicht übernommen — " +
+            "gespeichert wird nur, dass da einer steht. Trotzdem: Backup nicht weitergeben und vor einem " +
             "Screenshot kurz prüfen, was in der Tabelle steht. Redis-, InfluxDB- und Zigbee-Teilbackups " +
             "werden nicht ausgewertet.")
     };

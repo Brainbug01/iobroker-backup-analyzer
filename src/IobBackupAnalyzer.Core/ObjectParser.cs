@@ -279,6 +279,7 @@ internal static class ObjectParser
         // nie Teil einer Anzeige oder eines Exports — Passwörter und Hostnamen aus dem
         // native-Abschnitt können so nicht durchsickern.
         IReadOnlyList<AdapterRefCandidate>? nativeRefs = null;
+        HistoryBackupSetting? historyBackup = null;
         if (type == "instance"
             && el.TryGetProperty("native", out var instNative)
             && instNative.ValueKind == JsonValueKind.Object)
@@ -286,6 +287,8 @@ internal static class ObjectParser
             List<AdapterRefCandidate>? found = null;
             CollectIdLike(instNative, "", "", ref found);
             nativeRefs = found;
+
+            historyBackup = ParseHistoryBackup(id, instNative);
         }
 
         ScriptInfo? script = null;
@@ -320,6 +323,7 @@ internal static class ObjectParser
             Default = def,
             ChartRefs = chartRefs,
             NativeRefs = nativeRefs,
+            HistoryBackup = historyBackup,
             EnumMembers = enumMembers,
             RestartSchedule = restartSchedule,
             LogLevel = logLevel,
@@ -328,6 +332,43 @@ internal static class ObjectParser
             DontDelete = dontDelete,
             Expert = expert,
             Script = script
+        };
+    }
+
+    /// <summary>Präfix der Objekt-IDs einer Backitup-Instanz.</summary>
+    private const string BackitupPrefix = "system.adapter.backitup.";
+
+    /// <summary>
+    /// Liest aus dem native-Abschnitt einer Backitup-Instanz die beiden Felder, die für die
+    /// History-Sicherung zuständig sind. Für alles andere — auch für jede andere Instanz —
+    /// gibt die Methode null zurück.
+    ///
+    /// <b>Namentlich statt allgemein:</b> Es werden genau zwei Felder gelesen, beide hier im
+    /// Quelltext ausgeschrieben. Der native-Abschnitt wird bewusst nicht als Ganzes
+    /// übernommen — dort stehen Zugangsdaten, und was nicht gespeichert wird, kann auch nicht
+    /// versehentlich angezeigt oder exportiert werden.
+    ///
+    /// <b>Fehlt <c>historyEnabled</c>, ist das Ergebnis null</b> und nicht etwa
+    /// „ausgeschaltet". Das ist der Unterschied zwischen „wir wissen es nicht" und „es ist
+    /// aus" — ein Backup ohne native-Abschnitte darf keine Aussage über eine Einstellung
+    /// tragen, die es gar nicht enthält.
+    /// </summary>
+    private static HistoryBackupSetting? ParseHistoryBackup(string id, JsonElement native)
+    {
+        if (!id.StartsWith(BackitupPrefix, StringComparison.Ordinal)) return null;
+
+        if (!native.TryGetProperty("historyEnabled", out var enabled)) return null;
+        if (enabled.ValueKind != JsonValueKind.True && enabled.ValueKind != JsonValueKind.False)
+            return null;
+
+        var pathSet = native.TryGetProperty("historyPath", out var path)
+                      && path.ValueKind == JsonValueKind.String
+                      && !string.IsNullOrWhiteSpace(path.GetString());
+
+        return new HistoryBackupSetting
+        {
+            Enabled = enabled.ValueKind == JsonValueKind.True,
+            PathSet = pathSet
         };
     }
 

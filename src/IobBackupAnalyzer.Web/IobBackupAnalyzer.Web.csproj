@@ -21,7 +21,7 @@
       der diese hier dazugekommen ist. AppInfo liest die AssemblyVersion, die .NET
       hieraus ableitet.
     -->
-    <Version>1.28.2</Version>
+    <Version>1.29.0</Version>
     <Copyright>Copyright (c) 2026 ioBroker Backup Analyzer — MIT-Lizenz</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <NeutralLanguage>de-DE</NeutralLanguage>

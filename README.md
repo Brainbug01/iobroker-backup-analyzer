@@ -291,6 +291,24 @@ Einspielen, Löschen per `iobroker file rm`. Upload-Befehle erscheinen nur für
 `*.admin`-Befunde — für eigene Inhalte gibt es keine Quelldatei, aus der ein Upload schöpfen
 könnte.
 
+**Eine Zeile handelt nicht von einer Datei, sondern von einer Einstellung:** Ist in BackitUp
+die History-Sicherung eingeschaltet, aber **kein Pfad** hinterlegt, entsteht trotzdem ein
+Archiv — die Verlaufsdaten sind darin nicht enthalten, und gemeldet wird das nirgends. Das
+Backup gilt als erfolgreich; auffallen kann es erst beim Wiederherstellen.
+
+Nötig ist diese Prüfung, weil Verläufe in einem gewöhnlichen Voll-Backup **grundsätzlich**
+fehlen. `iobroker backup` sichert nur die Datenordner der Adapter, die einen anmelden
+(`common.dataFolder`) — der history-Adapter tut das nicht, seine Daten liegen unter
+`iobroker-data/history`. Die eigene History-Sicherung von BackitUp ist damit der einzige Weg,
+und sie packt den Ordner, der in ihrer Einstellung steht.
+
+Die Zeile erscheint **ausschließlich** in genau diesem Fall: laufender History-Adapter,
+eingeschaltete Sicherung, leerer Pfad. Fehlt eine dieser Bedingungen — oder bringt das Backup
+die Adapter-Konfiguration gar nicht mit —, steht dazu nichts in der Tabelle, auch keine
+Bestätigung. Es ist eine Warnung, kein Nachruf: Aufgezeichnet wird unabhängig von der
+Sicherung weiter, und wer den Pfad einträgt, hat die Verläufe ab dem nächsten Backup
+vollständig im Archiv.
+
 ### Tab „Skripte"
 Alle Skripte mit Typ und Status. Suche wahlweise nach **Name/Pfad** oder **im Code** —
 Letzteres beantwortet „welche Skripte verwenden Datenpunkt X?" und durchsucht dabei auch
@@ -830,6 +848,7 @@ src/IobBackupAnalyzer.Core/     Kernlogik und Darstellungslogik, ohne GUI testba
   UsageAnalyzer.cs              Kreuzreferenz Skripte <-> Datenpunkte, beide Richtungen
   VisAnalyzer.cs                Datenpunkte aus den VIS-Views
   LoggingAnalyzer.cs            Logging-Verbindungen je Datenpunkt und Instanz
+  HistoryBackupAnalyzer.cs      eingeschaltete History-Sicherung ohne hinterlegten Pfad
   AliasAnalyzer.cs              Aliasse samt Ziel und Konvertierungsfunktion
   ConverterGenerator.cs         Konverter-Vorschlag aus common.states
   CleanupScriptGenerator.cs     Aufräum-Skript für die ioBroker-CLI

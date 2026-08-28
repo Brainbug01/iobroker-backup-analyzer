@@ -49,8 +49,14 @@ public static class BackupCheckPresenter
     }
 
     /// <summary>
-    /// Alle Prüfzeilen: zuerst die beiden Pflichtdateien, dann die optionalen JSON-Dateien
-    /// aus dem files/-Baum — kaputte zuerst, damit sie nicht in der Liste untergehen.
+    /// Alle Prüfzeilen: zuerst die beiden Pflichtdateien, dann der History-Befund, falls es
+    /// einen gibt (siehe <see cref="HistoryBackupAnalyzer"/>), dann die optionalen
+    /// JSON-Dateien aus dem files/-Baum — kaputte zuerst, damit sie nicht untergehen.
+    ///
+    /// Der History-Befund ist die einzige Zeile hier, die nicht von einer Datei im Archiv
+    /// handelt, sondern von einer Einstellung darin. Er passt trotzdem hierher: Die Frage
+    /// dieses Tabs ist „taugt dieses Backup im Ernstfall", und ein Archiv ohne die Verläufe,
+    /// die man gesichert glaubte, taugt genau dann nicht.
     /// </summary>
     public static List<CheckRow> BuildRows(BackupData data)
     {
@@ -79,6 +85,12 @@ public static class BackupCheckPresenter
                                 + "die Datei aus dem Wurzelordner.",
                                   CheckSeverity.Info));
 
+        // Vor die optionalen Dateien, nicht dahinter: In einer Anlage mit vielen Ordnern
+        // stehen dort dreistellig viele Zeilen, in denen ein einzelner Hinweis untergeht.
+        foreach (var b in HistoryBackupAnalyzer.Analyze(data))
+            rows.Add(new CheckRow(b.BackitupInstance, "Sicherung", "History-Pfad fehlt",
+                                  HistoryBackupDetail(b), CheckSeverity.Problem));
+
         foreach (var f in v.OptionalFiles
                      .OrderBy(f => f.Valid)
                      .ThenBy(f => f.ShortPath, StringComparer.OrdinalIgnoreCase))
@@ -89,6 +101,26 @@ public static class BackupCheckPresenter
 
         return rows;
     }
+
+    /// <summary>
+    /// Der Erklärtext zum History-Befund. Er steht vollständig in der Details-Spalte und
+    /// nicht in einem Hinweisfeld darunter — aus demselben Grund wie bei
+    /// <see cref="WhereToFind"/>: Der CSV-Export enthält nur die Tabelle.
+    ///
+    /// Drei Dinge muss der Satz leisten, sonst löst er nichts aus: was fehlt, warum das
+    /// niemandem auffällt, und was zu tun ist. Die Entwarnung am Ende gehört dazu — ohne sie
+    /// liest sich der Befund wie eine Verlustmeldung, dabei sind die Daten noch da.
+    /// </summary>
+    public static string HistoryBackupDetail(HistoryBackupFinding b) =>
+        $"In dieser Backitup-Instanz ist die History-Sicherung eingeschaltet, aber kein Pfad "
+        + "hinterlegt. Backitup legt dann zwar ein Archiv an, die Verlaufsdaten von "
+        + $"{string.Join(", ", b.HistoryInstances)} sind darin aber nicht enthalten — und "
+        + "gemeldet wird das nicht, das Backup gilt als erfolgreich. In einem gewöhnlichen "
+        + "Voll-Backup stehen die Verläufe ohnehin nie.  ·  Zu tun: im Admin die Instanz "
+        + $"{b.BackitupInstance} öffnen → Reiter „History Backup\" → „Detect config\" holt den "
+        + "Pfad aus dem History-Adapter.  ·  Es ist nichts verloren: Aufgezeichnet wird "
+        + "weiter, die Daten liegen auf dem Rechner und sind ab dem nächsten Backup "
+        + "vollständig im Archiv.";
 
     /// <summary>Verzeichnis der Datei-Datenbank auf einem Standard-ioBroker-Host.</summary>
     private const string FileDbRoot = "/opt/iobroker/iobroker-data/files/";

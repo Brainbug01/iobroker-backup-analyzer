@@ -164,8 +164,36 @@ public sealed class IobObject
     /// </summary>
     public IReadOnlyList<AdapterRefCandidate>? NativeRefs { get; init; }
 
+    /// <summary>
+    /// Nur bei einer Backitup-Instanz gesetzt, und auch dort nur, wenn deren native-Abschnitt
+    /// die Einstellung wirklich mitbringt. null heißt „nicht bekannt" — nicht „ausgeschaltet".
+    /// </summary>
+    public HistoryBackupSetting? HistoryBackup { get; init; }
+
     /// <summary>Nur bei type=script gesetzt.</summary>
     public ScriptInfo? Script { get; init; }
+}
+
+/// <summary>
+/// Die History-Sicherung einer Backitup-Instanz, auf das Nötigste eingedampft.
+///
+/// <b>Warum nur zwei Wahrheitswerte und nicht der Pfad selbst?</b> Für die Prüfung zählt
+/// allein, ob überhaupt einer hinterlegt ist. Der Pfad selbst ist eine Angabe aus einer
+/// fremden Anlage, die niemand braucht — und der native-Abschnitt ist genau der Ort, an dem
+/// auch Passwörter und Hostnamen stehen. Was nicht gespeichert wird, kann in keiner Anzeige
+/// und keinem Export auftauchen; dieselbe Linie zieht bereits
+/// <see cref="IobObject.NativeRefs"/>.
+/// </summary>
+public sealed class HistoryBackupSetting
+{
+    /// <summary>Wert von <c>native.historyEnabled</c> — der Haken „History Backup".</summary>
+    public bool Enabled { get; init; }
+
+    /// <summary>
+    /// true, wenn <c>native.historyPath</c> eine nichtleere Zeichenkette ist. Ob der Pfad
+    /// auf dem gesicherten Rechner auch existiert, ist von hier aus nicht feststellbar.
+    /// </summary>
+    public bool PathSet { get; init; }
 }
 
 /// <summary>

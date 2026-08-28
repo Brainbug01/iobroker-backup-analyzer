@@ -2118,6 +2118,146 @@ Check("Ohne beschädigte Dateien kein Reparaturhinweis",
           new("objects.jsonl", "Pflicht", "gültig", "alle gültig", CheckSeverity.Ok)
       }) is null);
 
+// --- History-Sicherung ohne Pfad ---
+// Der Fall aus dem Forum: Backitup soll die Verlaufsdaten sichern, hat dafür aber keinen
+// Ordner hinterlegt. Es entsteht trotzdem ein Archiv — nur ohne die Verläufe, und gemeldet
+// wird nichts. Die Prüfung muss genau diesen Fall zeigen und in jedem anderen schweigen.
+Console.WriteLine("\n=== History-Sicherung ohne Pfad ===");
+
+BackupData HistoryAnlage(bool historyAktiv, bool backitupAktiv,
+                         bool? sicherungAn, bool pfadGesetzt)
+{
+    var instanzen = new List<AdapterInstance>
+    {
+        new() { Adapter = "backitup", Instance = 0, Enabled = backitupAktiv }
+    };
+    instanzen.Add(new AdapterInstance
+        { Adapter = "history", Instance = 0, Enabled = historyAktiv });
+
+    var objekte = new List<IobObject>
+    {
+        new()
+        {
+            Id = "system.adapter.backitup.0",
+            Type = "instance",
+            HistoryBackup = sicherungAn is null
+                ? null
+                : new HistoryBackupSetting { Enabled = sicherungAn.Value, PathSet = pfadGesetzt }
+        }
+    };
+
+    return new BackupData
+    {
+        SourceFile = "kunstanlage.tar.gz",
+        Kind = BackupKind.Full,
+        Instances = instanzen,
+        Objects = objekte
+    };
+}
+
+var derFall = HistoryAnlage(historyAktiv: true, backitupAktiv: true,
+                            sicherungAn: true, pfadGesetzt: false);
+var befunde = HistoryBackupAnalyzer.Analyze(derFall);
+Check("Eingeschaltete History-Sicherung ohne Pfad wird gemeldet", befunde.Count == 1);
+Check("Befund nennt die betroffene Backitup-Instanz",
+      befunde.Count == 1 && befunde[0].BackitupInstance == "backitup.0");
+Check("Befund nennt die betroffene History-Instanz",
+      befunde.Count == 1 && befunde[0].HistoryInstances.Contains("history.0"));
+
+// Jede der vier Bedingungen einzeln weggenommen: Die Prüfung muss stumm bleiben. Das ist
+// die eigentliche Zusage — eine Prüfung, die auch nur gelegentlich grundlos anspringt,
+// wird nach dem zweiten Mal überlesen.
+Check("Ohne laufenden History-Adapter kein Befund",
+      HistoryBackupAnalyzer.Analyze(
+          HistoryAnlage(false, true, true, false)).Count == 0);
+Check("Bei abgeschalteter Backitup-Instanz kein Befund",
+      HistoryBackupAnalyzer.Analyze(
+          HistoryAnlage(true, false, true, false)).Count == 0);
+Check("Bei abgeschalteter History-Sicherung kein Befund",
+      HistoryBackupAnalyzer.Analyze(
+          HistoryAnlage(true, true, false, false)).Count == 0);
+Check("Mit hinterlegtem Pfad kein Befund",
+      HistoryBackupAnalyzer.Analyze(
+          HistoryAnlage(true, true, true, true)).Count == 0);
+
+// Der wichtigste Fall: Steht die Einstellung nicht im Backup, wissen wir nichts. „Nicht
+// bekannt" darf nie zu „nicht gesetzt" werden — sonst meldet die Prüfung einen Fehler,
+// der nur daher rührt, dass das Archiv die Adapter-Konfigurationen nicht mitbringt.
+Check("Ohne Angabe im Backup kein Befund",
+      HistoryBackupAnalyzer.Analyze(
+          HistoryAnlage(true, true, null, false)).Count == 0);
+
+// Dasselbe am echten Weg statt am Modell: ein gebautes Archiv, durch den Loader gelesen.
+// Fünf Backitup-Instanzen in einem Backup, jede mit einer anderen Ausgangslage — so wird
+// mitgeprüft, dass die zwei Felder überhaupt aus dem native-Abschnitt herauskommen.
+var histDir = Path.Combine(Path.GetTempPath(), "iob-verify-history");
+if (Directory.Exists(histDir)) Directory.Delete(histDir, true);
+Directory.CreateDirectory(Path.Combine(histDir, "backup"));
+
+static string InstanzZeile(string id, string name, string native) =>
+    $"{{\"_id\":\"{id}\",\"type\":\"instance\"," +
+    $"\"common\":{{\"name\":\"{name}\",\"version\":\"1.0.0\",\"enabled\":true}}," +
+    $"\"native\":{native}}}";
+
+File.WriteAllText(Path.Combine(histDir, "backup", "objects.jsonl"),
+    string.Join("\n", new[]
+    {
+        InstanzZeile("system.adapter.history.0", "history", "{\"storeDir\":\"\"}"),
+        // leerer Pfad — der Fall aus dem Forum
+        InstanzZeile("system.adapter.backitup.0", "backitup",
+                     "{\"historyEnabled\":true,\"historyPath\":\"\"}"),
+        // nur Leerzeichen: im Admin dasselbe leere Feld
+        InstanzZeile("system.adapter.backitup.1", "backitup",
+                     "{\"historyEnabled\":true,\"historyPath\":\"   \"}"),
+        // Pfad gesetzt — nichts zu melden
+        InstanzZeile("system.adapter.backitup.2", "backitup",
+                     "{\"historyEnabled\":true,\"historyPath\":\"/opt/iobroker/iobroker-data/history\"}"),
+        // Einstellung fehlt im Backup — nichts zu melden, weil nichts bekannt ist
+        InstanzZeile("system.adapter.backitup.3", "backitup", "{\"ccuEnabled\":false}"),
+        // fremder Adapter mit gleichlautenden Feldern: gehört nicht dazu
+        InstanzZeile("system.adapter.fremd.0", "fremd",
+                     "{\"historyEnabled\":true,\"historyPath\":\"\"}")
+    }) + "\n");
+
+var histTar = Path.Combine(histDir, "iobroker_2026_08_28-03_00_00_backupiobroker.tar.gz");
+CreateTarGz(Path.Combine(histDir, "backup"), histTar);
+
+var histBefunde = HistoryBackupAnalyzer.Analyze(BackupLoader.Load(histTar));
+Check("Aus dem Archiv gelesen: genau die zwei Instanzen ohne Pfad",
+      histBefunde.Count == 2
+      && histBefunde.Any(b => b.BackitupInstance == "backitup.0")
+      && histBefunde.Any(b => b.BackitupInstance == "backitup.1"),
+      string.Join(", ", histBefunde.Select(b => b.BackitupInstance)));
+Check("Gesetzter Pfad, fehlende Angabe und fremder Adapter bleiben stumm",
+      histBefunde.All(b => b.BackitupInstance is not ("backitup.2" or "backitup.3" or "fremd.0")));
+
+Directory.Delete(histDir, true);
+
+// Die Zeile in der Tabelle: Sie muss sagen, was fehlt, was zu tun ist — und dass nichts
+// verloren ist. Ohne den letzten Teil liest sich der Befund wie eine Verlustmeldung.
+var historyZeilen = BackupCheckPresenter.BuildRows(derFall)
+    .Where(r => r.Kind == "Sicherung").ToList();
+Check("Prüfzeile erscheint in der Backup-Prüfung", historyZeilen.Count == 1);
+Console.WriteLine($"  Befundzeile: {historyZeilen[0].Result}");
+Console.WriteLine($"  {historyZeilen[0].Detail}");
+Check("Befundzeile nennt den Weg im Admin",
+      historyZeilen[0].Detail.Contains("Detect config"));
+Check("Befundzeile gibt Entwarnung zur Aufzeichnung",
+      historyZeilen[0].Detail.Contains("Es ist nichts verloren"));
+Check("Befundzeile erklärt, warum es nicht auffällt",
+      historyZeilen[0].Detail.Contains("gilt als erfolgreich"));
+
+// Ohne Befund keine Zeile. Auch keine grüne: Eine Prüfung, die im Normalfall nichts zu
+// sagen hat, sagt nichts — so war es abgestimmt.
+Check("Ohne Befund keine Zeile in der Prüfung",
+      BackupCheckPresenter.BuildRows(HistoryAnlage(true, true, true, true))
+                          .All(r => r.Kind != "Sicherung"));
+
+// Der Reparaturhinweis unter der Tabelle gehört den beschädigten Dateien. Er darf von
+// diesem Befund nicht ausgelöst werden — sein Text passt darauf nicht.
+Check("History-Befund loest keinen Reparaturhinweis aus",
+      BackupCheckPresenter.RepairHint(BackupCheckPresenter.BuildRows(derFall)) is null);
+
 // --- Lücken, die ioBroker meldet, die Prüfung aber übersah ---
 // Maßstab ist durchgehend, was node beim Einlesen tut. Alle drei Fälle wurden gegen
 // node gegengeprüft: dort ungültig, hier zuvor „gültig" oder gar nicht erst geprüft.
