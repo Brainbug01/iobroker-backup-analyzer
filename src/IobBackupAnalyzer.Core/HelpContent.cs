@@ -190,7 +190,10 @@ public static class HelpContent
             "im Rumpf eines Auslösers startet und nirgends im Skript gelöscht wird: Löst der Auslöser " +
             "erneut aus, bevor der Timer abgelaufen ist, wird nur die Variable überschrieben — der " +
             "vorige Timer läuft weiter und feuert trotzdem, bei jedem Auslösen einer mehr. Abhilfe ist " +
-            "der Baustein „Timeout löschen\" mit demselben Namen vor dem Starten. Ob daraus ein " +
+            "der Baustein „Timeout löschen\" mit demselben Namen vor dem Starten — oder ein „falls\", " +
+            "dessen Bedingung den Wert-Baustein „Verzögerung\" desselben Namens prüft; der Adapter " +
+            "setzt die Variable beim Ablauf selbst auf null, ein zweiter Timer startet so nie. Beide " +
+            "Formen gelten als gelöscht und werden nicht gemeldet. Ob daraus ein " +
             "Problem wird, hängt davon ab, wie oft der Auslöser feuert; diese Häufigkeit steht nicht " +
             "im Backup. Sind Start und Löschung beide abgeschaltet, ruht das Paar und wird nicht " +
             "gemeldet — ein abgeschaltetes Löschen entlastet allerdings nur einen ebenfalls " +

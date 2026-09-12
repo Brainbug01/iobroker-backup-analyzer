@@ -103,10 +103,16 @@ public sealed record ScriptHint(ScriptHintKind Kind, string BlockType, string Bl
           + "Skript gelöscht. Blockly erzeugt daraus eine Zuweisung der Form "
           + $"„{Detail} = setTimeout(…)\". Löst der Auslöser erneut aus, bevor der Timer "
           + "abgelaufen ist, wird nur die Variable überschrieben — der vorige Timer läuft "
-          + "weiter und feuert trotzdem. Bei jedem Auslösen kommt einer hinzu.\n\n"
+          + "weiter und feuert trotzdem. Bei jedem Auslösen kommt einer hinzu. Bei einem "
+          + "Timeout setzt der ältere beim Ablauf zudem die gemeinsame Variable auf null "
+          + "(javascript-Adapter ab 7.0.5) — der jüngere ist danach auch mit „Timeout "
+          + "löschen\" nicht mehr zu erreichen.\n\n"
           + "Abhilfe: Im Blockly-Editor vor dem Starten den Baustein „Timeout löschen\" mit "
           + "demselben Namen setzen. Genau das erzeugt den Aufruf clearTimeout, der den "
-          + "vorigen Lauf beendet.\n\n"
+          + "vorigen Lauf beendet. Oder den Start in ein „falls\" setzen, dessen Bedingung "
+          + "den Wert-Baustein „Verzögerung\" mit demselben Namen prüft: Der liefert die "
+          + "Variable, und weil sie beim Ablauf auf null geht, startet kein zweiter Timer, "
+          + "solange der erste läuft. Beide Formen erkennt das Werkzeug.\n\n"
           + "Ob daraus ein Problem wird, hängt davon ab, wie oft der Auslöser feuert: "
           + "Kommt er seltener als die eingestellte Verzögerung, überlappen sich die Timer "
           + "nie. Diese Häufigkeit steht nicht im Backup — belegt ist allein, dass der Timer "
@@ -250,13 +256,18 @@ public static class ScriptQualityAnalyzer
     ///
     /// Ein Gegenstück je Art genügt: Zum Löschen gibt es nur <c>timeouts_cleartimeout</c>
     /// und <c>timeouts_clearinterval</c>, unabhängig davon, wie die Verzögerung gesetzt wurde.
+    ///
+    /// <b>Der dritte Baustein je Art ist der Wert-Baustein</b> <c>timeouts_gettimeout</c> /
+    /// <c>timeouts_getinterval</c> (im Editor „Verzögerung" bzw. „Intervall" als Wert). Er
+    /// erzeugt schlicht den Variablennamen und dient als Bedingung in einem „falls":
+    /// <c>if (!timer) { timer = setTimeout(…) }</c>. Siehe <see cref="CollectTimers"/>.
     /// </summary>
-    private static readonly (string Start, string Stop)[] TimerBlocks =
+    private static readonly (string Start, string Stop, string Get)[] TimerBlocks =
     {
-        ("timeouts_settimeout", "timeouts_cleartimeout"),
-        ("timeouts_settimeout_variable", "timeouts_cleartimeout"),
-        ("timeouts_setinterval", "timeouts_clearinterval"),
-        ("timeouts_setinterval_variable", "timeouts_clearinterval")
+        ("timeouts_settimeout", "timeouts_cleartimeout", "timeouts_gettimeout"),
+        ("timeouts_settimeout_variable", "timeouts_cleartimeout", "timeouts_gettimeout"),
+        ("timeouts_setinterval", "timeouts_clearinterval", "timeouts_getinterval"),
+        ("timeouts_setinterval_variable", "timeouts_clearinterval", "timeouts_getinterval")
     };
 
     /// <summary>
@@ -293,21 +304,34 @@ public static class ScriptQualityAnalyzer
     /// „wird nie gelöscht" und warnte damit vor einer Falle, die es nicht gibt — gefunden
     /// am 28.08.2026 an einem Skript, in dem Start und Löschung beide von Hand abgeschaltet
     /// waren.
+    ///
+    /// <b>Die zweite Entlastung: der bewachte Start.</b> Seit javascript-Adapter 7.0.5 setzt
+    /// der erzeugte Timeout-Rumpf die Variable beim Ablauf selbst auf null
+    /// (<c>timer = setTimeout(async () => { timer = null; … })</c>). Damit ist ein Start ohne
+    /// jedes Löschen korrekt, wenn er in einem „falls" steht, dessen Bedingung den
+    /// Wert-Baustein desselben Namens prüft: Solange der Timer läuft, ist die Variable
+    /// belegt und der Zweig wird nicht betreten. Für Intervalle fehlt das Nullsetzen, dort
+    /// bedeutet dieselbe Form „nur einmal starten" — ebenfalls kein Überlappen. Ob die
+    /// Bedingung verneint ist und ob der Start im Dann- oder Sonst-Zweig steht, wird nicht
+    /// unterschieden: Wer die Variable vor dem Start abfragt, hat die Falle gesehen, und die
+    /// andere Lesart („starten, wenn er läuft") ergibt keinen Sinn. Eingeführt am
+    /// 12.09.2026; in den Testdaten dieses Projekts kommt die Form nicht vor, der Wert-Baustein
+    /// ist aber Teil des Adapters und die Form damit zu erwarten.
     /// </summary>
     private static void CollectTimerHints(XmlNode root, List<ScriptHint> hints)
     {
-        foreach (var (start, stop) in TimerBlocks)
+        foreach (var (start, stop, get) in TimerBlocks)
         {
-            var gestartet = new List<(string Name, string Id, bool InTrigger, bool Disabled)>();
+            var gestartet = new List<(string Name, string Id, bool InTrigger, bool Disabled, bool Guarded)>();
             var geloeschtAktiv = new HashSet<string>(StringComparer.Ordinal);
             var geloeschtAlle = new HashSet<string>(StringComparer.Ordinal);
 
-            CollectTimers(root, start, stop, insideTrigger: false, insideDisabled: false,
-                          gestartet, geloeschtAktiv, geloeschtAlle);
+            CollectTimers(root, start, stop, get, insideTrigger: false, insideDisabled: false,
+                          guards: EmptyGuards, gestartet, geloeschtAktiv, geloeschtAlle);
 
-            foreach (var (name, id, inTrigger, disabled) in gestartet)
+            foreach (var (name, id, inTrigger, disabled, guarded) in gestartet)
             {
-                if (!inTrigger || name.Length == 0) continue;
+                if (!inTrigger || name.Length == 0 || guarded) continue;
 
                 var entlastet = disabled
                     ? geloeschtAlle.Contains(name)
@@ -320,19 +344,25 @@ public static class ScriptQualityAnalyzer
         }
     }
 
+    private static readonly HashSet<string> EmptyGuards = new(StringComparer.Ordinal);
+
     /// <summary>
     /// Sammelt Start- und Löschbausteine eines Timer-Paares. Rumpf- und Abschaltzustand
     /// folgen denselben Regeln wie in <see cref="Walk"/> — <c>next</c> führt zum Nachbarn,
-    /// nicht nach innen.
+    /// nicht nach innen. Dieselbe Regel gilt für <paramref name="guards"/>, die Namen, deren
+    /// Wert-Baustein in der Bedingung eines umschließenden „falls" steht: Sie gelten in den
+    /// Zweigen des „falls", nicht für das, was danach folgt.
     /// </summary>
-    private static void CollectTimers(XmlNode node, string start, string stop,
+    private static void CollectTimers(XmlNode node, string start, string stop, string get,
                                       bool insideTrigger, bool insideDisabled,
-                                      List<(string, string, bool, bool)> gestartet,
+                                      HashSet<string> guards,
+                                      List<(string, string, bool, bool, bool)> gestartet,
                                       HashSet<string> geloeschtAktiv,
                                       HashSet<string> geloeschtAlle)
     {
         var isTrigger = false;
         var disabled = insideDisabled;
+        var innerGuards = guards;
 
         if (node.NodeType == XmlNodeType.Element && node.LocalName == "block")
         {
@@ -345,7 +375,17 @@ public static class ScriptQualityAnalyzer
             var name = FieldValue(node, "NAME");
 
             if (type == start)
-                gestartet.Add((name, id, insideTrigger, disabled));
+                gestartet.Add((name, id, insideTrigger, disabled, guards.Contains(name)));
+
+            else if (type == "controls_if")
+            {
+                var eigene = GuardNames(node, get);
+                if (eigene.Count > 0)
+                {
+                    innerGuards = new HashSet<string>(guards, StringComparer.Ordinal);
+                    innerGuards.UnionWith(eigene);
+                }
+            }
 
             // Zwei Listen: Ein abgeschalteter Löschbaustein löscht nichts und darf einen
             // laufenden Timer nicht entlasten — für einen ebenfalls abgeschalteten Start
@@ -367,9 +407,45 @@ public static class ScriptQualityAnalyzer
                 ? insideDisabled
                 : disabled;
 
-            CollectTimers(child, start, stop, childInside, childDisabled,
+            var childGuards = child.NodeType == XmlNodeType.Element && child.LocalName == "next"
+                ? guards
+                : innerGuards;
+
+            CollectTimers(child, start, stop, get, childInside, childDisabled, childGuards,
                           gestartet, geloeschtAktiv, geloeschtAlle);
         }
+    }
+
+    /// <summary>
+    /// Die Timer-Namen, die ein „falls"-Baustein in seinen Bedingungen abfragt — jeder
+    /// Wert-Baustein vom Typ <paramref name="get"/> in einem <c>value</c>-Eingang namens
+    /// <c>IF0</c>, <c>IF1</c>, … Der Abschaltzustand des Wert-Bausteins spielt keine Rolle:
+    /// Ein abgeschalteter Wert lässt die Bedingung leer, und der Zweig wird gar nicht betreten.
+    /// </summary>
+    private static HashSet<string> GuardNames(XmlNode ifBlock, string get)
+    {
+        var names = new HashSet<string>(StringComparer.Ordinal);
+        foreach (XmlNode child in ifBlock.ChildNodes)
+        {
+            if (child.NodeType != XmlNodeType.Element || child.LocalName != "value") continue;
+            var input = child.Attributes?["name"]?.Value ?? "";
+            if (!input.StartsWith("IF", StringComparison.Ordinal)) continue;
+            CollectGetNames(child, get, names);
+        }
+        return names;
+    }
+
+    private static void CollectGetNames(XmlNode node, string get, HashSet<string> names)
+    {
+        if (node.NodeType == XmlNodeType.Element && node.LocalName == "block"
+            && (node.Attributes?["type"]?.Value ?? "") == get)
+        {
+            var name = FieldValue(node, "NAME");
+            if (name.Length > 0) names.Add(name);
+        }
+
+        foreach (XmlNode child in node.ChildNodes)
+            CollectGetNames(child, get, names);
     }
 
     /// <summary>Wem ein Datenpunkt gehört — entscheidet, welcher Schreib-Baustein richtig ist.</summary>

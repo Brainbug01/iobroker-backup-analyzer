@@ -405,6 +405,68 @@ var enumAusloeser = Hinweise(
 CheckEq("onEnumMembers gilt als Ausloeser",
         enumAusloeser.Count(h => h.Kind == ScriptHintKind.TimerWithoutClear), 1);
 
+// --------------------------------------------------------------------------------------
+// Bewachter Start — die zweite Entlastung (seit 1.32.0)
+//
+// Seit javascript-Adapter 7.0.5 setzt der erzeugte Timeout-Rumpf die Variable beim Ablauf
+// selbst auf null. Ein Start in einem „falls", dessen Bedingung den Wert-Baustein
+// timeouts_gettimeout desselben Namens prueft, kann deshalb nie ueberlappen — er braucht
+// kein „stop". Ohne diese Entlastung meldete das Werkzeug eine Form, die korrekt ist.
+
+static string BewachtXml(string wachName, string startTyp, string startName, string zweig) =>
+    "<block type=\"on\" id=\"A\"><statement name=\"STATEMENT\">"
+  + "<block type=\"controls_if\" id=\"I\">"
+  + "<value name=\"IF0\"><block type=\"logic_negate\" id=\"N\"><value name=\"BOOL\">"
+  + $"<block type=\"timeouts_gettimeout\" id=\"G\"><field name=\"NAME\">{wachName}</field>"
+  + "</block></value></block></value>"
+  + $"<statement name=\"{zweig}\"><block type=\"{startTyp}\" id=\"T\">"
+  + $"<field name=\"NAME\">{startName}</field></block></statement>"
+  + "</block></statement></block>";
+
+var bewacht = Hinweise(BewachtXml("meinTimer", "timeouts_settimeout", "meinTimer", "DO0"));
+CheckEq("Bewachter Start (falls nicht Verzoegerung) wird nicht gemeldet",
+        bewacht.Count(h => h.Kind == ScriptHintKind.TimerWithoutClear), 0);
+
+var bewachtVariable = Hinweise(BewachtXml("meinTimer", "timeouts_settimeout_variable", "meinTimer", "DO0"));
+CheckEq("Bewachter Start mit berechneter Verzoegerung wird nicht gemeldet",
+        bewachtVariable.Count(h => h.Kind == ScriptHintKind.TimerWithoutClear), 0);
+
+// Der Sonst-Zweig zaehlt ebenso: „falls Verzoegerung laeuft — sonst starten".
+var bewachtSonst = Hinweise(BewachtXml("meinTimer", "timeouts_settimeout", "meinTimer", "ELSE"));
+CheckEq("Bewachter Start im Sonst-Zweig wird nicht gemeldet",
+        bewachtSonst.Count(h => h.Kind == ScriptHintKind.TimerWithoutClear), 0);
+
+// Ein anderer Name in der Bedingung bewacht nichts.
+var falschBewacht = Hinweise(BewachtXml("andererTimer", "timeouts_settimeout", "meinTimer", "DO0"));
+CheckEq("Bedingung auf anderen Timer entlastet nicht",
+        falschBewacht.Count(h => h.Kind == ScriptHintKind.TimerWithoutClear), 1);
+
+// Die Wache gilt in den Zweigen des „falls", nicht fuer das, was danach folgt (next).
+var nachDemFalls = Hinweise(
+    "<block type=\"on\" id=\"A\"><statement name=\"STATEMENT\">"
+  + "<block type=\"controls_if\" id=\"I\">"
+  + "<value name=\"IF0\"><block type=\"timeouts_gettimeout\" id=\"G\">"
+  + "<field name=\"NAME\">meinTimer</field></block></value>"
+  + "<statement name=\"DO0\"><block type=\"debug\" id=\"D\"></block></statement>"
+  + "<next><block type=\"timeouts_settimeout\" id=\"T\">"
+  + "<field name=\"NAME\">meinTimer</field></block></next>"
+  + "</block></statement></block>");
+CheckEq("Start hinter dem falls (next) bleibt gemeldet",
+        nachDemFalls.Count(h => h.Kind == ScriptHintKind.TimerWithoutClear), 1);
+
+// Intervalle: kein Nullsetzen beim Ablauf, aber dieselbe Form heisst „nur einmal starten".
+var bewachtIntervall = Hinweise(
+    "<block type=\"on\" id=\"A\"><statement name=\"STATEMENT\">"
+  + "<block type=\"controls_if\" id=\"I\">"
+  + "<value name=\"IF0\"><block type=\"logic_negate\" id=\"N\"><value name=\"BOOL\">"
+  + "<block type=\"timeouts_getinterval\" id=\"G\"><field name=\"NAME\">meinLauf</field>"
+  + "</block></value></block></value>"
+  + "<statement name=\"DO0\"><block type=\"timeouts_setinterval\" id=\"T\">"
+  + "<field name=\"NAME\">meinLauf</field></block></statement>"
+  + "</block></statement></block>");
+CheckEq("Bewachtes Intervall wird nicht gemeldet",
+        bewachtIntervall.Count(h => h.Kind == ScriptHintKind.TimerWithoutClear), 0);
+
 // Kein XML und kaputtes XML duerfen nicht werfen: Ein Skript ohne dekodierbares Blockly
 // ist bereits ueber BlocklyBroken gemeldet und soll hier nicht ein zweites Mal auffallen.
 CheckEq("Ohne XML: keine Hinweise", ScriptQualityAnalyzer.Analyze(null).Count, 0);

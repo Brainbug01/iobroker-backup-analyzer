@@ -23,6 +23,21 @@ public static class ChangelogContent
     /// <summary>Neueste Version zuerst.</summary>
     public static IReadOnlyList<ChangelogEntry> Entries { get; } = new ChangelogEntry[]
     {
+        new("1.32.0", "12.09.2026", new[]
+        {
+            "Der Befund „Timer wird nie gelöscht\" kennt jetzt eine zweite gültige Form: den " +
+            "Start in einem „falls\", dessen Bedingung den Wert-Baustein „Verzögerung\" " +
+            "desselben Namens prüft. Der javascript-Adapter setzt die Timer-Variable seit " +
+            "Version 7.0.5 beim Ablauf selbst auf null; so bewacht startet nie ein zweiter " +
+            "Timer, solange der erste läuft, und ein „stop\" ist nicht nötig. Bisher wurde " +
+            "diese Form trotzdem gemeldet. Für Intervalle gilt dasselbe als „nur einmal " +
+            "starten\".",
+
+            "Die Begründung zum Befund nennt beide Abhilfen und die Folge, die seit 7.0.5 " +
+            "hinzukommt: Läuft der ältere Timer ab, setzt er die gemeinsame Variable auf " +
+            "null — der jüngere ist dann auch mit „stop\" nicht mehr zu erreichen."
+        }),
+
         new("1.31.0", "28.08.2026", new[]
         {
             "Wer eine der Zusatzsicherungen lädt, erfährt jetzt, was er erwischt hat. " +
