@@ -19,6 +19,8 @@ public partial class ScriptsView : UserControl
     private readonly CheckBox _hideDisabled;
     private readonly CheckBox _onlyWithHints;
     private readonly CheckBox _withGeneratedJs;
+    private readonly ComboBox _credentialFilter;
+    private readonly TextBlock _credentialLine;
     private readonly Button _exportAll;
     private readonly TextBlock _count;
     private readonly DataGrid _list;
@@ -49,6 +51,8 @@ public partial class ScriptsView : UserControl
         _hideDisabled = this.FindControl<CheckBox>("HideDisabled")!;
         _onlyWithHints = this.FindControl<CheckBox>("OnlyWithHints")!;
         _withGeneratedJs = this.FindControl<CheckBox>("WithGeneratedJs")!;
+        _credentialFilter = this.FindControl<ComboBox>("CredentialFilter")!;
+        _credentialLine = this.FindControl<TextBlock>("CredentialLine")!;
         _count = this.FindControl<TextBlock>("Count")!;
         _list = this.FindControl<DataGrid>("List")!;
         _hintsBox = this.FindControl<Border>("HintsBox")!;
@@ -73,10 +77,14 @@ public partial class ScriptsView : UserControl
         _searchMode.SelectedIndex = 0;
         _typeFilter.ItemsSource = ScriptsPresenter.TypeLabels;
         _typeFilter.SelectedIndex = 0;
+        _credentialFilter.ItemsSource = ScriptsPresenter.CredentialLabels;
+        _credentialFilter.SelectedIndex = 0;
+        ToolTip.SetTip(_credentialFilter, ScriptsPresenter.CredentialsHint);
 
         _search.TextChanged += (_, _) => ApplyFilter();
         _searchMode.SelectionChanged += (_, _) => ApplyFilter();
         _typeFilter.SelectionChanged += (_, _) => ApplyFilter();
+        _credentialFilter.SelectionChanged += (_, _) => ApplyFilter();
         _hideDisabled.IsCheckedChanged += (_, _) => ApplyFilter();
         _onlyWithHints.IsCheckedChanged += (_, _) => ApplyFilter();
         _list.SelectionChanged += (_, _) => ShowPreview();
@@ -125,6 +133,7 @@ public partial class ScriptsView : UserControl
             _list.ItemsSource = null;
             _preview.Text = "";
             _count.Text = "";
+            _credentialLine.Text = "";
             _viewChoice.IsVisible = false;
             _copyPreview.IsEnabled = false;
             _hintsBox.IsVisible = false;
@@ -133,6 +142,14 @@ public partial class ScriptsView : UserControl
         }
 
         ShowPlaceholder(false);
+
+        // Die Zeile hängt nur am Backup, nicht am Filter. Ohne Prüfung (Skript-Backup,
+        // älterer Admin oder javascript-Adapter) hätte der Filter nichts zu filtern.
+        _credentialLine.Text = ScriptsPresenter.CredentialLine(data);
+        ToolTip.SetTip(_credentialLine, ScriptsPresenter.CredentialLineDetails(data));
+        _credentialFilter.IsEnabled = data.Credentials.Supported;
+        if (!data.Credentials.Supported) _credentialFilter.SelectedIndex = 0;
+
         ApplyFilter();
     }
 
@@ -161,6 +178,7 @@ public partial class ScriptsView : UserControl
             _typeFilter.SelectedIndex = 0;
             _hideDisabled.IsChecked = false;
             _onlyWithHints.IsChecked = false;
+            _credentialFilter.SelectedIndex = 0;
             ApplyFilter();
         }
 
@@ -210,7 +228,7 @@ public partial class ScriptsView : UserControl
         _filtered = ScriptsPresenter.Sort(
             ScriptsPresenter.Filter(_data.Scripts, _hideDisabled.IsChecked == true,
                                     _typeFilter.SelectedIndex, CurrentSearchMode, _search.Text,
-                                    _onlyWithHints.IsChecked == true),
+                                    _onlyWithHints.IsChecked == true, _credentialFilter.SelectedIndex),
             column: -1, ascending: true);
 
         _list.ItemsSource = _filtered;

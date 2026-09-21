@@ -170,6 +170,19 @@ public sealed class IobObject
     /// </summary>
     public HistoryBackupSetting? HistoryBackup { get; init; }
 
+    /// <summary>
+    /// Nur bei <c>system.credentials.*</c> gesetzt: die Feldnamen des Eintrags (login,
+    /// password …). <b>Nur die Namen</b> — die Werte werden nicht gelesen, auch nicht die
+    /// verschlüsselten. Dieselbe Linie wie bei <see cref="HistoryBackup"/>.
+    /// </summary>
+    public IReadOnlyList<string>? CredentialFields { get; init; }
+
+    /// <summary>
+    /// Nur bei einer javascript-Instanz: <c>native.enableSecrets</c>. null heißt „steht
+    /// nicht im Backup" — nicht „ausgeschaltet".
+    /// </summary>
+    public bool? EnableSecrets { get; init; }
+
     /// <summary>Nur bei type=script gesetzt.</summary>
     public ScriptInfo? Script { get; init; }
 }
@@ -347,6 +360,16 @@ public sealed class ScriptInfo
     };
 
     public string StatusText => Enabled ? "Aktiv" : "Deaktiviert";
+
+    /// <summary>
+    /// Ergebnis der Zugangsdaten-Prüfung (siehe <see cref="CredentialAnalyzer"/>). null,
+    /// wenn nicht geprüft wurde — der javascript-Adapter im Backup ist älter als 10.1.1
+    /// oder seine Version steht nicht darin (Skript-Backup).
+    /// </summary>
+    public ScriptCredentials? Credentials { get; set; }
+
+    /// <summary>Text der Spalte „Zugangsdaten"; leer ohne Befund und ohne Prüfung.</summary>
+    public string CredentialText => Credentials?.Text ?? "";
 
     /// <summary>Voller Anzeigepfad, z. B. Heizung/Nachtabsenkung</summary>
     public string DisplayPath => string.IsNullOrEmpty(Folder) ? Name : Folder + "/" + Name;
@@ -1373,6 +1396,9 @@ public sealed class BackupData
     /// klassischen Einzeldateien nicht durchgeführt (WasChecked=false).
     /// </summary>
     public BackupValidation Validation { get; init; } = new();
+
+    /// <summary>Zugangsdaten-Prüfung der Skripte; ohne passenden javascript-Adapter leer.</summary>
+    public CredentialReport Credentials { get; init; } = new();
 
     public int ScriptsEnabled => Scripts.Count(s => s.Enabled);
     public int ScriptsDisabled => Scripts.Count(s => !s.Enabled);

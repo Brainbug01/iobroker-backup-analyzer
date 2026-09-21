@@ -67,6 +67,9 @@ public sealed class UiState
         public int TypeIndex { get; set; }
         public bool HideDisabled { get; set; }
         public bool OnlyWithHints { get; set; }
+
+        /// <summary>Index in <see cref="ScriptsPresenter.CredentialLabels"/>.</summary>
+        public int CredentialIndex { get; set; }
         public bool WithGeneratedJs { get; set; }
         public bool ShowXml { get; set; }
         public ScriptInfo? Selected { get; set; }

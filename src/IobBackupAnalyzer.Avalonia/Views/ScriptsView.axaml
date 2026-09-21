@@ -18,7 +18,7 @@
     </Grid>
 
     <!-- ================= Zählzeile und Aktionen ================= -->
-    <Grid Grid.Row="1" RowDefinitions="Auto,Auto" Margin="0,0,0,8">
+    <Grid Grid.Row="1" RowDefinitions="Auto,Auto,Auto" Margin="0,0,0,8">
       <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto,Auto,Auto">
         <TextBlock Name="Count" Grid.Column="0" VerticalAlignment="Center" Opacity="0.75" />
         <Button Name="Clipboard"      Grid.Column="1" Content="In Zwischenablage"      Margin="0,0,8,0" />
@@ -30,6 +30,15 @@
       <!-- Aus = je Skript genau eine Datei, so wie sie auch in ioBroker liegt. -->
       <CheckBox Name="WithGeneratedJs" Grid.Row="1" HorizontalAlignment="Right"
                 Margin="0,4,0,0" IsChecked="False" />
+
+      <!-- Zugangsdaten-Prüfung: Filter und die Zusammenfassung über das ganze Backup.
+           Texte und Tooltips kommen aus dem Presenter. -->
+      <Grid Grid.Row="2" ColumnDefinitions="Auto,Auto,*" Margin="0,4,0,0">
+        <TextBlock Grid.Column="0" Text="Zugangsdaten:" VerticalAlignment="Center" Margin="0,0,8,0" />
+        <ComboBox Name="CredentialFilter" Grid.Column="1" Width="200" />
+        <TextBlock Name="CredentialLine" Grid.Column="2" VerticalAlignment="Center"
+                   Margin="12,0,0,0" Opacity="0.75" TextTrimming="CharacterEllipsis" />
+      </Grid>
     </Grid>
 
     <!-- ================= Liste und Vorschau ================= -->
@@ -58,6 +67,7 @@
             <DataGridTextColumn Header="Typ"           Binding="{Binding EngineText}" Width="140" />
             <DataGridTextColumn Header="Status"        Binding="{Binding StatusText}" Width="120" />
             <DataGridTextColumn Header="Hinweise"      Binding="{Binding HintsText}"  Width="240" />
+            <DataGridTextColumn Header="Zugangsdaten"  Binding="{Binding CredentialText}" Width="200" />
           </DataGrid.Columns>
         </DataGrid>
 

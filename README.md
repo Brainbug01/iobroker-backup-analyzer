@@ -394,6 +394,49 @@ Blocks, und nur das ist der Befund. Im XML sehen beide gleich aus: eingerückte
 `<block>`-Elemente. In den Testdaten dieses Projekts liefert die ungenaue Prüfung 78
 Treffer, die genaue null.
 
+#### Spalte „Zugangsdaten" (seit 1.33.0)
+
+Seit **Admin 8** gibt es unter *System → Zugangsdaten* eine zentrale Ablage für Passwörter
+und Schlüssel: einmal hinterlegen, überall per Namen darauf verweisen. Ab
+**javascript-Adapter 10.1.1** holt ein Skript den Wert von dort mit `SECRETS.Name.feld`
+(entschlüsselt, schreibgeschützt); in Blockly gibt es dafür einen eigenen Baustein in der
+Kategorie „System". Die Spalte beantwortet, **ob die Skripte darauf umgebaut sind**.
+
+Geprüft wird nur, wenn das Backup **beide Voraussetzungen** erfüllt. Sonst nennt die Zeile
+über der Liste, welche fehlt — wer die Funktion nicht hat, kann nicht umbauen, und eine
+Liste von Fundstellen ohne Abhilfe wäre bloß ein Vorwurf. Bei einem Skript-Backup stehen
+keine Adapter-Versionen im Archiv; dort bleibt die Spalte leer.
+
+| Spalte | Bedeutung |
+|---|---|
+| **umgebaut** | Das Skript benutzt `SECRETS`, im Quelltext steht nichts mehr im Klartext. |
+| **Klartext (n)** | Im Quelltext stehen n Werte: als URL-Parameter (`…&password=…`, `&token=…`, `&key=…`), als Anmeldung in der Adresse (`http://benutzer:passwort@…`), als Zuweisung (`apiKey = '…'`, `"password": "…"`) oder in einer Authorization-Kopfzeile (`'Bearer …'`). |
+| **gemischt** | Beides. Meist ein Rest vom Umbau — oft eine **auskommentierte** alte Zeile. Die wird bewusst mitgemeldet: Sie wandert genauso mit ins Forum wie eine laufende. |
+| **unbekannt: Name** | Das Skript verlangt einen Eintrag, den es im Backup nicht gibt — Tippfehler oder gelöschter Eintrag. Groß- und Kleinschreibung zählt. |
+
+Der Filter **„Zugangsdaten"** zeigt wahlweise nur Klartext/gemischt, nur umgebaute Skripte
+oder nur die mit unbekanntem Eintrag. Die Zeile daneben zählt zusammen (umgebaut, mit
+Klartext, davon aktiv, angelegte Einträge); ihr Tooltip nennt die Einträge mit ihren
+**Feldnamen** und die, die kein Skript benutzt — ein Adapter kann sie trotzdem verwenden.
+Unter der Liste steht zu jeder Fundstelle die Zeile, bei Blockly die im erzeugten JavaScript.
+Aktive Skripte mit Klartext sind in der Liste hervorgehoben, deaktivierte bleiben gedämpft.
+
+**Was die Prüfung nicht tut.** Sie liest keine gespeicherten Werte — aus den Objekten
+`system.credentials.*` kommen nur die Feldnamen ins Programm, nicht einmal die
+verschlüsselten Werte. Und sie zeigt keinen gefundenen Wert an, nur seine Länge
+(`&password=<10 Zeichen>`); ein Bildschirmfoto der Liste verrät damit nichts. Das Backup
+enthält zwar den Schlüssel, mit dem sich die gespeicherten Passwörter entschlüsseln und
+dann wörtlich suchen ließen. Das wäre exakt statt musterbasiert — und ist bewusst nicht
+gebaut: Dieser Schlüssel hat in einem Anzeigewerkzeug nichts zu suchen.
+
+> **Grenzen.** Gesucht wird nach Mustern. Ein Schlüssel in einer Variablen mit
+> unauffälligem Namen (`const x = '…'`) wird nicht gefunden; „kein Klartext gefunden" ist
+> deshalb keine Garantie. Zwei Formen gelten ausdrücklich **nicht** als Klartext, weil sie
+> die umgebaute Schreibweise sind: `'&password=' + SECRETS…` (die Zeichenkette endet nach
+> dem Gleichheitszeichen) und `` `&password=${pass}` `` (ein Platzhalter). Holt ein Skript den
+> Namen erst zur Laufzeit (`SECRETS[variable]`), zählt es als umgebaut; der Abgleich mit den
+> angelegten Einträgen entfällt dann, und es wird kein Eintrag als unbenutzt gemeldet.
+
 ### Tab „Verwendung"
 Die Kreuzreferenz zwischen Skripten und Datenpunkten, **umschaltbar in beide Richtungen**.
 Oben die Liste, unten die Gegenseite des angeklickten Eintrags.

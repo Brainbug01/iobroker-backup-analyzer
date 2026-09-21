@@ -4559,7 +4559,13 @@ if (File.Exists(js)) tarArchive.Add(js);
 
 // Dazu das selbst erzeugte Pruefarchiv: Es enthaelt bewusst Sonderfaelle, die in einem
 // echten Backup nicht jedes Mal vorkommen.
-var tarPruefarchiv = Path.Combine(Path.GetTempPath(), "iob-tarvergleich.tar.gz");
+//
+// In einem EIGENEN Unterordner: ErzeugePruefarchiv raeumt den Ordner des Ziels vorab leer.
+// Bis v1.32.0 lag das Ziel direkt im Temp-Ordner — jeder Verifikationslauf loeschte damit
+// den gesamten Temp-Ordner des Benutzers, so weit er kam; die erste gesperrte Datei brach
+// ab, und das catch darunter hielt das fuer Alltag.
+var tarPruefordner = Path.Combine(Path.GetTempPath(), "iob-tarvergleich");
+var tarPruefarchiv = Path.Combine(tarPruefordner, "pruef.tar.gz");
 try
 {
     ErzeugePruefarchiv(tarPruefarchiv);
@@ -4636,7 +4642,7 @@ else
         }
     }
 
-    try { File.Delete(tarPruefarchiv); } catch { /* Aufraeumen ist Kuer */ }
+    try { Directory.Delete(tarPruefordner, true); } catch { /* Aufraeumen ist Kuer */ }
 }
 
 // Die Browser-Fassung darf hinter den Desktop-Fassungen zurueckliegen — sie ist juenger.
@@ -4660,6 +4666,186 @@ else
           webVersion.Success
           && new Version(webNummer) <= new Version(ChangelogContent.Entries[0].Version));
 }
+
+// --- Zugangsdaten in Skripten ---
+// Seit Admin 8 gibt es die zentrale Ablage, ab javascript 10.1.1 kommen Skripte mit
+// SECRETS.Name.feld daran. Geprüft wird, ob ein Skript umgebaut ist oder noch Klartext
+// trägt. Alle Werte hier sind erfunden; die Adressen stammen aus dem Dokumentationsnetz.
+Console.WriteLine("\n=== Zugangsdaten in Skripten ===");
+
+Check("javascript 10.1.1 kennt SECRETS", CredentialAnalyzer.Supports("10.1.1"));
+Check("javascript 10.1.0 kennt SECRETS nicht", !CredentialAnalyzer.Supports("10.1.0"));
+Check("javascript 9.9.9 kennt SECRETS nicht", !CredentialAnalyzer.Supports("9.9.9"));
+Check("Vorabfassung 10.2.0-alpha.3 zaehlt", CredentialAnalyzer.Supports("10.2.0-alpha.3"));
+Check("Ohne Versionsangabe keine Aussage", !CredentialAnalyzer.Supports(""));
+Check("Admin 8.0.0 hat die zentrale Ablage", CredentialAnalyzer.AdminSupports("8.0.0"));
+Check("Admin 7.7.22 hat sie nicht", !CredentialAnalyzer.AdminSupports("7.7.22"));
+
+var klarUrl = CredentialAnalyzer.Analyze(
+    "const url = 'http://192.0.2.10/cgi-bin/api.cgi?cmd=Snap&user=kamera&password=Geheim1234&width=1280';");
+Check("Passwort als URL-Parameter wird gefunden",
+      klarUrl.Findings.Count == 1 && klarUrl.Findings[0].Kind == CredentialFindingKind.UrlParameter);
+Check("Status dazu: Klartext", klarUrl.Status == CredentialStatus.Plaintext);
+Check("Die Fundstelle nennt die Laenge, nie den Wert",
+      klarUrl.Findings[0].Masked == "&password=<10 Zeichen>"
+      && !klarUrl.Findings[0].Masked.Contains("Geheim"));
+Check("Die Spalte nennt die Anzahl", klarUrl.Text == "Klartext (1)");
+
+var klarUser = CredentialAnalyzer.Analyze("request('rtsp://kamera:Geheim1234@192.0.2.10/stream');");
+Check("Anmeldung in der Adresse wird gefunden",
+      klarUser.Findings.Count == 1 && klarUser.Findings[0].Kind == CredentialFindingKind.UrlUserInfo);
+Check("Auch der Benutzername bleibt draussen",
+      !klarUser.Findings[0].Masked.Contains("kamera"));
+
+var klarZuweisung = CredentialAnalyzer.Analyze("\n\nAPIKey = 'abcdef0123456789abcdef0123456789';");
+Check("Schluessel in einer Zuweisung wird gefunden",
+      klarZuweisung.Findings.Count == 1 && klarZuweisung.Findings[0].Kind == CredentialFindingKind.Assignment);
+Check("Die Zeilennummer stimmt", klarZuweisung.Findings[0].Line == 3);
+
+Check("JSON-Schreibweise \"password\": \"…\" wird gefunden",
+      CredentialAnalyzer.Analyze("const o = { \"password\": \"Geheim1234\" };").Findings.Count == 1);
+Check("Bearer-Token in der Kopfzeile wird gefunden",
+      CredentialAnalyzer.Analyze("headers: { Authorization: 'Bearer abcdefghijklmnop1234' }")
+                        .Findings.Any(f => f.Kind == CredentialFindingKind.AuthHeader));
+
+// Die beiden Fallen aus echten Skripten: Beides ist die umgebaute Form.
+var blocklyUmgebaut = CredentialAnalyzer.Analyze(
+    "Tuer = ['http://192.0.2.10/api.cgi?user=',SECRETS['Kamera']?.login,'&password=',SECRETS['Kamera']?.password,'&width=1280'].join('');");
+Check("Blockly-Form '&password=' + SECRETS ist kein Klartext", blocklyUmgebaut.Findings.Count == 0);
+Check("… und gilt als umgebaut", blocklyUmgebaut.Status == CredentialStatus.Converted);
+Check("Name und Felder des Eintrags werden gelesen",
+      blocklyUmgebaut.Uses.Count == 2
+      && blocklyUmgebaut.Uses.All(u => u.Name == "Kamera")
+      && blocklyUmgebaut.Uses.Any(u => u.Field == "login")
+      && blocklyUmgebaut.Uses.Any(u => u.Field == "password"));
+
+var vorlage = CredentialAnalyzer.Analyze(
+    "const CREDENTIAL = 'Kamera';\nconst cred = SECRETS[CREDENTIAL];\n" +
+    "return `http://${ip}/api.cgi?user=${user}&password=${pass}&width=1280`;");
+Check("Platzhalter ${pass} ist kein Klartext", vorlage.Findings.Count == 0);
+Check("SECRETS[KONSTANTE] wird ueber die Konstante aufgeloest",
+      vorlage.Uses.Count == 1 && vorlage.Uses[0].Name == "Kamera");
+
+Check("Punktschreibweise SECRETS.Kamera.password",
+      CredentialAnalyzer.Analyze("const p = SECRETS.Kamera.password;").Uses
+          is [{ Name: "Kamera", Field: "password" }]);
+Check("Verkettung '…token='+meinToken+'…' ist kein Klartext",
+      CredentialAnalyzer.Analyze("const u = 'http://192.0.2.10/?token='+meinToken+'&x=1';").Findings.Count == 0);
+Check("Ein Satz ist kein Passwort",
+      CredentialAnalyzer.Analyze("const passwordHint = 'Bitte Passwort eingeben';").Findings.Count == 0);
+Check("Vergleich token == '…' ist keine Zuweisung",
+      CredentialAnalyzer.Analyze("if (token == 'abcdefgh') return;").Findings.Count == 0);
+Check("Platzhalter <password> und xxxx bleiben stumm",
+      CredentialAnalyzer.Analyze("// http://192.0.2.10/?password=<password>&token=xxxxxxxx").Findings.Count == 0);
+
+var umbauRest = CredentialAnalyzer.Analyze(
+    "// alt: http://192.0.2.10/?password=Geheim1234\nconst p = SECRETS.Kamera.password;\n// SECRETS.Alt.password");
+Check("Auskommentierter Klartext wird trotzdem gemeldet — und so benannt",
+      umbauRest.Findings is [{ InComment: true }]);
+Check("Rest vom Umbau ergibt „gemischt\"", umbauRest.Status == CredentialStatus.Mixed);
+Check("Auskommentiertes SECRETS zaehlt nicht als Umbau", umbauRest.Uses.All(u => u.Name != "Alt"));
+
+// Am echten Weg: ein gebautes Archiv, durch den Loader gelesen.
+static string SkriptZeile(string id, bool aktiv, string quelle) =>
+    $"{{\"_id\":\"{id}\",\"type\":\"script\",\"common\":{{\"name\":\"{id[(id.LastIndexOf('.') + 1)..]}\"," +
+    $"\"engineType\":\"Javascript/js\",\"enabled\":{(aktiv ? "true" : "false")}," +
+    $"\"source\":{JsonSerializer.Serialize(quelle)}}},\"native\":{{}}}}";
+
+static string AdapterZeile(string name, string version) =>
+    $"{{\"_id\":\"system.adapter.{name}\",\"type\":\"adapter\"," +
+    $"\"common\":{{\"name\":\"{name}\",\"version\":\"{version}\"}},\"native\":{{}}}}";
+
+BackupData ZugangsAnlage(string adminVersion, string jsVersion)
+{
+    var dir = Path.Combine(Path.GetTempPath(), "iob-verify-zugangsdaten");
+    if (Directory.Exists(dir)) Directory.Delete(dir, true);
+    Directory.CreateDirectory(Path.Combine(dir, "backup"));
+
+    File.WriteAllText(Path.Combine(dir, "backup", "objects.jsonl"), string.Join("\n", new[]
+    {
+        AdapterZeile("admin", adminVersion),
+        AdapterZeile("javascript", jsVersion),
+        InstanzZeile("system.adapter.javascript.0", "javascript", "{\"enableSecrets\":true}"),
+        "{\"_id\":\"system.credentials.Kamera\",\"type\":\"config\",\"common\":{\"name\":\"Kamera\"}," +
+        "\"native\":{\"type\":\"custom\",\"form\":\"login\",\"version\":1,\"encryptedFields\":[\"password\"]," +
+        "\"login\":\"kamera\",\"password\":\"$/aes-192-cbc:00:00\"}}",
+        "{\"_id\":\"system.credentials.Wetter\",\"type\":\"config\",\"common\":{\"name\":\"Wetter\"}," +
+        "\"native\":{\"type\":\"custom\",\"key\":\"$/aes-192-cbc:00:00\"}}",
+        SkriptZeile("script.js.Umgebaut", true, "const p = SECRETS.Kamera.password;"),
+        SkriptZeile("script.js.Klartext", true, "const u = 'http://192.0.2.10/?password=Geheim1234';"),
+        SkriptZeile("script.js.KlartextAus", false, "const u = 'http://192.0.2.10/?password=Geheim1234';"),
+        SkriptZeile("script.js.Tippfehler", true, "const p = SECRETS.kamera.password;"),
+        SkriptZeile("script.js.Ohne", true, "log('nichts');")
+    }) + "\n");
+
+    var tar = Path.Combine(dir, "iobroker_2026_09_21-03_00_00_backupiobroker.tar.gz");
+    CreateTarGz(Path.Combine(dir, "backup"), tar);
+    var daten = BackupLoader.Load(tar);
+    Directory.Delete(dir, true);
+    return daten;
+}
+
+var zugang = ZugangsAnlage("8.0.16", "10.2.5");
+ScriptInfo Skript(BackupData d, string name) => d.Scripts.Single(s => s.Name == name);
+
+Check("Mit Admin 8 und javascript 10.2 wird geprueft", zugang.Credentials.Supported);
+Check("Beide Eintraege werden gelesen — mit Feldnamen, ohne Verwaltungsfelder",
+      zugang.Credentials.Entries is [{ Name: "Kamera" }, { Name: "Wetter" }]
+      && zugang.Credentials.Entries[0].Fields.SequenceEqual(new[] { "login", "password" })
+      && zugang.Credentials.Entries[1].Fields.SequenceEqual(new[] { "key" }));
+Check("Unbenutzter Eintrag wird genannt",
+      zugang.Credentials.UnusedEntries.SequenceEqual(new[] { "Wetter" }));
+Check("Umgebautes Skript", Skript(zugang, "Umgebaut").CredentialText == "umgebaut");
+Check("Skript mit Klartext", Skript(zugang, "Klartext").CredentialText == "Klartext (1)");
+Check("Skript ohne Zugangsdaten bleibt leer", Skript(zugang, "Ohne").CredentialText == "");
+Check("Falsch geschriebener Eintrag wird als unbekannt gemeldet",
+      Skript(zugang, "Tippfehler").Credentials!.UnknownNames.SequenceEqual(new[] { "kamera" }));
+
+Check("Filter „Klartext oder gemischt\" zeigt beide Klartext-Skripte",
+      ScriptsPresenter.Filter(zugang.Scripts, false, 0, ScriptSearchMode.NameAndPath, "",
+                              credentialIndex: 1).Count == 2);
+Check("Filter „Umgebaut\"",
+      ScriptsPresenter.Filter(zugang.Scripts, false, 0, ScriptSearchMode.NameAndPath, "",
+                              credentialIndex: 2).Select(s => s.Name).SequenceEqual(new[] { "Tippfehler", "Umgebaut" }));
+Check("Filter „Unbekannter Eintrag\"",
+      ScriptsPresenter.Filter(zugang.Scripts, false, 0, ScriptSearchMode.NameAndPath, "",
+                              credentialIndex: 3) is [{ Name: "Tippfehler" }]);
+Check("Aktives Klartext-Skript wird hervorgehoben, deaktiviertes bleibt gedaempft",
+      ScriptsPresenter.Emphasis(Skript(zugang, "Klartext")) == RowEmphasis.Warn
+      && ScriptsPresenter.Emphasis(Skript(zugang, "KlartextAus")) == RowEmphasis.Muted);
+Check("Spaltenzahl und Zeile passen zusammen",
+      ScriptsPresenter.Row(Skript(zugang, "Klartext")).Length == ScriptsPresenter.Columns.Length);
+
+var zugangsZeile = ScriptsPresenter.CredentialLine(zugang);
+Console.WriteLine($"  {zugangsZeile}");
+Check("Die Zeile zaehlt umgebaut, Klartext und aktiv",
+      zugangsZeile.Contains("2 umgebaut") && zugangsZeile.Contains("2 mit Klartext, davon 1 aktiv")
+      && zugangsZeile.Contains("2 Einträge angelegt, 1 unbenutzt"));
+
+var zugangsDetails = ScriptsPresenter.HintDetails(Skript(zugang, "Klartext"));
+Check("Die Einzelheiten nennen Zeile und Abhilfe, nie den Wert",
+      zugangsDetails.Contains("Zeile 1") && zugangsDetails.Contains("SECRETS.Name.feld")
+      && !zugangsDetails.Contains("Geheim"));
+Check("Kein Wert aus dem Eintrag gelangt in eine Anzeige",
+      !ScriptsPresenter.CredentialLineDetails(zugang).Contains("aes-192"));
+
+// Fehlt eine der beiden Voraussetzungen, wird nicht geprüft — und gesagt, woran es liegt.
+var alterAdmin = ZugangsAnlage("7.7.22", "10.2.5");
+Check("Mit Admin 7 wird nicht geprueft",
+      !alterAdmin.Credentials.Supported && alterAdmin.Scripts.All(s => s.Credentials is null));
+Check("… und die Zeile nennt den Admin als Grund",
+      ScriptsPresenter.CredentialLine(alterAdmin).Contains("ab Admin 8"));
+
+var altesJs = ZugangsAnlage("8.0.16", "9.0.11");
+Check("Mit javascript 9 wird nicht geprueft", !altesJs.Credentials.Supported);
+Check("… und die Zeile nennt javascript als Grund",
+      ScriptsPresenter.CredentialLine(altesJs).Contains("ab javascript 10.1.1"));
+Check("Die Spalte bleibt dann leer", altesJs.Scripts.All(s => s.CredentialText == ""));
+
+// An der echten Anlage nur zeigen, nicht festschreiben: Die Zahlen beschreiben eine reale
+// Installation und aendern sich mit jedem Umbau.
+if (File.Exists(full))
+    Console.WriteLine($"  Referenzanlage: {ScriptsPresenter.CredentialLine(fullData)}");
 
 // ---------------------------------------------------------------- Ergebnis
 
@@ -4801,6 +4987,15 @@ static void ErzeugePruefarchiv(string ziel)
 {
     var ordner = Path.GetDirectoryName(ziel)!;
     var bau = Path.Combine(ordner, "bau");
+
+    // Der Ordner wird gleich rekursiv geloescht. Er muss deshalb ein eigener Unterordner
+    // des Temp-Ordners sein — nie der Temp-Ordner selbst und nichts ausserhalb davon.
+    var temp = Path.GetFullPath(Path.GetTempPath()).TrimEnd(Path.DirectorySeparatorChar);
+    var eltern = Path.GetDirectoryName(Path.GetFullPath(ordner).TrimEnd(Path.DirectorySeparatorChar));
+    if (!string.Equals(eltern, temp, StringComparison.OrdinalIgnoreCase))
+        throw new InvalidOperationException(
+            $"ErzeugePruefarchiv: Ziel muss in einem eigenen Unterordner des Temp-Ordners liegen, nicht in {ordner}");
+
     if (Directory.Exists(ordner)) Directory.Delete(ordner, true);
     Directory.CreateDirectory(Path.Combine(bau, "backup", "files", "pruef.0"));
     Directory.CreateDirectory(Path.Combine(bau, "backup", "fremdadapter.0", "backup"));

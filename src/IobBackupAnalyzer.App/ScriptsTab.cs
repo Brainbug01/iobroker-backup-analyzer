@@ -15,6 +15,11 @@ public sealed class ScriptsTab : UserControl
     private readonly CheckBox _withGeneratedJs = new();
     private readonly Label _count = new();
 
+    /// <summary>Filter und Zusammenfassung der Zugangsdaten-Prüfung — dritte Zeile der Leiste.</summary>
+    private readonly ComboBox _credentialFilter = new();
+    private readonly Label _credentialLine = new();
+    private readonly ToolTip _tips = new() { AutoPopDelay = 30000 };
+
     private readonly ListView _list = new();
     private readonly TextBox _hints = new();
     private readonly TextBox _preview = new();
@@ -50,7 +55,8 @@ public sealed class ScriptsTab : UserControl
 
         // ---------- Filterleiste ----------
         // 94 statt 68: unter den Export-Knöpfen steht der Umschalter für das Dateiformat.
-        var filterBar = TabLayout.TopBar(94);
+        // 122 statt 94: darunter die Zeile zur Zugangsdaten-Prüfung.
+        var filterBar = TabLayout.TopBar(122);
 
         var lblSearch = new Label { Text = "Suche:", Location = new Point(0, 9), Size = new Size(48, 20) };
         _search.Location = new Point(50, 6);
@@ -86,6 +92,20 @@ public sealed class ScriptsTab : UserControl
         _count.Location = new Point(0, 40);
         _count.Size = new Size(500, 20);
         _count.ForeColor = SystemColors.GrayText;
+
+        var lblCredential = new Label { Text = "Zugangsdaten:", Location = new Point(0, 99), Size = new Size(88, 20) };
+        _credentialFilter.Location = new Point(90, 96);
+        _credentialFilter.Size = new Size(180, 24);
+        _credentialFilter.DropDownStyle = ComboBoxStyle.DropDownList;
+        _credentialFilter.Items.AddRange(ScriptsPresenter.CredentialLabels.Cast<object>().ToArray());
+        _credentialFilter.SelectedIndex = 0;
+        _credentialFilter.SelectedIndexChanged += (_, _) => ApplyFilter();
+
+        _credentialLine.Location = new Point(280, 99);
+        _credentialLine.Size = new Size(TabLayout.DesignWidth - 280, 20);
+        _credentialLine.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+        _credentialLine.AutoEllipsis = true;
+        _credentialLine.ForeColor = SystemColors.GrayText;
 
         _btnClipboard.Text = "In Zwischenablage";
         _btnClipboard.Size = new Size(150, 26);
@@ -129,8 +149,9 @@ public sealed class ScriptsTab : UserControl
         filterBar.Controls.AddRange(new Control[]
         {
             lblSearch, _search, _searchMode, lblType, _typeFilter, _hideDisabled,
-            _onlyWithHints, _count, buttonBar
+            _onlyWithHints, _count, buttonBar, lblCredential, _credentialFilter, _credentialLine
         });
+        _tips.SetToolTip(_credentialFilter, ScriptsPresenter.CredentialsHint.Replace("\n", "\r\n"));
 
         // ---------- Liste + Vorschau ----------
         var split = new SplitContainer
@@ -162,6 +183,7 @@ public sealed class ScriptsTab : UserControl
         _list.Columns.Add("Typ", 140);
         _list.Columns.Add("Status", 90);
         _list.Columns.Add("Hinweise", 320);
+        _list.Columns.Add("Zugangsdaten", 200);
         _list.SelectedIndexChanged += (_, _) => ShowPreview();
         _list.ColumnClick += OnColumnClick;
         // Kopiert Listenwerte wie den ioBroker-Pfad. Der Quelltext des Skripts geht
@@ -251,6 +273,15 @@ public sealed class ScriptsTab : UserControl
     {
         _data = data;
         _sortColumn = -1;
+
+        // Die Zeile hängt nur am Backup, nicht am Filter. Ohne Prüfung (Skript-Backup,
+        // älterer Admin oder javascript-Adapter) hätte der Filter nichts zu filtern.
+        _credentialLine.Text = ScriptsPresenter.CredentialLine(data);
+        _tips.SetToolTip(_credentialLine,
+            ScriptsPresenter.CredentialLineDetails(data).Replace("\n", "\r\n"));
+        _credentialFilter.Enabled = data.Credentials.Supported;
+        if (!data.Credentials.Supported) _credentialFilter.SelectedIndex = 0;
+
         ApplyFilter();
     }
 
@@ -273,6 +304,7 @@ public sealed class ScriptsTab : UserControl
             _typeFilter.SelectedIndex = 0;
             _hideDisabled.Checked = false;
             _onlyWithHints.Checked = false;
+            _credentialFilter.SelectedIndex = 0;
             ApplyFilter();
         }
 
@@ -295,7 +327,7 @@ public sealed class ScriptsTab : UserControl
 
         _filtered = ScriptsPresenter.Filter(_data.Scripts, _hideDisabled.Checked,
                                             _typeFilter.SelectedIndex, CurrentSearchMode, _search.Text,
-                                            _onlyWithHints.Checked);
+                                            _onlyWithHints.Checked, _credentialFilter.SelectedIndex);
         ApplySort();
         FillList();
 

@@ -904,6 +904,8 @@ public static class BackupLoader
         log?.Step("Adapter-Verweise gesammelt");
         AddAckHints(objects, scripts, instances, states);
         log?.Step("Skript-Befunde ergaenzt");
+        var credentials = CredentialAnalyzer.Apply(objects, scripts);
+        log?.Step("Zugangsdaten in Skripten geprueft");
 
         return new BackupData
         {
@@ -922,7 +924,8 @@ public static class BackupLoader
             States = states ?? new Dictionary<string, StateInfo>(StringComparer.Ordinal),
             System = system ?? new SystemIdentity(),
             SkippedCount = skipped,
-            Validation = validation ?? new BackupValidation()
+            Validation = validation ?? new BackupValidation(),
+            Credentials = credentials
         };
     }
 

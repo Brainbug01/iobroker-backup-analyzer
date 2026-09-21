@@ -291,6 +291,31 @@ internal static class ObjectParser
             historyBackup = ParseHistoryBackup(id, instNative);
         }
 
+        // Zentrale Zugangsdaten (Admin ab 8): je Eintrag ein Objekt system.credentials.<Name>.
+        // Gelesen werden nur die Feldnamen. Die Verwaltungsfelder des Admins gehören nicht
+        // dazu — sie sind keine Zugangsdaten und im Skript nicht das, was man abruft.
+        IReadOnlyList<string>? credentialFields = null;
+        if (id.StartsWith(CredentialAnalyzer.CredentialPrefix, StringComparison.Ordinal)
+            && el.TryGetProperty("native", out var credNative)
+            && credNative.ValueKind == JsonValueKind.Object)
+        {
+            credentialFields = credNative.EnumerateObject()
+                .Select(p => p.Name)
+                .Where(n => n is not ("type" or "form" or "version" or "encryptedFields"))
+                .ToList();
+        }
+
+        bool? enableSecrets = null;
+        if (type == "instance"
+            && id.StartsWith(CredentialAnalyzer.InstancePrefix, StringComparison.Ordinal)
+            && el.TryGetProperty("native", out var jsNative)
+            && jsNative.ValueKind == JsonValueKind.Object
+            && jsNative.TryGetProperty("enableSecrets", out var es)
+            && es.ValueKind is JsonValueKind.True or JsonValueKind.False)
+        {
+            enableSecrets = es.ValueKind == JsonValueKind.True;
+        }
+
         ScriptInfo? script = null;
         if (type == "script" && hasCommon)
             script = ParseScript(id, common, name, enabled);
@@ -324,6 +349,8 @@ internal static class ObjectParser
             ChartRefs = chartRefs,
             NativeRefs = nativeRefs,
             HistoryBackup = historyBackup,
+            CredentialFields = credentialFields,
+            EnableSecrets = enableSecrets,
             EnumMembers = enumMembers,
             RestartSchedule = restartSchedule,
             LogLevel = logLevel,

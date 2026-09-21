@@ -59,6 +59,21 @@ else
                 <button class="knopf" @onclick="ListeAlsCsv">Liste als CSV</button>
             </div>
 
+            @* Zugangsdaten-Prüfung: Filter und die Zusammenfassung über das ganze Backup. *@
+            <div class="leiste">
+                <label for="skr-zugang" title="@ScriptsPresenter.CredentialsHint">Zugangsdaten:</label>
+                <select id="skr-zugang" class="feld" disabled="@(!Daten.Credentials.Supported)"
+                        title="@ScriptsPresenter.CredentialsHint" @onchange="ZugangGewaehlt">
+                    @for (var i = 0; i < ScriptsPresenter.CredentialLabels.Length; i++)
+                    {
+                        <option value="@i" selected="@(S.CredentialIndex == i)">@ScriptsPresenter.CredentialLabels[i]</option>
+                    }
+                </select>
+                <span class="zaehler" title="@ScriptsPresenter.CredentialLineDetails(Daten)">
+                    @ScriptsPresenter.CredentialLine(Daten)
+                </span>
+            </div>
+
             <div class="leiste rechts">
                 @* Aus = je Skript genau eine Datei, so wie sie auch in ioBroker liegt. *@
                 <label class="haken" title="@ScriptsPresenter.GeneratedJsHint">
@@ -126,7 +141,8 @@ else
             ? new List<ScriptInfo>()
             : ScriptsPresenter.Sort(
                 ScriptsPresenter.Filter(Daten.Scripts, S.HideDisabled, S.TypeIndex, S.Mode,
-                                        S.Search, S.OnlyWithHints),
+                                        S.Search, S.OnlyWithHints,
+                                        Daten.Credentials.Supported ? S.CredentialIndex : 0),
                 column: -1, ascending: true);
 
     private string Zaehler => _rueckmeldung
@@ -188,6 +204,7 @@ else
             S.TypeIndex = 0;
             S.HideDisabled = false;
             S.OnlyWithHints = false;
+            S.CredentialIndex = 0;
         }
 
         var liste = Gefiltert;
@@ -218,13 +235,19 @@ else
         if (int.TryParse(e.Value?.ToString(), out var i)) S.TypeIndex = i;
     }
 
+    private void ZugangGewaehlt(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var i)) S.CredentialIndex = i;
+    }
+
     private static readonly TableColumn<ScriptInfo>[] Spalten =
     {
         new() { Header = "Name",          Width = 220, Text = s => s.Name },
         new() { Header = "ioBroker-Pfad", Width = 400, Text = s => s.Id },
         new() { Header = "Typ",           Width = 140, Text = s => s.EngineText },
         new() { Header = "Status",        Width = 120, Text = s => s.StatusText, SortKey = s => s.Enabled },
-        new() { Header = "Hinweise",      Width = 240, Text = s => s.HintsText }
+        new() { Header = "Hinweise",      Width = 240, Text = s => s.HintsText },
+        new() { Header = "Zugangsdaten",  Width = 200, Text = s => s.CredentialText }
     };
 
     private async Task ListeAlsCsv() =>

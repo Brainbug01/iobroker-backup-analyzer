@@ -23,6 +23,27 @@ public static class ChangelogContent
     /// <summary>Neueste Version zuerst.</summary>
     public static IReadOnlyList<ChangelogEntry> Entries { get; } = new ChangelogEntry[]
     {
+        new("1.33.0", "21.09.2026", new[]
+        {
+            "Neu im Tab „Skripte\": die Spalte „Zugangsdaten\". Seit Admin 8 gibt es unter " +
+            "System → Zugangsdaten eine zentrale Ablage für Passwörter und Schlüssel, und ab " +
+            "javascript-Adapter 10.1.1 holt ein Skript sie von dort mit SECRETS.Name.feld. Die " +
+            "Spalte zeigt je Skript, ob es umgebaut ist, noch Klartext trägt oder beides — bei " +
+            "Blockly, JavaScript und TypeScript. Geprüft wird nur, wenn das Backup beide " +
+            "Voraussetzungen erfüllt; sonst sagt die Zeile über der Liste, welche fehlt.",
+
+            "Dazu ein Filter (Klartext oder gemischt / Umgebaut / Unbekannter Eintrag) und eine " +
+            "Zeile mit der Zusammenfassung: wie viele Skripte umgebaut sind, wie viele noch " +
+            "Klartext tragen und wie viele davon laufen. Der Tooltip nennt die angelegten Einträge " +
+            "mit ihren Feldnamen und die, die kein Skript benutzt.",
+
+            "Gegenprobe: Verlangt ein Skript einen Eintrag, den es im Backup nicht gibt — " +
+            "Tippfehler, gelöschter Eintrag —, steht er als „unbekannt\" in der Spalte.",
+
+            "Gefundene Werte werden nie angezeigt, nur ihre Länge; gespeicherte Werte werden gar " +
+            "nicht erst gelesen. Ein Bildschirmfoto der Liste verrät damit nichts."
+        }),
+
         new("1.32.0", "12.09.2026", new[]
         {
             "Der Befund „Timer wird nie gelöscht\" kennt jetzt eine zweite gültige Form: den " +

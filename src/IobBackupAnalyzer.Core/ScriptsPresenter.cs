@@ -15,7 +15,7 @@ public enum ScriptSearchMode
 /// </summary>
 public static class ScriptsPresenter
 {
-    public static readonly string[] Columns = { "Name", "ioBroker-Pfad", "Typ", "Status", "Hinweise" };
+    public static readonly string[] Columns = { "Name", "ioBroker-Pfad", "Typ", "Status", "Hinweise", "Zugangsdaten" };
 
     public static readonly string[] SearchModeLabels = { "Name/Pfad", "Im Code suchen" };
 
@@ -52,18 +52,110 @@ public static class ScriptsPresenter
       + "mit eigener ID. Bei JavaScript und TypeScript bleibt die Spalte leer.\n"
       + "Das ist keine Bewertung des Skripts, sondern eine Liste von Fundstellen.";
 
+    /// <summary>Auswahl des Zugangsdaten-Filters. Index 0 heißt „keine Einschränkung".</summary>
+    public static readonly string[] CredentialLabels =
+        { "Alle", "Klartext oder gemischt", "Umgebaut", "Unbekannter Eintrag" };
+
+    /// <summary>Was die Spalte „Zugangsdaten" meint — als Tooltip an Filter und Zeile.</summary>
+    public const string CredentialsHint =
+        "Seit Admin 8 gibt es unter System → Zugangsdaten eine zentrale Ablage für Passwörter "
+      + "und Schlüssel. Ab javascript-Adapter 10.1.1 holt ein Skript sie von dort mit "
+      + "SECRETS.Name.feld; in Blockly gibt es dafür einen eigenen Baustein in der Kategorie "
+      + "„System\" (englisch „Access Data\").\n"
+      + "umgebaut: Das Skript benutzt SECRETS, im Quelltext steht nichts mehr im Klartext.\n"
+      + "Klartext: Im Quelltext steht ein Passwort, Token oder Schlüssel — in einer Adresse, "
+      + "einer Zuweisung oder einer Authorization-Kopfzeile.\n"
+      + "gemischt: beides. Meist ein Rest vom Umbau, auch in einer auskommentierten Zeile.\n"
+      + "unbekannt: Das Skript nennt einen Eintrag, den es im Backup nicht gibt.\n"
+      + "Gesucht wird nach Mustern, nicht nach den gespeicherten Werten — die bleiben "
+      + "ungelesen. Ein Schlüssel in einer Variablen mit unauffälligem Namen wird deshalb "
+      + "nicht gefunden. Die Fundwerte selbst werden nie angezeigt, nur ihre Länge.";
+
+    /// <summary>
+    /// Die Zeile unter der Zählzeile. Leer, wenn es nichts zu sagen gibt: bei einem
+    /// Skript-Backup (keine Adapter-Version bekannt) und ohne Skripte.
+    /// </summary>
+    public static string CredentialLine(BackupData data)
+    {
+        var r = data.Credentials;
+        if (data.Scripts.Count == 0) return "";
+
+        if (!r.Supported)
+        {
+            // Ohne Versionsangaben — ein Skript-Backup — gibt es nichts zu behaupten.
+            if (r.JavascriptVersion.Length == 0 || r.AdminVersion.Length == 0) return "";
+
+            return !CredentialAnalyzer.AdminSupports(r.AdminVersion)
+                ? "Zugangsdaten: nicht geprüft — die zentrale Ablage gibt es ab Admin "
+                + $"{CredentialAnalyzer.MinAdminVersion.Major}, im Backup ist {r.AdminVersion}"
+                : "Zugangsdaten: nicht geprüft — SECRETS gibt es ab javascript "
+                + $"{CredentialAnalyzer.MinJavascriptVersion}, im Backup ist {r.JavascriptVersion}";
+        }
+
+        var umgebaut = data.Scripts.Count(s => s.Credentials is { Status: CredentialStatus.Converted });
+        var klartext = data.Scripts.Count(s => HasPlaintext(s));
+        var aktiv = data.Scripts.Count(s => s.Enabled && HasPlaintext(s));
+
+        var text = $"Zugangsdaten (Admin {r.AdminVersion}, javascript {r.JavascriptVersion}): "
+                 + $"{umgebaut} umgebaut · "
+                 + (klartext == 0 ? "kein Klartext gefunden" : $"{klartext} mit Klartext, davon {aktiv} aktiv")
+                 + $" · {r.Entries.Count} {(r.Entries.Count == 1 ? "Eintrag" : "Einträge")} angelegt";
+
+        if (r.UnusedEntries.Count > 0) text += $", {r.UnusedEntries.Count} unbenutzt";
+        if (r.InstancesWithSecretsOff.Count > 0) text += " · SECRETS ausgeschaltet";
+        return text;
+    }
+
+    private static bool HasPlaintext(ScriptInfo s) =>
+        s.Credentials is { Status: CredentialStatus.Plaintext or CredentialStatus.Mixed };
+
+    /// <summary>Die Einzelheiten zur Zeile — als Tooltip. Nur Namen, nie Werte.</summary>
+    public static string CredentialLineDetails(BackupData data)
+    {
+        var r = data.Credentials;
+        if (!r.Supported) return CredentialsHint;
+
+        var lines = new List<string>
+        {
+            r.Entries.Count == 0
+                ? "Im Backup ist kein Eintrag unter System → Zugangsdaten angelegt."
+                : "Angelegte Einträge: " + string.Join("; ", r.Entries.Select(e =>
+                      e.Fields.Count == 0 ? e.Name : $"{e.Name} ({string.Join(", ", e.Fields)})"))
+        };
+
+        if (r.UnusedEntries.Count > 0)
+            lines.Add("Von keinem Skript benutzt: " + string.Join(", ", r.UnusedEntries)
+                    + " — ein Adapter kann den Eintrag trotzdem verwenden.");
+
+        if (r.InstancesWithSecretsOff.Count > 0)
+            lines.Add("In " + string.Join(", ", r.InstancesWithSecretsOff)
+                    + " ist der Zugriff der Skripte auf die Zugangsdaten ausgeschaltet "
+                    + "(Instanzeinstellung enableSecrets).");
+
+        return string.Join("\n", lines) + "\n\n" + CredentialsHint;
+    }
+
     /// <summary>
     /// Filtert nach Status, Typ und Suchbegriff. <paramref name="typeIndex"/> bezieht sich
     /// auf <see cref="TypeLabels"/>; 0 (oder ungültig) lässt alle Typen durch.
     /// </summary>
     public static List<ScriptInfo> Filter(IEnumerable<ScriptInfo> scripts, bool hideDisabled,
                                           int typeIndex, ScriptSearchMode mode, string? term,
-                                          bool onlyWithHints = false)
+                                          bool onlyWithHints = false, int credentialIndex = 0)
     {
         var q = scripts;
 
         if (hideDisabled) q = q.Where(s => s.Enabled);
         if (onlyWithHints) q = q.Where(s => s.Hints.Count > 0);
+
+        // Bezieht sich auf CredentialLabels.
+        q = credentialIndex switch
+        {
+            1 => q.Where(HasPlaintext),
+            2 => q.Where(s => s.Credentials is { Status: CredentialStatus.Converted }),
+            3 => q.Where(s => s.Credentials is { UnknownNames.Count: > 0 }),
+            _ => q
+        };
 
         if (typeIndex is > 0 and < 4)
         {
@@ -103,7 +195,8 @@ public static class ScriptsPresenter
             1 => s => s.Id,
             2 => s => s.EngineText,
             3 => s => s.StatusText,
-            _ => s => s.HintsText
+            4 => s => s.HintsText,
+            _ => s => s.CredentialText
         };
 
         return ascending
@@ -145,10 +238,11 @@ public static class ScriptsPresenter
         s.BlocklyBroken ? RowEmphasis.Problem
         : !s.Enabled ? RowEmphasis.Muted
         : s.Hints.Count > 0 ? RowEmphasis.Warn
+        : s.Credentials is { } c && (c.Findings.Count > 0 || c.UnknownNames.Count > 0) ? RowEmphasis.Warn
         : RowEmphasis.None;
 
     public static string[] Row(ScriptInfo s) =>
-        new[] { s.Name, s.Id, s.EngineText, s.StatusText, s.HintsText };
+        new[] { s.Name, s.Id, s.EngineText, s.StatusText, s.HintsText, s.CredentialText };
 
     /// <summary>
     /// Die Befunde des gewählten Skripts ausformuliert — je Befund eine Begründung und die
@@ -156,7 +250,66 @@ public static class ScriptsPresenter
     /// </summary>
     public static string HintDetails(ScriptInfo? script)
     {
-        if (script is null || script.Hints.Count == 0) return "";
+        if (script is null) return "";
+
+        var aufbau = StructureDetails(script);
+        var zugang = CredentialDetails(script);
+        return aufbau.Length > 0 && zugang.Length > 0 ? aufbau + "\n\n" + zugang : aufbau + zugang;
+    }
+
+    /// <summary>
+    /// Die Zugangsdaten-Befunde des gewählten Skripts: jede Fundstelle mit Zeile und
+    /// geschwärztem Wert, dazu die benutzten Einträge. Leer ohne Befund.
+    /// </summary>
+    public static string CredentialDetails(ScriptInfo script)
+    {
+        if (script.Credentials is not { } c
+            || (c.Status == CredentialStatus.None && c.UnknownNames.Count == 0))
+            return "";
+
+        var blockly = script.Engine == ScriptEngine.Blockly;
+        var lines = new List<string>();
+
+        if (c.Findings.Count > 0)
+        {
+            lines.Add((c.Findings.Count == 1
+                          ? "1 Stelle mit Zugangsdaten im Klartext"
+                          : $"{c.Findings.Count} Stellen mit Zugangsdaten im Klartext")
+                    + (blockly ? " (Zeilen im erzeugten JavaScript):" : ":"));
+            lines.AddRange(c.Findings.Select(f =>
+                $"• Zeile {f.Line}: {f.Masked}  ({f.KindText}{(f.InComment ? ", auskommentiert" : "")})"));
+            lines.Add("Abhilfe: unter System → Zugangsdaten einen Eintrag anlegen und "
+                    + (blockly
+                        ? "den Text durch den Zugangsdaten-Baustein aus der Kategorie „System\" "
+                        + "(englisch „Access Data\") ersetzen."
+                        : "den Wert durch SECRETS.Name.feld ersetzen."));
+        }
+
+        var namen = c.Uses.Where(u => u.Name.Length > 0)
+                          .GroupBy(u => u.Name, StringComparer.Ordinal)
+                          .Select(g =>
+                          {
+                              var felder = g.Select(u => u.Field).Where(f => f.Length > 0)
+                                            .Distinct().ToList();
+                              return felder.Count == 0 ? g.Key : $"{g.Key} ({string.Join(", ", felder)})";
+                          })
+                          .ToList();
+        if (namen.Count > 0)
+            lines.Add("Aus der zentralen Ablage benutzt: " + string.Join("; ", namen));
+        else if (c.Uses.Count > 0)
+            lines.Add("Benutzt SECRETS; der Name des Eintrags ergibt sich erst zur Laufzeit.");
+
+        foreach (var n in c.UnknownNames)
+            lines.Add($"• Den Eintrag „{n}\" gibt es im Backup nicht (System → Zugangsdaten). "
+                    + "Das Skript bekommt an dieser Stelle keinen Wert — Schreibweise prüfen, "
+                    + "Groß- und Kleinschreibung zählt.");
+
+        return string.Join("\n", lines);
+    }
+
+    private static string StructureDetails(ScriptInfo script)
+    {
+        if (script.Hints.Count == 0) return "";
 
         var lines = script.Hints
             .OrderBy(h => h.Kind)

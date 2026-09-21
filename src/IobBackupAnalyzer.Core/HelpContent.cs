@@ -208,6 +208,30 @@ public static class HelpContent
             "die Spalte bleibt dort deshalb leer. Und es gibt keine Note: Was dort steht, sind " +
             "einzelne Fundstellen mit Begründung. Ob daraus etwas folgt, entscheidet, wer das Skript " +
             "geschrieben hat."),
+        new(HelpBlockKind.Text,
+            "Die Spalte „Zugangsdaten\" beantwortet eine andere Frage: Stehen Passwörter, Token oder " +
+            "Schlüssel noch im Quelltext? Seit Admin 8 gibt es unter System → Zugangsdaten eine " +
+            "zentrale Ablage, und ab javascript-Adapter 10.1.1 holt ein Skript den Wert von dort mit " +
+            "SECRETS.Name.feld — in Blockly über einen eigenen Baustein der Kategorie „System\". " +
+            "Geprüft wird nur, wenn das Backup beide Voraussetzungen erfüllt; sonst nennt die Zeile " +
+            "über der Liste, welche fehlt. „umgebaut\" heißt: Das Skript benutzt SECRETS, und im " +
+            "Quelltext steht nichts mehr im Klartext. „Klartext\" heißt: In einer Adresse " +
+            "(…&password=…, http://benutzer:passwort@…), einer Zuweisung (apiKey = '…') oder einer " +
+            "Authorization-Kopfzeile steht ein Wert. „gemischt\" ist beides zugleich — meist ein " +
+            "Rest vom Umbau, oft in einer auskommentierten Zeile; die wird bewusst mitgemeldet, " +
+            "denn sie wandert genauso mit ins Forum. „unbekannt\" nennt einen Eintrag, den das " +
+            "Skript verlangt, den es im Backup aber nicht gibt — ein Tippfehler oder ein gelöschter " +
+            "Eintrag; Groß- und Kleinschreibung zählt. Die Zeile über der Liste zählt zusammen und " +
+            "nennt im Tooltip die angelegten Einträge samt Feldnamen sowie Einträge, die kein Skript " +
+            "benutzt. Unter der Liste steht zu jeder Fundstelle die Zeile — bei Blockly die im " +
+            "erzeugten JavaScript."),
+        new(HelpBlockKind.Text,
+            "Was diese Prüfung nicht tut: Sie liest keine gespeicherten Werte, auch nicht die " +
+            "verschlüsselten, und sie zeigt keinen gefundenen Wert an — nur seine Länge. Ein " +
+            "Bildschirmfoto der Liste verrät damit nichts. Gesucht wird nach Mustern; ein Schlüssel " +
+            "in einer Variablen mit unauffälligem Namen wird deshalb nicht gefunden. Anders als bei " +
+            "den Hinweisen wird hier auch JavaScript und TypeScript geprüft: Dort ist die " +
+            "Zeichenkette selbst der Befund, gleich ob die Zeile läuft oder auskommentiert ist."),
 
         new(HelpBlockKind.Heading, "Tab „Verwendung\""),
         new(HelpBlockKind.Text,
