@@ -721,6 +721,17 @@ var withObjects = fullData.Instances.Count(i => i.ObjectCount > 0);
 Check("Mehrheit der Instanzen hat zugeordnete Objekte",
       withObjects > fullData.Instances.Count / 2, $"{withObjects}/{fullData.Instances.Count}");
 
+// Zaehlweise wie der js-controller (getKeys("<ns>*")): Namensraum-Objekt mitzaehlen,
+// system.adapter.<ns>.* nicht. Nachgerechnet je Instanz direkt aus der Objektliste.
+var zaehlFehler = fullData.Instances
+    .Where(i => i.ObjectCount != fullData.Objects.Count(o =>
+        o.Id == i.Namespace || o.Id.StartsWith(i.Namespace + ".", StringComparison.Ordinal)))
+    .Select(i => i.Namespace).ToList();
+Check("Objektzahl je Instanz zaehlt das Namensraum-Objekt mit", zaehlFehler.Count == 0,
+      string.Join(", ", zaehlFehler.Take(5)));
+var mitNsObjekt = fullData.Instances.Count(i => fullData.Objects.Any(o => o.Id == i.Namespace));
+Console.WriteLine($"  Instanzen mit eigenem Namensraum-Objekt: {mitNsObjekt}/{fullData.Instances.Count}");
+
 // ------------------------------------------------- Objektlimit je Instanz (js-controller)
 //
 // Der js-controller meldet beim Start jeder Instanz „This instance has N objects, the limit
@@ -2585,8 +2596,10 @@ var older = new BackupData
     SourceFile = "synthetisch-alt.tar.gz",
     Kind = BackupKind.Full,
     CreatedAt = fullData.CreatedAt!.Value.AddDays(-7),
-    Objects = fullData.Objects.Where(o => !o.Id.StartsWith(victimInstance.Namespace + ".",
-                                                           StringComparison.Ordinal)).ToList(),
+    // Mitsamt dem Namensraum-Objekt selbst — es zählt zu ObjectCount (wie im js-controller).
+    Objects = fullData.Objects.Where(o => o.Id != victimInstance.Namespace
+                                          && !o.Id.StartsWith(victimInstance.Namespace + ".",
+                                                              StringComparison.Ordinal)).ToList(),
     Scripts = fullData.Scripts
                       .Where(s => s.Id != editedOriginal.Id && s.Id != newOnlyScript.Id)
                       .Append(editedOld)

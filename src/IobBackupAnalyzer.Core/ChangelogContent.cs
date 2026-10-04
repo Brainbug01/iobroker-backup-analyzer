@@ -23,6 +23,14 @@ public static class ChangelogContent
     /// <summary>Neueste Version zuerst.</summary>
     public static IReadOnlyList<ChangelogEntry> Entries { get; } = new ChangelogEntry[]
     {
+        new("1.33.1", "04.10.2026", new[]
+        {
+            "Die Spalte „Objekte\" in der Übersicht zählt jetzt wie der js-controller: Das " +
+            "Namensraum-Objekt der Instanz (etwa „alexa2.0\") gehört dazu. Bisher lag die Zahl " +
+            "bei Instanzen mit einem solchen Objekt um 1 darunter — und eine Instanz mit genau " +
+            "5.000 Objekten blieb unauffällig, obwohl ioBroker bereits vor dem Objektlimit warnt."
+        }),
+
         new("1.33.0", "21.09.2026", new[]
         {
             "Neu im Tab „Skripte\": die Spalte „Zugangsdaten\". Seit Admin 8 gibt es unter " +

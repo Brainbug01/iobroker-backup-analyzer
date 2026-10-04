@@ -1119,14 +1119,21 @@ public static class BackupLoader
         }
 
         // Objektzählung je Instanz: ein Durchlauf über alle Objekte statt N Suchläufe.
+        //
+        // Gezählt wird wie im js-controller (#checkObjectsWarnLimit): das Namensraum-Objekt
+        // „hm-rpc.0" selbst gehört dazu, die system.adapter.hm-rpc.0.*-Objekte nicht. Sonst
+        // läge die Zahl um 1 darunter, und eine Instanz mit genau 5.000 Objekten bliebe hier
+        // unauffällig, während ioBroker bereits warnt.
+        //
+        // Bewusst NICHT übernommen: Der js-controller sucht mit „hm-rpc.1*" ohne Punkt und
+        // zählt damit für Instanz 1 auch die Objekte der Instanzen 10–19 mit.
         foreach (var o in objects)
         {
             var dot = o.Id.IndexOf('.');
             if (dot < 0) continue;
             var second = o.Id.IndexOf('.', dot + 1);
-            if (second < 0) continue;
 
-            var ns = o.Id[..second];
+            var ns = second < 0 ? o.Id : o.Id[..second];
             if (byNamespace.TryGetValue(ns, out var inst)) inst.ObjectCount++;
         }
 

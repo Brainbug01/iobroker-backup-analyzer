@@ -272,6 +272,12 @@ einen eigenen Wert mitbringen, der dann aus `system.adapter.<ns>.objectsWarnLimi
 wird. Das ist eine Leistungswarnung, kein Defekt — viele Objekte verlangsamen Start, Admin
 und Backup.
 
+Gezählt wird wie im js-controller: alle Objekte unterhalb von `<adapter>.<nr>.` **samt dem
+Namensraum-Objekt `<adapter>.<nr>` selbst**, aber ohne die `system.adapter.<ns>.*`-Objekte
+der Instanz. Eine Eigenheit des js-controllers wird bewusst nicht übernommen: Er sucht mit
+dem Muster `<adapter>.1*` und zählt dadurch für Instanz 1 auch die Objekte der Instanzen
+10–19 mit. Der Analyzer hält die Instanzen getrennt.
+
 > **Ein hochgesetztes Limit wird berücksichtigt.** Maßgeblich ist der *gespeicherte Wert*
 > von `system.adapter.<ns>.objectsWarnLimit`, nicht die Vorgabe aus der Objektdefinition
 > (`common.def`) — genau so liest es auch der js-controller. Wer das Limit einer Instanz im
