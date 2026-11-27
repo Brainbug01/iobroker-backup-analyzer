@@ -69,6 +69,12 @@ else
                         <option value="@i" selected="@(S.CredentialIndex == i)">@ScriptsPresenter.CredentialLabels[i]</option>
                     }
                 </select>
+                @* Unabhängig vom Filter: die Shadow-Prüfung läuft bei jeder Version. *@
+                <label class="haken" title="@ScriptsPresenter.ShadowHint">
+                    <input type="checkbox" checked="@S.OnlyShadow"
+                           @onchange="e => S.OnlyShadow = (bool?)e.Value == true" />
+                    @ScriptsPresenter.OnlyShadowLabel
+                </label>
                 <span class="zaehler" title="@ScriptsPresenter.CredentialLineDetails(Daten)">
                     @ScriptsPresenter.CredentialLine(Daten)
                 </span>
@@ -142,7 +148,8 @@ else
             : ScriptsPresenter.Sort(
                 ScriptsPresenter.Filter(Daten.Scripts, S.HideDisabled, S.TypeIndex, S.Mode,
                                         S.Search, S.OnlyWithHints,
-                                        Daten.Credentials.Supported ? S.CredentialIndex : 0),
+                                        Daten.Credentials.Supported ? S.CredentialIndex : 0,
+                                        S.OnlyShadow),
                 column: -1, ascending: true);
 
     private string Zaehler => _rueckmeldung
@@ -205,6 +212,7 @@ else
             S.HideDisabled = false;
             S.OnlyWithHints = false;
             S.CredentialIndex = 0;
+            S.OnlyShadow = false;
         }
 
         var liste = Gefiltert;
@@ -247,7 +255,8 @@ else
         new() { Header = "Typ",           Width = 140, Text = s => s.EngineText },
         new() { Header = "Status",        Width = 120, Text = s => s.StatusText, SortKey = s => s.Enabled },
         new() { Header = "Hinweise",      Width = 240, Text = s => s.HintsText },
-        new() { Header = "Zugangsdaten",  Width = 200, Text = s => s.CredentialText }
+        new() { Header = "Zugangsdaten",  Width = 200, Text = s => s.CredentialText },
+        new() { Header = "Shadow-Zugangsdaten", Width = 170, Text = s => s.ShadowCredentialText }
     };
 
     private async Task ListeAlsCsv() =>

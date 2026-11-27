@@ -15,7 +15,24 @@ public enum ScriptSearchMode
 /// </summary>
 public static class ScriptsPresenter
 {
-    public static readonly string[] Columns = { "Name", "ioBroker-Pfad", "Typ", "Status", "Hinweise", "Zugangsdaten" };
+    public static readonly string[] Columns =
+        { "Name", "ioBroker-Pfad", "Typ", "Status", "Hinweise", "Zugangsdaten", "Shadow-Zugangsdaten" };
+
+    /// <summary>Beschriftung des Shadow-Filters.</summary>
+    public const string OnlyShadowLabel = "Nur Shadow-Zugangsdaten";
+
+    /// <summary>Was die Spalte „Shadow-Zugangsdaten" meint — als Tooltip an Filter und Spalte.</summary>
+    public const string ShadowHint =
+        "Ein Eingang wie die URL von „HTTP GET\" trägt ein graues Textfeld, den Shadow-Block. "
+      + "Steckt man einen anderen Baustein hinein, verschwindet der Shadow aus dem Editor und "
+      + "aus dem erzeugten JavaScript — sein alter Wert bleibt aber im Skript gespeichert und "
+      + "steht in jedem Backup. So kann ein Passwort unbemerkt weiterleben.\n"
+      + "verdeckt: Im Eingang steckt ein anderer Baustein, der Wert ist im Editor nicht zu sehen. "
+      + "Abhilfe: Baustein herausziehen, Wert im Textfeld leeren, Baustein wieder einsetzen.\n"
+      + "sichtbar: Der Wert steht im Editor im Textfeld.\n"
+      + "Erkannt wird am Inhalt (&password=…, http://benutzer:…@, Bearer …) oder am Namen des "
+      + "Eingangs oder der Variablen (Passwort, Token, PIN …). Geprüft wird nur Blockly, "
+      + "unabhängig von den Adapter-Versionen. Die Werte werden nie angezeigt, nur ihre Länge.";
 
     public static readonly string[] SearchModeLabels = { "Name/Pfad", "Im Code suchen" };
 
@@ -141,12 +158,14 @@ public static class ScriptsPresenter
     /// </summary>
     public static List<ScriptInfo> Filter(IEnumerable<ScriptInfo> scripts, bool hideDisabled,
                                           int typeIndex, ScriptSearchMode mode, string? term,
-                                          bool onlyWithHints = false, int credentialIndex = 0)
+                                          bool onlyWithHints = false, int credentialIndex = 0,
+                                          bool onlyShadow = false)
     {
         var q = scripts;
 
         if (hideDisabled) q = q.Where(s => s.Enabled);
         if (onlyWithHints) q = q.Where(s => s.Hints.Count > 0);
+        if (onlyShadow) q = q.Where(s => s.ShadowCredentials.Count > 0);
 
         // Bezieht sich auf CredentialLabels.
         q = credentialIndex switch
@@ -196,7 +215,8 @@ public static class ScriptsPresenter
             2 => s => s.EngineText,
             3 => s => s.StatusText,
             4 => s => s.HintsText,
-            _ => s => s.CredentialText
+            5 => s => s.CredentialText,
+            _ => s => s.ShadowCredentialText
         };
 
         return ascending
@@ -224,6 +244,9 @@ public static class ScriptsPresenter
         var withHints = data.Scripts.Count(s => s.Hints.Count > 0);
         if (withHints > 0) text += $"   ·   {withHints} mit Hinweisen";
 
+        var withShadow = data.Scripts.Count(s => s.ShadowCredentials.Count > 0);
+        if (withShadow > 0) text += $"   ·   {withShadow} mit Shadow-Zugangsdaten";
+
         return text;
     }
 
@@ -239,10 +262,11 @@ public static class ScriptsPresenter
         : !s.Enabled ? RowEmphasis.Muted
         : s.Hints.Count > 0 ? RowEmphasis.Warn
         : s.Credentials is { } c && (c.Findings.Count > 0 || c.UnknownNames.Count > 0) ? RowEmphasis.Warn
+        : s.ShadowCredentials.Count > 0 ? RowEmphasis.Warn
         : RowEmphasis.None;
 
     public static string[] Row(ScriptInfo s) =>
-        new[] { s.Name, s.Id, s.EngineText, s.StatusText, s.HintsText, s.CredentialText };
+        new[] { s.Name, s.Id, s.EngineText, s.StatusText, s.HintsText, s.CredentialText, s.ShadowCredentialText };
 
     /// <summary>
     /// Die Befunde des gewählten Skripts ausformuliert — je Befund eine Begründung und die
@@ -252,9 +276,33 @@ public static class ScriptsPresenter
     {
         if (script is null) return "";
 
-        var aufbau = StructureDetails(script);
-        var zugang = CredentialDetails(script);
-        return aufbau.Length > 0 && zugang.Length > 0 ? aufbau + "\n\n" + zugang : aufbau + zugang;
+        var teile = new[] { StructureDetails(script), CredentialDetails(script), ShadowDetails(script) };
+        return string.Join("\n\n", teile.Where(t => t.Length > 0));
+    }
+
+    /// <summary>
+    /// Die Shadow-Fundstellen des gewählten Skripts: je Stelle der Hinweis, der Baustein mit
+    /// ID und der Pfad im XML. Der Wert nur als Länge. Leer ohne Befund.
+    /// </summary>
+    public static string ShadowDetails(ScriptInfo script)
+    {
+        var f = script.ShadowCredentials;
+        if (f.Count == 0) return "";
+
+        var lines = new List<string>
+        {
+            f.Count == 1
+                ? "1 Stelle mit Zugangsdaten in einem Shadow-Block:"
+                : $"{f.Count} Stellen mit Zugangsdaten in Shadow-Blöcken:"
+        };
+        foreach (var x in f.OrderByDescending(x => x.Hidden))
+        {
+            lines.Add($"• {x.HintText}");
+            lines.Add($"  Wert: {x.Masked}  ({x.Reason})");
+            lines.Add($"  Baustein: {x.BlockType}, Eingang {x.Input}  (Baustein-ID: {x.BlockId})");
+            lines.Add($"  Pfad im XML: {x.Path}");
+        }
+        return string.Join("\n", lines);
     }
 
     /// <summary>

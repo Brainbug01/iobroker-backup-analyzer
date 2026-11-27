@@ -70,6 +70,7 @@ public sealed class UiState
 
         /// <summary>Index in <see cref="ScriptsPresenter.CredentialLabels"/>.</summary>
         public int CredentialIndex { get; set; }
+        public bool OnlyShadow { get; set; }
         public bool WithGeneratedJs { get; set; }
         public bool ShowXml { get; set; }
         public ScriptInfo? Selected { get; set; }

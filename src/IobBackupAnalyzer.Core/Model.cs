@@ -371,6 +371,30 @@ public sealed class ScriptInfo
     /// <summary>Text der Spalte „Zugangsdaten"; leer ohne Befund und ohne Prüfung.</summary>
     public string CredentialText => Credentials?.Text ?? "";
 
+    /// <summary>
+    /// Zugangsdaten in Blockly-Shadow-Blöcken (siehe <see cref="ShadowCredentialAnalyzer"/>).
+    /// Anders als <see cref="Credentials"/> unabhängig von den Adapter-Versionen geprüft.
+    /// </summary>
+    public IReadOnlyList<ShadowCredentialFinding> ShadowCredentials { get; set; } =
+        Array.Empty<ShadowCredentialFinding>();
+
+    /// <summary>Text der Spalte „Shadow-Zugangsdaten"; leer ohne Befund.</summary>
+    public string ShadowCredentialText
+    {
+        get
+        {
+            var verdeckt = ShadowCredentials.Count(f => f.Hidden);
+            var sichtbar = ShadowCredentials.Count - verdeckt;
+            return (verdeckt, sichtbar) switch
+            {
+                (0, 0) => "",
+                (_, 0) => $"{verdeckt} verdeckt",
+                (0, _) => $"{sichtbar} sichtbar",
+                _ => $"{verdeckt} verdeckt, {sichtbar} sichtbar"
+            };
+        }
+    }
+
     /// <summary>Voller Anzeigepfad, z. B. Heizung/Nachtabsenkung</summary>
     public string DisplayPath => string.IsNullOrEmpty(Folder) ? Name : Folder + "/" + Name;
 

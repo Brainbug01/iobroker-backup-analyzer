@@ -443,6 +443,32 @@ gebaut: Dieser Schlüssel hat in einem Anzeigewerkzeug nichts zu suchen.
 > Namen erst zur Laufzeit (`SECRETS[variable]`), zählt es als umgebaut; der Abgleich mit den
 > angelegten Einträgen entfällt dann, und es wird kein Eintrag als unbenutzt gemeldet.
 
+#### Spalte „Shadow-Zugangsdaten" (seit 1.34.0)
+
+Ein Blockly-Eingang wie die URL von „HTTP GET" trägt ein graues Textfeld, den
+**Shadow-Block**. Steckt man einen anderen Baustein hinein, verschwindet der Shadow aus dem
+Editor und aus dem erzeugten JavaScript — sein alter Wert bleibt aber im XML des Skripts
+stehen und damit in jedem Backup. Ein früher eingetipptes Passwort lebt so unbemerkt weiter.
+Die Spalte „Zugangsdaten" liest das erzeugte JavaScript und kann solche Werte deshalb
+grundsätzlich nicht finden.
+
+| Spalte | Bedeutung |
+|---|---|
+| **n verdeckt** | Im Eingang steckt ein anderer Baustein, der Wert ist im Editor unsichtbar. Abhilfe: Baustein herausziehen, Wert im Textfeld leeren, Baustein wieder einsetzen. |
+| **n sichtbar** | Der Wert steht im Editor im Textfeld des Eingangs. |
+
+Erkannt wird auf zwei Wegen: **am Inhalt**, mit denselben Mustern wie in der Spalte
+„Zugangsdaten" (`…&password=…`, `http://benutzer:…@`, `Bearer …`), und **am Namen** des
+Eingangs oder der Variablen, der der Wert zugewiesen wird (Passwort, Token, Secret, API-Key,
+PIN …). Eine PIN als Zahl (`math_number`) zählt ab vier Ziffern, sonst wäre jede 0 eine PIN.
+Ein Wert ohne jeden Hinweis im Inhalt oder im Namen wird nicht gefunden.
+
+Unter der Liste steht zu jeder Fundstelle der Baustein mit seiner **ID** und der **Pfad im
+XML** (`on › STATEMENT › http_get › URL`), der Wert nur als Länge — in der Liste, im CSV
+und in den Einzelheiten. Geprüft wird jedes Blockly-Skript, **unabhängig von den
+Adapter-Versionen**; die Abhilfe funktioniert in jeder Fassung. Der Haken
+**„Nur Shadow-Zugangsdaten"** zeigt gezielt diese Skripte.
+
 ### Tab „Verwendung"
 Die Kreuzreferenz zwischen Skripten und Datenpunkten, **umschaltbar in beide Richtungen**.
 Oben die Liste, unten die Gegenseite des angeklickten Eintrags.

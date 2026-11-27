@@ -33,10 +33,12 @@
 
       <!-- Zugangsdaten-Prüfung: Filter und die Zusammenfassung über das ganze Backup.
            Texte und Tooltips kommen aus dem Presenter. -->
-      <Grid Grid.Row="2" ColumnDefinitions="Auto,Auto,*" Margin="0,4,0,0">
+      <Grid Grid.Row="2" ColumnDefinitions="Auto,Auto,Auto,*" Margin="0,4,0,0">
         <TextBlock Grid.Column="0" Text="Zugangsdaten:" VerticalAlignment="Center" Margin="0,0,8,0" />
         <ComboBox Name="CredentialFilter" Grid.Column="1" Width="200" />
-        <TextBlock Name="CredentialLine" Grid.Column="2" VerticalAlignment="Center"
+        <!-- Unabhängig vom Filter daneben: die Shadow-Prüfung läuft bei jeder Version. -->
+        <CheckBox Name="OnlyShadow" Grid.Column="2" Margin="14,0,0,0" VerticalAlignment="Center" />
+        <TextBlock Name="CredentialLine" Grid.Column="3" VerticalAlignment="Center"
                    Margin="12,0,0,0" Opacity="0.75" TextTrimming="CharacterEllipsis" />
       </Grid>
     </Grid>
@@ -68,6 +70,7 @@
             <DataGridTextColumn Header="Status"        Binding="{Binding StatusText}" Width="120" />
             <DataGridTextColumn Header="Hinweise"      Binding="{Binding HintsText}"  Width="240" />
             <DataGridTextColumn Header="Zugangsdaten"  Binding="{Binding CredentialText}" Width="200" />
+            <DataGridTextColumn Header="Shadow-Zugangsdaten" Binding="{Binding ShadowCredentialText}" Width="170" />
           </DataGrid.Columns>
         </DataGrid>
 

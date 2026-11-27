@@ -4860,6 +4860,149 @@ Check("Die Spalte bleibt dann leer", altesJs.Scripts.All(s => s.CredentialText =
 if (File.Exists(full))
     Console.WriteLine($"  Referenzanlage: {ScriptsPresenter.CredentialLine(fullData)}");
 
+// --- Zugangsdaten in Blockly-Shadow-Blöcken ---
+// Steckt in einem Eingang ein anderer Baustein, bleibt der Shadow mit seinem alten Wert im
+// XML — unsichtbar im Editor, nicht im erzeugten JavaScript. Alle Werte sind erfunden.
+Console.WriteLine("\n=== Zugangsdaten in Shadow-Bloecken ===");
+
+const string BlocklyNs = "https://developers.google.com/blockly/xml";
+string ShadowXml(string inner) =>
+    $"<xml xmlns=\"{BlocklyNs}\"><block type=\"on\" id=\"wurzel\"><statement name=\"STATEMENT\">{inner}</statement></block></xml>";
+
+var verdeckt = ShadowCredentialAnalyzer.Analyze(ShadowXml(
+    "<block type=\"http_get\" id=\"abruf\"><value name=\"URL\">" +
+    "<shadow type=\"text\" id=\"s1\"><field name=\"TEXT\">http://192.0.2.10/api.cgi?user=kamera&amp;password=Geheim1234</field></shadow>" +
+    "<block type=\"variables_get\" id=\"v1\"><field name=\"VAR\">adresse</field></block>" +
+    "</value></block>"));
+Check("Passwort im verdeckten Shadow von http_get wird gefunden",
+      verdeckt is [{ Hidden: true, BlockId: "abruf", BlockType: "http_get", Input: "URL" }]);
+Check("… nur mit Laenge, nie mit Wert",
+      verdeckt.Count == 1 && verdeckt[0].Masked == "&password=<10 Zeichen>"
+      && !verdeckt[0].Masked.Contains("Geheim") && !verdeckt[0].Path.Contains("Geheim"));
+Check("… mit Pfad im XML", verdeckt.Count == 1 && verdeckt[0].Path == "on › STATEMENT › http_get › URL");
+Check("… und dem Hinweis auf die Abhilfe",
+      verdeckt.Count == 1 && verdeckt[0].HintText.Contains("im Editor nicht sichtbar")
+      && verdeckt[0].HintText.Contains("herausziehen"));
+
+var sichtbar = ShadowCredentialAnalyzer.Analyze(ShadowXml(
+    "<block type=\"http_get\" id=\"abruf\"><value name=\"URL\">" +
+    "<shadow type=\"text\" id=\"s1\"><field name=\"TEXT\">rtsp://kamera:Geheim1234@192.0.2.10/stream</field></shadow>" +
+    "</value></block>"));
+Check("Sichtbarer Shadow wird gemeldet — als sichtbar",
+      sichtbar is [{ Hidden: false, Reason: "Anmeldung in der Adresse" }]
+      && !sichtbar[0].Masked.Contains("kamera"));
+
+var amEingang = ShadowCredentialAnalyzer.Analyze(ShadowXml(
+    "<block type=\"eigener_login\" id=\"login\"><value name=\"PASSWORD\">" +
+    "<shadow type=\"text\" id=\"s1\"><field name=\"TEXT\">Geheim1234</field></shadow>" +
+    "<block type=\"text\" id=\"t1\"><field name=\"TEXT\">neu</field></block></value></block>"));
+Check("Eingang „PASSWORD\" macht den ganzen Wert zur Fundstelle",
+      amEingang is [{ Hidden: true, Masked: "<10 Zeichen>" }]);
+
+var pin = ShadowCredentialAnalyzer.Analyze(ShadowXml(
+    "<block type=\"variables_set\" id=\"setzen\"><field name=\"VAR\">tuerPin</field><value name=\"VALUE\">" +
+    "<shadow type=\"math_number\" id=\"s1\"><field name=\"NUM\">4711</field></shadow>" +
+    "<block type=\"math_number\" id=\"n1\"><field name=\"NUM\">0</field></block></value></block>"));
+Check("PIN als math_number in der Variablen „tuerPin\"",
+      pin is [{ Hidden: true, Masked: "<4 Ziffern>" }] && pin[0].Reason.Contains("tuerPin"));
+
+Check("Zahl ohne Kontext ist keine PIN",
+      ShadowCredentialAnalyzer.Analyze(ShadowXml(
+          "<block type=\"math_arithmetic\" id=\"m\"><value name=\"A\">" +
+          "<shadow type=\"math_number\" id=\"s1\"><field name=\"NUM\">1234</field></shadow>" +
+          "<block type=\"variables_get\" id=\"v\"><field name=\"VAR\">x</field></block></value></block>")).Count == 0);
+Check("Kurze Zahl ist auch mit Kontext keine PIN",
+      ShadowCredentialAnalyzer.Analyze(ShadowXml(
+          "<block type=\"variables_set\" id=\"setzen\"><field name=\"VAR\">pin</field><value name=\"VALUE\">" +
+          "<shadow type=\"math_number\" id=\"s1\"><field name=\"NUM\">0</field></shadow></value></block>")).Count == 0);
+Check("Verdeckter Nachrichtentext ohne Muster bleibt stumm",
+      ShadowCredentialAnalyzer.Analyze(ShadowXml(
+          "<block type=\"telegram\" id=\"t\"><value name=\"MESSAGE\">" +
+          "<shadow type=\"text\" id=\"s1\"><field name=\"TEXT\">Hallo Welt</field></shadow>" +
+          "<block type=\"variables_get\" id=\"v\"><field name=\"VAR\">x</field></block></value></block>")).Count == 0);
+Check("Ein Satz im Passwort-Eingang ist kein Passwort",
+      ShadowCredentialAnalyzer.Analyze(ShadowXml(
+          "<block type=\"eigener_login\" id=\"l\"><value name=\"PASSWORD\">" +
+          "<shadow type=\"text\" id=\"s1\"><field name=\"TEXT\">Bitte Passwort eingeben</field></shadow></value></block>")).Count == 0);
+Check("„SPIN\" und „keypad\" sind keine Zugangsdaten-Namen",
+      ShadowCredentialAnalyzer.Analyze(ShadowXml(
+          "<block type=\"a\" id=\"a\"><value name=\"SPIN\"><shadow type=\"text\" id=\"s1\"><field name=\"TEXT\">abcdefgh</field></shadow></value>" +
+          "<value name=\"keypad\"><shadow type=\"text\" id=\"s2\"><field name=\"TEXT\">abcdefgh</field></shadow></value></block>")).Count == 0);
+Check("„api_key\" und „apiKey\" sind es",
+      ShadowCredentialAnalyzer.Analyze(ShadowXml(
+          "<block type=\"a\" id=\"a\"><value name=\"api_key\"><shadow type=\"text\" id=\"s1\"><field name=\"TEXT\">abcdefgh</field></shadow></value>" +
+          "<value name=\"apiKey\"><shadow type=\"text\" id=\"s2\"><field name=\"TEXT\">abcdefgh</field></shadow></value></block>")).Count == 2);
+Check("Defektes XML liefert nichts statt eines Fehlers",
+      ShadowCredentialAnalyzer.Analyze("<xml><block").Count == 0);
+Check("Eine DTD wird abgewiesen statt aufgeloest",
+      ShadowCredentialAnalyzer.Analyze("<!DOCTYPE x [<!ENTITY e \"x\">]><xml>&e;</xml>").Count == 0);
+
+// Am echten Weg — und mit javascript 9: Die Shadow-Prüfung hängt nicht an SECRETS.
+static string BlocklyZeile(string id, string xml) =>
+    SkriptZeile(id, true, "httpGet(adresse);\n//" +
+        Convert.ToBase64String(Encoding.UTF8.GetBytes(Uri.EscapeDataString(xml))))
+    .Replace("Javascript/js", "Blockly");
+
+BackupData ShadowAnlage()
+{
+    var dir = Path.Combine(Path.GetTempPath(), "iob-verify-shadow");
+    if (Directory.Exists(dir)) Directory.Delete(dir, true);
+    Directory.CreateDirectory(Path.Combine(dir, "backup"));
+
+    File.WriteAllText(Path.Combine(dir, "backup", "objects.jsonl"), string.Join("\n", new[]
+    {
+        AdapterZeile("admin", "7.7.22"),
+        AdapterZeile("javascript", "9.0.11"),
+        BlocklyZeile("script.js.Kamera", ShadowXml(
+            "<block type=\"http_get\" id=\"abruf\"><value name=\"URL\">" +
+            "<shadow type=\"text\" id=\"s1\"><field name=\"TEXT\">http://192.0.2.10/?password=Geheim1234</field></shadow>" +
+            "<block type=\"variables_get\" id=\"v1\"><field name=\"VAR\">adresse</field></block></value></block>")),
+        BlocklyZeile("script.js.Sauber", ShadowXml(
+            "<block type=\"http_get\" id=\"abruf\"><value name=\"URL\">" +
+            "<shadow type=\"text\" id=\"s1\"><field name=\"TEXT\">http://192.0.2.10/status</field></shadow></value></block>"))
+    }) + "\n");
+
+    var tar = Path.Combine(dir, "iobroker_2026_11_20-03_00_00_backupiobroker.tar.gz");
+    CreateTarGz(Path.Combine(dir, "backup"), tar);
+    var daten = BackupLoader.Load(tar);
+    Directory.Delete(dir, true);
+    return daten;
+}
+
+var shadowAnlage = ShadowAnlage();
+var kamera = Skript(shadowAnlage, "Kamera");
+Check("Blockly-Skript wird erkannt und dekodiert", kamera.Engine == ScriptEngine.Blockly && kamera.BlocklyXml is not null);
+Check("Geprueft wird auch mit javascript 9 und Admin 7",
+      !shadowAnlage.Credentials.Supported && kamera.ShadowCredentialText == "1 verdeckt");
+Check("Das erzeugte JavaScript enthaelt den Wert nicht — die alte Pruefung saehe nichts",
+      !kamera.CleanSource.Contains("Geheim"));
+Check("Skript ohne Fund bleibt leer", Skript(shadowAnlage, "Sauber").ShadowCredentialText == "");
+Check("Filter „Nur Shadow-Zugangsdaten\"",
+      ScriptsPresenter.Filter(shadowAnlage.Scripts, false, 0, ScriptSearchMode.NameAndPath, "",
+                              onlyShadow: true) is [{ Name: "Kamera" }]);
+Check("Zeile wird hervorgehoben", ScriptsPresenter.Emphasis(kamera) == RowEmphasis.Warn);
+Check("Spaltenzahl und Zeile passen zusammen (mit Shadow-Spalte)",
+      ScriptsPresenter.Row(kamera).Length == ScriptsPresenter.Columns.Length
+      && ScriptsPresenter.Columns[^1] == "Shadow-Zugangsdaten");
+Check("Zeile und CSV-Zeile tragen keinen Wert",
+      ScriptsPresenter.Row(kamera).All(z => !z.Contains("Geheim")));
+var shadowDetails = ScriptsPresenter.HintDetails(kamera);
+Check("Einzelheiten nennen Baustein-ID, Pfad und Abhilfe, nie den Wert",
+      shadowDetails.Contains("Baustein-ID: abruf") && shadowDetails.Contains("http_get › URL")
+      && shadowDetails.Contains("herausziehen") && !shadowDetails.Contains("Geheim"));
+Check("Zaehlzeile nennt die Skripte mit Shadow-Fund",
+      ScriptsPresenter.CountText(2, shadowAnlage, ScriptSearchMode.NameAndPath, "")
+                      .Contains("1 mit Shadow-Zugangsdaten"));
+
+// An der echten Anlage nur zeigen: Zahl der Funde, keine Werte.
+if (File.Exists(full))
+{
+    var shadowFunde = fullData.Scripts.SelectMany(s => s.ShadowCredentials).ToList();
+    Console.WriteLine($"  Referenzanlage: {shadowFunde.Count(f => f.Hidden)} verdeckt, " +
+                      $"{shadowFunde.Count(f => !f.Hidden)} sichtbar in " +
+                      $"{fullData.Scripts.Count(s => s.ShadowCredentials.Count > 0)} Skripten");
+}
+
 // ---------------------------------------------------------------- Ergebnis
 
 Console.WriteLine();

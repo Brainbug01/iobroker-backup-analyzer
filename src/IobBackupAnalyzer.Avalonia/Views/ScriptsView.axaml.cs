@@ -21,6 +21,7 @@ public partial class ScriptsView : UserControl
     private readonly CheckBox _withGeneratedJs;
     private readonly ComboBox _credentialFilter;
     private readonly TextBlock _credentialLine;
+    private readonly CheckBox _onlyShadow;
     private readonly Button _exportAll;
     private readonly TextBlock _count;
     private readonly DataGrid _list;
@@ -53,6 +54,7 @@ public partial class ScriptsView : UserControl
         _withGeneratedJs = this.FindControl<CheckBox>("WithGeneratedJs")!;
         _credentialFilter = this.FindControl<ComboBox>("CredentialFilter")!;
         _credentialLine = this.FindControl<TextBlock>("CredentialLine")!;
+        _onlyShadow = this.FindControl<CheckBox>("OnlyShadow")!;
         _count = this.FindControl<TextBlock>("Count")!;
         _list = this.FindControl<DataGrid>("List")!;
         _hintsBox = this.FindControl<Border>("HintsBox")!;
@@ -72,6 +74,10 @@ public partial class ScriptsView : UserControl
 
         _onlyWithHints.Content = ScriptsPresenter.OnlyWithHintsLabel;
         ToolTip.SetTip(_onlyWithHints, ScriptsPresenter.HintsHint);
+
+        _onlyShadow.Content = ScriptsPresenter.OnlyShadowLabel;
+        ToolTip.SetTip(_onlyShadow, ScriptsPresenter.ShadowHint);
+        _onlyShadow.IsCheckedChanged += (_, _) => ApplyFilter();
 
         _searchMode.ItemsSource = ScriptsPresenter.SearchModeLabels;
         _searchMode.SelectedIndex = 0;
@@ -179,6 +185,7 @@ public partial class ScriptsView : UserControl
             _hideDisabled.IsChecked = false;
             _onlyWithHints.IsChecked = false;
             _credentialFilter.SelectedIndex = 0;
+            _onlyShadow.IsChecked = false;
             ApplyFilter();
         }
 
@@ -228,7 +235,8 @@ public partial class ScriptsView : UserControl
         _filtered = ScriptsPresenter.Sort(
             ScriptsPresenter.Filter(_data.Scripts, _hideDisabled.IsChecked == true,
                                     _typeFilter.SelectedIndex, CurrentSearchMode, _search.Text,
-                                    _onlyWithHints.IsChecked == true, _credentialFilter.SelectedIndex),
+                                    _onlyWithHints.IsChecked == true, _credentialFilter.SelectedIndex,
+                                    _onlyShadow.IsChecked == true),
             column: -1, ascending: true);
 
         _list.ItemsSource = _filtered;

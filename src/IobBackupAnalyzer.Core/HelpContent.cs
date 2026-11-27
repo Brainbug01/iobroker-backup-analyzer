@@ -226,6 +226,21 @@ public static class HelpContent
             "benutzt. Unter der Liste steht zu jeder Fundstelle die Zeile — bei Blockly die im " +
             "erzeugten JavaScript."),
         new(HelpBlockKind.Text,
+            "Die Spalte „Shadow-Zugangsdaten\" findet, was die Spalte „Zugangsdaten\" nicht sehen " +
+            "kann. Ein Blockly-Eingang wie die URL von „HTTP GET\" trägt ein graues Textfeld, den " +
+            "Shadow-Block. Steckt man einen anderen Baustein hinein, verschwindet der Shadow aus " +
+            "dem Editor und aus dem erzeugten JavaScript — sein alter Wert bleibt aber im Skript " +
+            "gespeichert und steht in jedem Backup. Ein früher eingetipptes Passwort lebt so " +
+            "unbemerkt weiter. „verdeckt\" heißt: Im Eingang steckt ein anderer Baustein, der Wert " +
+            "ist im Editor nicht zu sehen. Abhilfe: den Baustein herausziehen, den Wert im " +
+            "Textfeld leeren, den Baustein wieder einsetzen. „sichtbar\" heißt: Der Wert steht im " +
+            "Textfeld. Erkannt wird am Inhalt (…&password=…, http://benutzer:…@, Bearer …) oder " +
+            "am Namen des Eingangs oder der Variablen (Passwort, Token, PIN …); eine PIN als Zahl " +
+            "zählt ab vier Ziffern. Unter der Liste stehen zu jeder Fundstelle der Baustein mit " +
+            "seiner ID und der Pfad im XML, der Wert nur als Länge — auch im CSV. Geprüft wird " +
+            "jedes Blockly-Skript, unabhängig von den Adapter-Versionen. Der Haken „Nur " +
+            "Shadow-Zugangsdaten\" zeigt gezielt diese Skripte."),
+        new(HelpBlockKind.Text,
             "Was diese Prüfung nicht tut: Sie liest keine gespeicherten Werte, auch nicht die " +
             "verschlüsselten, und sie zeigt keinen gefundenen Wert an — nur seine Länge. Ein " +
             "Bildschirmfoto der Liste verrät damit nichts. Gesucht wird nach Mustern; ein Schlüssel " +

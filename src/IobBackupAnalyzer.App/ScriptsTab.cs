@@ -18,6 +18,7 @@ public sealed class ScriptsTab : UserControl
     /// <summary>Filter und Zusammenfassung der Zugangsdaten-Prüfung — dritte Zeile der Leiste.</summary>
     private readonly ComboBox _credentialFilter = new();
     private readonly Label _credentialLine = new();
+    private readonly CheckBox _onlyShadow = new();
     private readonly ToolTip _tips = new() { AutoPopDelay = 30000 };
 
     private readonly ListView _list = new();
@@ -101,8 +102,14 @@ public sealed class ScriptsTab : UserControl
         _credentialFilter.SelectedIndex = 0;
         _credentialFilter.SelectedIndexChanged += (_, _) => ApplyFilter();
 
-        _credentialLine.Location = new Point(280, 99);
-        _credentialLine.Size = new Size(TabLayout.DesignWidth - 280, 20);
+        // Unabhängig vom Zugangsdaten-Filter: Die Shadow-Prüfung läuft bei jeder Version.
+        _onlyShadow.Text = ScriptsPresenter.OnlyShadowLabel;
+        _onlyShadow.Location = new Point(282, 98);
+        _onlyShadow.Size = new Size(200, 22);
+        _onlyShadow.CheckedChanged += (_, _) => ApplyFilter();
+
+        _credentialLine.Location = new Point(490, 99);
+        _credentialLine.Size = new Size(TabLayout.DesignWidth - 490, 20);
         _credentialLine.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
         _credentialLine.AutoEllipsis = true;
         _credentialLine.ForeColor = SystemColors.GrayText;
@@ -149,9 +156,10 @@ public sealed class ScriptsTab : UserControl
         filterBar.Controls.AddRange(new Control[]
         {
             lblSearch, _search, _searchMode, lblType, _typeFilter, _hideDisabled,
-            _onlyWithHints, _count, buttonBar, lblCredential, _credentialFilter, _credentialLine
+            _onlyWithHints, _count, buttonBar, lblCredential, _credentialFilter, _onlyShadow, _credentialLine
         });
         _tips.SetToolTip(_credentialFilter, ScriptsPresenter.CredentialsHint.Replace("\n", "\r\n"));
+        _tips.SetToolTip(_onlyShadow, ScriptsPresenter.ShadowHint.Replace("\n", "\r\n"));
 
         // ---------- Liste + Vorschau ----------
         var split = new SplitContainer
@@ -184,6 +192,7 @@ public sealed class ScriptsTab : UserControl
         _list.Columns.Add("Status", 90);
         _list.Columns.Add("Hinweise", 320);
         _list.Columns.Add("Zugangsdaten", 200);
+        _list.Columns.Add("Shadow-Zugangsdaten", 170);
         _list.SelectedIndexChanged += (_, _) => ShowPreview();
         _list.ColumnClick += OnColumnClick;
         // Kopiert Listenwerte wie den ioBroker-Pfad. Der Quelltext des Skripts geht
@@ -305,6 +314,7 @@ public sealed class ScriptsTab : UserControl
             _hideDisabled.Checked = false;
             _onlyWithHints.Checked = false;
             _credentialFilter.SelectedIndex = 0;
+            _onlyShadow.Checked = false;
             ApplyFilter();
         }
 
@@ -327,7 +337,8 @@ public sealed class ScriptsTab : UserControl
 
         _filtered = ScriptsPresenter.Filter(_data.Scripts, _hideDisabled.Checked,
                                             _typeFilter.SelectedIndex, CurrentSearchMode, _search.Text,
-                                            _onlyWithHints.Checked, _credentialFilter.SelectedIndex);
+                                            _onlyWithHints.Checked, _credentialFilter.SelectedIndex,
+                                            _onlyShadow.Checked);
         ApplySort();
         FillList();
 

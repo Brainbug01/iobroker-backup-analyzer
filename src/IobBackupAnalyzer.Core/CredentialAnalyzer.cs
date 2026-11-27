@@ -257,6 +257,37 @@ public static class CredentialAnalyzer
         };
     }
 
+    /// <summary>
+    /// Prüft einen einzelnen Wert statt einer Quelltextzeile — den Text eines
+    /// Blockly-Shadow-Blocks (siehe <see cref="ShadowCredentialAnalyzer"/>). Dort steht der
+    /// Wert ohne Anführungszeichen; eine Authorization-Kopfzeile wird deshalb auch ohne
+    /// führendes Anführungszeichen erkannt.
+    /// </summary>
+    /// <exception cref="RegexMatchTimeoutException">Der Aufrufer überspringt das Skript.</exception>
+    internal static List<CredentialFinding> ScanValue(string value)
+    {
+        var findings = new List<CredentialFinding>();
+
+        foreach (Match m in UrlParameter.Matches(value))
+            Add(findings, CredentialFindingKind.UrlParameter, 0, false, m, $"&{m.Groups["key"].Value}=");
+        foreach (Match m in UrlUserInfo.Matches(value))
+            Add(findings, CredentialFindingKind.UrlUserInfo, 0, false, m,
+                $"{m.Groups["scheme"].Value}://<Benutzer>:", "@");
+        foreach (Match m in Assignment.Matches(value))
+            Add(findings, CredentialFindingKind.Assignment, 0, false, m, $"{m.Groups["key"].Value} = ");
+        foreach (Match m in AuthHeaderBare.Matches(value))
+            Add(findings, CredentialFindingKind.AuthHeader, 0, false, m, $"{m.Groups["key"].Value} ");
+
+        return findings;
+    }
+
+    private static readonly Regex AuthHeaderBare = new(
+        @"(?:^|['""`\s])(?<key>Bearer|Basic)\s+(?<val>[A-Za-z0-9+/=._-]{12,})",
+        Opt, RegexLimits.MatchTimeout);
+
+    /// <summary>Siehe <see cref="IsPlaceholder"/> — für die Shadow-Prüfung freigegeben.</summary>
+    internal static bool LooksLikePlaceholder(string value) => value.Length == 0 || IsPlaceholder(value);
+
     private static void Add(List<CredentialFinding> findings, CredentialFindingKind kind, int lineIndex,
                             bool comment, Match m, string prefix, string suffix = "")
     {
@@ -306,6 +337,13 @@ public static class CredentialAnalyzer
                       .Select(o => o.Version)
                       .FirstOrDefault(v => !string.IsNullOrEmpty(v))
             ?? "";
+
+        // Die Shadow-Prüfung hängt nicht an den Versionen: Ein alter Wert unter einem
+        // verdeckten Baustein steht in jedem Backup, ob es SECRETS gibt oder nicht — und die
+        // Abhilfe (Baustein herausziehen, Wert leeren) geht in jeder Fassung.
+        foreach (var s in scripts)
+            if (s.BlocklyXml is not null)
+                s.ShadowCredentials = ShadowCredentialAnalyzer.Analyze(s.BlocklyXml);
 
         var version = VersionOf("javascript");
         var admin = VersionOf("admin");

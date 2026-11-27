@@ -23,6 +23,25 @@ public static class ChangelogContent
     /// <summary>Neueste Version zuerst.</summary>
     public static IReadOnlyList<ChangelogEntry> Entries { get; } = new ChangelogEntry[]
     {
+        new("1.34.0", "27.11.2026", new[]
+        {
+            "Neu im Tab „Skripte\": die Spalte „Shadow-Zugangsdaten\". Steckt man in einen " +
+            "Blockly-Eingang einen anderen Baustein, bleibt das graue Textfeld darunter (der " +
+            "Shadow-Block) mit seinem alten Wert im Skript gespeichert — im Editor unsichtbar, " +
+            "im erzeugten JavaScript nicht vorhanden, aber in jedem Backup. Ein früher " +
+            "eingetipptes Passwort lebt so unbemerkt weiter. Die Spalte zeigt solche Stellen als " +
+            "„verdeckt\" oder „sichtbar\".",
+
+            "Erkannt wird am Inhalt (…&password=…, http://benutzer:…@, Bearer …) oder am Namen " +
+            "des Eingangs oder der Variablen (Passwort, Token, PIN …). Unter der Liste stehen " +
+            "Baustein, Baustein-ID und Pfad im XML sowie die Abhilfe: Baustein herausziehen, " +
+            "Wert leeren, wieder einsetzen. Der Wert selbst erscheint nirgends, nur seine Länge — " +
+            "auch nicht im CSV.",
+
+            "Geprüft wird jedes Blockly-Skript, unabhängig von den Adapter-Versionen. Der Haken " +
+            "„Nur Shadow-Zugangsdaten\" zeigt gezielt diese Skripte."
+        }),
+
         new("1.33.1", "04.10.2026", new[]
         {
             "Die Spalte „Objekte\" in der Übersicht zählt jetzt wie der js-controller: Das " +
