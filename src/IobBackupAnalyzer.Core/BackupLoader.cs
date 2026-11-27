@@ -105,6 +105,7 @@ public static class BackupLoader
                                               LoadLog? log = null)
     {
         List<IobObject>? objects = null;
+        string? objectsQuelle = null;   // Archiveintrag, aus dem die Objektliste stammt (für den Objekt-Export)
         List<ScriptInfo>? scripts = null;
         var visViews = new List<VisFile>();
         var files = new List<BackupFileInfo>();
@@ -229,6 +230,7 @@ public static class BackupLoader
                     log?.Step("objects.jsonl wird gelesen");
                     validation.Objects.Present = true;
                     objects = ReadObjectsJsonl(entry.DataStream, identity, validation.Objects, out var s, ct);
+                    objectsQuelle = name;
                     skipped += s;
                     isFull = true;
                     log?.Step($"objects.jsonl fertig: {objects.Count:N0} Objekte, {s:N0} uebersprungen");
@@ -256,6 +258,7 @@ public static class BackupLoader
                     progress?.Report("backup.json wird gelesen …");
                     var res = ReadClassicJson(entry.DataStream, ct);
                     objects = res.Objects;
+                    objectsQuelle = name;
                     skipped += res.Skipped;
                     classicIdentity = res.Identity;
                     isFull = true;
@@ -274,6 +277,7 @@ public static class BackupLoader
                     if (objects is null)
                     {
                         objects = res.Objects;
+                        objectsQuelle = name;
                         skipped += res.Skipped;
                         classicIdentity ??= res.Identity;
                     }
@@ -359,6 +363,7 @@ public static class BackupLoader
         progress?.Report("Backup wird ausgewertet …");
         var ergebnis = Build(path, createdAt, isFull, objects, scripts, visViews, stateCount, skipped,
                              states, system, validation, files, log);
+        ergebnis.ObjectsEntry = objectsQuelle;
         log?.Step($"Auswertung fertig: {ergebnis.Instances.Count:N0} Instanzen, " +
                   $"{ergebnis.Scripts.Count:N0} Skripte");
         return ergebnis;
@@ -557,7 +562,7 @@ public static class BackupLoader
                      null, res.Identity);
     }
 
-    private static bool IsJsonLines(string path)
+    internal static bool IsJsonLines(string path)
     {
         using var sr = new StreamReader(path, Encoding.UTF8);
         var lines = 0;
@@ -584,6 +589,7 @@ public static class BackupLoader
     {
         var result = new List<IobObject>(capacity: 20000);
         skipped = 0;
+        var keyValueLines = 0;
 
         using var sr = new StreamReader(stream, Encoding.UTF8, leaveOpen: true);
         string? line;
@@ -597,7 +603,14 @@ public static class BackupLoader
             {
                 using var doc = JsonDocument.Parse(line);
                 var obj = ObjectParser.Parse(doc.RootElement, null);
-                if (obj is null) { skipped++; continue; }
+                if (obj is null)
+                {
+                    skipped++;
+                    if (doc.RootElement.ValueKind == JsonValueKind.Object
+                        && doc.RootElement.TryGetProperty("k", out _))
+                        keyValueLines++;
+                    continue;
+                }
 
                 identity.Feed(doc.RootElement, obj.Id, obj.Type);
                 result.Add(obj);
@@ -611,6 +624,26 @@ public static class BackupLoader
                 if (check.FirstErrorLine == 0) { check.FirstErrorLine = check.Lines; check.FirstError = ex.Message; }
             }
         }
+
+        // Unbekanntes Format: Zeilen da, aber keine einzige mit _id. Nicht raten, sondern
+        // abweisen — eine leere Anlage anzuzeigen, sähe wie ein Befund aus.
+        //
+        // Die objects.jsonl eines Backitup-Backups trägt je Zeile ein vollständiges Objekt
+        // mit _id (am Referenzbackup geprüft). Zeilen der Form {"k": …, "v": …} sind ein
+        // anderes Format — vermutlich die Datenbankdatei eines laufenden Systems — und werden
+        // auf Anweisung des Autors nicht unterstützt.
+        if (result.Count == 0 && check.Lines > check.InvalidLines)
+            throw new NotABackupException(
+                keyValueLines > 0
+                    ? "Die objects.jsonl hat ein unbekanntes Zeilenformat: Die Zeilen tragen die " +
+                      "Felder \"k\" und \"v\" statt eines Objekts mit \"_id\".\r\n\r\n" +
+                      "So sieht nicht die Datei in einem Backitup-Backup aus, sondern vermutlich " +
+                      "die Datenbankdatei eines laufenden Systems. Dieses Format wird nicht " +
+                      "ausgewertet — bitte ein Backitup-Backup (.tar.gz) laden."
+                    : "Die objects.jsonl hat ein unbekanntes Zeilenformat: Keine Zeile enthält ein " +
+                      "ioBroker-Objekt mit \"_id\".\r\n\r\n" +
+                      "Erwartet wird je Zeile ein vollständiges Objekt, wie Backitup es schreibt.",
+                erklaert: true);
 
         return result;
     }

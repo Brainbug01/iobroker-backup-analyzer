@@ -26,6 +26,7 @@ public sealed class MainForm : Form
     private readonly TabPage _pageLogging = new("Logging");
     private readonly TabPage _pageAliases = new("Aliasse");
     private readonly TabPage _pageFiles = new("Dateien");
+    private readonly TabPage _pageObjects = new("Objekte");
     private readonly TabPage _pageCompare = new("Vergleich");
     private readonly TabPage _pageHelp = new("Hilfe");
     private readonly TabPage _pageChangelog = new("Änderungen");
@@ -40,6 +41,7 @@ public sealed class MainForm : Form
     private readonly LoggingTab _logging = new();
     private readonly AliasTab _aliases = new();
     private readonly FilesTab _files = new();
+    private readonly ObjectsTab _objects = new();
     private readonly CompareTab _compare = new();
     private readonly HelpTab _help = new();
 
@@ -159,6 +161,7 @@ public sealed class MainForm : Form
         _logging.Dock = DockStyle.Fill;
         _aliases.Dock = DockStyle.Fill;
         _files.Dock = DockStyle.Fill;
+        _objects.Dock = DockStyle.Fill;
         _compare.Dock = DockStyle.Fill;
         _help.Dock = DockStyle.Fill;
         _changelog.Dock = DockStyle.Fill;
@@ -173,13 +176,14 @@ public sealed class MainForm : Form
         _pageLogging.Controls.Add(_logging);
         _pageAliases.Controls.Add(_aliases);
         _pageFiles.Controls.Add(_files);
+        _pageObjects.Controls.Add(_objects);
         _pageCompare.Controls.Add(_compare);
         _pageHelp.Controls.Add(_help);
         _pageChangelog.Controls.Add(_changelog);
         _tabs.TabPages.AddRange(new[]
         {
             _pageOverview, _pageBackupCheck, _pageScripts, _pageUsage, _pageVis, _pageOrphans,
-            _pageDatapoints, _pageLogging, _pageAliases, _pageFiles, _pageCompare, _pageHelp,
+            _pageDatapoints, _pageLogging, _pageAliases, _pageFiles, _pageObjects, _pageCompare, _pageHelp,
             _pageChangelog
         });
 
@@ -439,6 +443,7 @@ public sealed class MainForm : Form
         Schritt("Logging", () => _logging.SetData(data));
         Schritt("Aliasse", () => _aliases.SetData(data));
         Schritt("Dateien", () => _files.SetData(data));
+        Schritt("Objekte", () => _objects.SetData(data));
         Schritt("Vergleich", () => _compare.SetData(data));
         SetAvailability(data);
         log?.Step("Alle Tabs aufgebaut");

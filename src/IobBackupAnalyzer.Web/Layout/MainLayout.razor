@@ -96,6 +96,9 @@
             case Tab.Alias:
                 <Alias />
                 break;
+            case Tab.Objects:
+                <Objects />
+                break;
             case Tab.Files:
                 <Files />
                 break;
@@ -134,7 +137,7 @@
     private enum Tab
     {
         Overview, BackupCheck, Scripts, Usage, Vis, Orphans, Datapoints,
-        Logging, Alias, Files, Compare, Help, Changelog
+        Logging, Alias, Files, Objects, Compare, Help, Changelog
     }
 
     /// <summary>
@@ -153,6 +156,7 @@
         (Tab.Logging,     "Logging"),
         (Tab.Alias,       "Aliasse"),
         (Tab.Files,       "Dateien"),
+        (Tab.Objects,     "Objekte"),
         (Tab.Compare,     "Vergleich"),
         (Tab.Help,        "Hilfe"),
         (Tab.Changelog,   "Änderungen")

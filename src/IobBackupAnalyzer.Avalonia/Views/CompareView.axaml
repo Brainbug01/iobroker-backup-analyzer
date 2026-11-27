@@ -160,10 +160,11 @@
         <!-- === Objekte === -->
         <TabItem Header="Objekte">
           <Grid RowDefinitions="Auto,*" Margin="0,6,0,0">
-            <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,6">
+            <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto,Auto" Margin="0,0,0,6">
               <TextBlock Grid.Column="0" VerticalAlignment="Center" Opacity="0.75"
                          Text="Namensraum auswählen, um die betroffenen Objekt-IDs zu sehen." />
-              <Button Name="CsvObjects" Grid.Column="2" Content="Als CSV exportieren" />
+              <Button Name="CsvObjects" Grid.Column="2" Content="Als CSV exportieren" Margin="0,0,8,0" />
+              <Button Name="RestoreRemoved" Grid.Column="3" />
             </Grid>
 
             <Grid Grid.Row="1" ColumnDefinitions="420,6,*">

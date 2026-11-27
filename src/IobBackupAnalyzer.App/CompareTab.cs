@@ -264,7 +264,20 @@ public sealed class CompareTab : UserControl
         };
         var csv = new Button { Text = "Als CSV exportieren", Size = new Size(160, 26), Location = new Point(430, 5) };
         csv.Click += (_, _) => ExportObjects();
-        bar.Controls.AddRange(new Control[] { hint, csv });
+
+        // Der Wiederherstellungsfall: was im neueren Backup fehlt, aus dem älteren holen.
+        var restore = new Button
+        {
+            Text = ObjectsPresenter.CompareExportLabel, Size = new Size(300, 26), Location = new Point(598, 5)
+        };
+        new ToolTip { AutoPopDelay = 30000 }.SetToolTip(restore, ObjectsPresenter.CompareExportHint);
+        restore.Click += (_, _) =>
+        {
+            if (_cmp is null) return;
+            ObjectsTab.ExportSelection(this, _cmp.Before, ObjectsPresenter.RemovedSelection(_cmp),
+                                       ObjectsPresenter.RemovedFileName(_cmp), toClipboard: false);
+        };
+        bar.Controls.AddRange(new Control[] { hint, csv, restore });
 
         var split = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Vertical };
         SetSplitterWhenSized(split, 420);

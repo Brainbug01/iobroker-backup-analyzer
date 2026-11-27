@@ -457,12 +457,37 @@ public static class HelpContent
             "z. B. den Doppelpunkt), werden beim Export entschärft; wie viele es waren, steht in " +
             "der Meldung danach."),
 
+        new(HelpBlockKind.Heading, "Tab „Objekte\""),
+        new(HelpBlockKind.Text,
+            "Holt einzelne Objekte aus dem Backup zurück — etwa versehentlich gelöschte " +
+            "echarts-Vorlagen, Ordner oder eigene Datenpunkte. Suchen nach ID-Anfang oder Muster " +
+            "(echarts.0.*), eingrenzen nach Typ (state, channel, device, folder, chart, script …), " +
+            "die gewünschten Zeilen anhaken oder „Alle Treffer anhaken\". Mit „Unterobjekte " +
+            "einschließen\" kommen zu einem Ordner oder Gerät alle Objekte darunter mit.\n" +
+            "„Als Import-JSON speichern\" schreibt eine Datei, die der Admin unter Objekte → " +
+            "Expertenmodus → „Objekte hochladen\" einliest: je Objekt seine ID und das Objekt genau " +
+            "so, wie es im Backup steht. „In Zwischenablage\" liefert denselben Text.\n" +
+            "Vor dem Export kommen drei Hinweise, die man kennen muss: Der Import überschreibt " +
+            "vorhandene Objekte mit gleicher ID ohne Rückfrage. Wiederhergestellt werden nur die " +
+            "Objekte, keine Werte — Datenpunkte starten ohne Wert. Und Adapter-Instanzen spielt man " +
+            "so nicht zurück, sondern über Backitup.\n" +
+            "Zurückgehalten werden standardmäßig Objekte mit Zugangsdaten (Benutzer, Zertifikate, " +
+            "die Zugangsdaten-Ablage, der Systemschlüssel, native-Felder wie password oder token) " +
+            "sowie Adapter-, Instanz- und Host-Objekte. Sie stehen gedämpft in der Liste, mit dem " +
+            "Grund in der letzten Spalte, und lassen sich mit „Zurückgehaltene zulassen\" bewusst " +
+            "freischalten. Das Werkzeug selbst schreibt nichts in ein ioBroker-System — es erzeugt " +
+            "nur die Datei."),
+
         new(HelpBlockKind.Heading, "Tab „Vergleich\""),
         new(HelpBlockKind.Text,
             "Zwei Backups gegenüberstellen: geänderte Adapter-Versionen (Updates/Downgrades), neue und " +
             "gelöschte Objekte je Namensraum, geänderte VIS-Views und inhaltlich geänderte Skripte mit " +
             "zeilengenauem Diff (bei Blockly wird das XML verglichen). Zusätzlich wird über die " +
-            "Installations-UUID geprüft, ob beide Backups überhaupt aus demselben System stammen."),
+            "Installations-UUID geprüft, ob beide Backups überhaupt aus demselben System stammen.\n" +
+            "Im Untertab „Objekte\" schreibt „Verschwundene als Import-JSON exportieren\" alle " +
+            "Objekte, die im neueren Backup fehlen, aus dem älteren in eine Datei für „Objekte " +
+            "hochladen\" — der Weg, versehentlich Gelöschtes zurückzuholen. Es gelten dieselben " +
+            "Hinweise und Sperren wie im Tab „Objekte\"."),
 
         new(HelpBlockKind.Heading, "Tab „Änderungen\""),
         new(HelpBlockKind.Text,

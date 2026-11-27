@@ -433,6 +433,9 @@ html, body {
 }
 
 .tabelle th.zahl, .tabelle td.zahl { text-align: right; }
+/* Hakenspalte im Reiter „Objekte": nur der Haken, mittig. */
+.tabelle td.haken-zelle { text-align: center; padding: 0; }
+.tabelle td.haken-zelle input { margin: 0; cursor: pointer; }
 .tabelle tbody tr:hover { background: var(--grund-2); }
 .tabelle tbody tr.gewaehlt { background: var(--auswahl); }
 

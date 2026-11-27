@@ -28,6 +28,13 @@ public sealed class IobObject
     public string Type { get; init; } = "";
     public string Name { get; init; } = "";
 
+    /// <summary>
+    /// true, wenn <c>native</c> ein gefülltes Feld mit einem Zugangsdaten-Namen trägt oder
+    /// verschlüsselte Felder ausweist (siehe <see cref="ObjectExportGuard"/>). Nur der
+    /// Wahrheitswert wird behalten — weder Feldnamen noch Werte.
+    /// </summary>
+    public bool NativeHasSecrets { get; init; }
+
     /// <summary>Nur bei type=instance gesetzt (common.version).</summary>
     public string? Version { get; init; }
 
@@ -1362,6 +1369,15 @@ public sealed class BackupData
 {
     public required string SourceFile { get; init; }
     public required BackupKind Kind { get; init; }
+
+    /// <summary>
+    /// Eintrag im Archiv (Name wie im Tar, mit „/"), aus dem die Objektliste stammt —
+    /// <c>…/objects.jsonl</c>, <c>…/backup.json</c> oder <c>…/script.json</c>. null, wenn
+    /// die Objekte aus einer losen Datei kamen; dann ist <see cref="SourceFile"/> selbst die
+    /// Quelle. Der Objekt-Export liest genau diesen Eintrag noch einmal, weil die Rohdaten
+    /// beim Laden verworfen werden.
+    /// </summary>
+    public string? ObjectsEntry { get; internal set; }
 
     /// <summary>Erstellungsdatum, aus dem Dateinamen geparst; Fallback Datei-Zeitstempel.</summary>
     public DateTime? CreatedAt { get; init; }

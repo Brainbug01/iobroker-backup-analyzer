@@ -3,7 +3,8 @@
 Werkzeug, das ioBroker-Backups (Backitup) **offline** einliest und analysiert — ohne
 laufendes ioBroker-System, ohne Adapter-Installation, per Doppelklick startbar.
 
-Reines Lesewerkzeug: Es schreibt nichts in ein ioBroker-System und löscht nichts.
+Reines Lesewerkzeug: Es schreibt nichts in ein ioBroker-System und löscht nichts. Kein Restore
+durch das Tool – Export zum manuellen Import ist erlaubt (Tab „Objekte“).
 
 ## ▶ Ohne Installation ausprobieren
 
@@ -808,6 +809,52 @@ Die Inhalte werden nicht beim Laden in den Speicher geholt, sondern erst beim Ex
 dem Archiv nachgelesen — ein Backup mit Kamerabildern brächte sonst zweistellige Megabytes
 mit, die in aller Regel niemand ansieht.
 
+### Tab „Objekte" (seit 1.35.0)
+Holt einzelne Objekte aus dem Backup zurück, z. B. versehentlich gelöschte
+echarts-Vorlagen, Ordner oder eigene Datenpunkte. Das Ergebnis ist eine Datei, die der
+ioBroker-Admin unter **Objekte → Expertenmodus → „Objekte hochladen"** einliest. Das
+Werkzeug selbst schreibt nichts in ein ioBroker-System.
+
+- **Suchen** nach ID-Anfang oder Muster mit `*` und `?` (`echarts.0.*`), eingrenzen nach
+  Typ (`state`, `channel`, `device`, `folder`, `chart`, `script` …).
+- **Auswählen** per Haken je Zeile oder „Alle Treffer anhaken". Mit **„Unterobjekte
+  einschließen"** kommen zu einem Ordner oder Gerät alle Objekte darunter mit.
+- **Exportieren** als Datei (`objekte_<Backupdatum>_<Muster>.json`) oder in die
+  Zwischenablage.
+
+**Format.** Ein JSON-Objekt `{"<id>": <Objekt>, …}`, jedes Objekt mit `_id` und allen
+Feldern **unverändert aus dem Backup**, UTF-8 ohne BOM, eingerückt. So wurde es am echten
+Admin erfolgreich importiert. Weil die Analysen nur einen Teil jedes Objekts behalten,
+liest der Export den Objekteintrag des Archivs (`objects.jsonl` bzw. `backup.json`) noch
+einmal und reicht die gewählten Objekte unverändert durch. Ein Array mit einem Element
+bleibt ein Array, eine Zahl bleibt eine Zahl. Werte aus `states.jsonl` kommen nie hinein.
+
+**Vor dem Export nennt ein Dialog drei Dinge:**
+1. Der Import **überschreibt** vorhandene Objekte mit gleicher ID ohne Rückfrage.
+2. Wiederhergestellt werden **nur die Objekte, keine Werte** — Datenpunkte starten ohne Wert.
+3. **Adapter-Instanzen** spielt man so nicht zurück, sondern über Backitup.
+
+**Zurückgehalten** werden standardmäßig Objekte mit Zugangsdaten (`system.user.*`,
+`system.group.*`, `system.certificates`, `system.config`, `system.credentials.*`,
+`system.licenses`, `system.meta.uuid` und jedes Objekt, dessen `native` ein gefülltes Feld
+wie `password`, `token`, `secret`, `pin` oder `…Key` enthält oder verschlüsselte Felder
+ausweist) sowie Adapter-, Instanz- und Host-Objekte (`system.adapter.*`, `system.host.*`).
+Sie stehen gedämpft in der Liste, der Grund in der letzten Spalte, und lassen sich mit
+„Zurückgehaltene zulassen" nach einer Warnung bewusst freischalten. Gelesen wird dafür
+beim Laden nur, *ob* ein solches Feld gefüllt ist; Feldnamen und Werte behält das Programm
+nicht.
+
+Im Vergleich gibt es denselben Export für den typischen Fall: **„Verschwundene als
+Import-JSON exportieren"** (Untertab „Objekte") schreibt alle Objekte, die im neueren
+Backup fehlen, aus dem älteren Backup in eine solche Datei. Es gelten dieselben Hinweise
+und Sperren.
+
+> **Zeilenformat.** Die `objects.jsonl` eines Backitup-Backups enthält je Zeile ein
+> vollständiges Objekt mit `_id`, kein Änderungsprotokoll. Steht eine ID trotzdem mehrfach
+> darin, gilt für den Export die letzte Zeile. Eine Datei mit Zeilen der Form
+> `{"k": …, "v": …}` (vermutlich die Datenbankdatei eines laufenden Systems) wird mit einer
+> Meldung abgewiesen statt geraten ausgewertet.
+
 ### Tab „Vergleich"
 Stellt das geladene Backup einem zweiten gegenüber — die Antwort auf „gestern lief es
 noch". Zweites Backup per Button wählen oder in den Tab ziehen; welches der beiden
@@ -818,7 +865,7 @@ noch". Zweites Backup per Button wählen oder in den Tab ziehen; welches der bei
 | **Kennzahlen** | Objekte, States, Instanzen, Skripte, Aliasse … nebeneinander mit Differenz |
 | **Adapter-Instanzen** | neu / entfernt, Versionswechsel, aktiviert ↔ deaktiviert, Objektzahl. Ein **Downgrade** wird orange hervorgehoben — das ist der Fall, den man bei einer Fehlersuche sucht |
 | **Skripte** | neu / gelöscht / inhaltlich geändert, mit **zeilengenauem Vergleich** darunter (grün = hinzugefügt, rot = entfernt). Bei Blockly wird das **XML** verglichen, nicht das daraus erzeugte JavaScript |
-| **Objekte** | neue und verschwundene IDs, gruppiert nach Namensraum — größte Bewegung zuerst; Auswahl zeigt die betroffenen IDs |
+| **Objekte** | neue und verschwundene IDs, gruppiert nach Namensraum — größte Bewegung zuerst; Auswahl zeigt die betroffenen IDs. „Verschwundene als Import-JSON exportieren“ holt die fehlenden aus dem älteren Backup |
 | **VIS-Views** | Views neu / entfernt / geändert, mit Zahl der hinzugekommenen, entfernten und geänderten Widgets |
 
 Jede Liste hat einen Schalter „Nur Änderungen anzeigen" (standardmäßig an) und einen
@@ -1153,7 +1200,8 @@ Prüflisten, die Entscheidung trifft der Mensch davor.
 ## Grenzen
 
 - Redis-, InfluxDB- und Zigbee-Teilbackups werden nicht ausgewertet.
-- Kein Restore, kein Schreiben, kein Löschen.
+- Kein Restore durch das Tool – Export zum manuellen Import ist erlaubt. Kein Schreiben ins
+  ioBroker-System, kein Löschen.
 - Analyse B erkennt keine Nutzung durch externe Systeme (MQTT-Clients, Grafana, Apps) und
   keine zur Laufzeit zusammengesetzten IDs — Letzteres wird über die Spalte
   „In Skripten = Nur Präfix" und über die Einstufung „Kandidat — aber aktiv" angedeutet.

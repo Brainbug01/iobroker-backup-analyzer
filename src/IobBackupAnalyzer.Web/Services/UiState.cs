@@ -26,6 +26,7 @@ public sealed class UiState
     public AliasTab Alias { get; private set; } = new();
     public DatapointsTab Datapoints { get; private set; } = new();
     public FilesTab Files { get; private set; } = new();
+    public ObjectsTab Objects { get; private set; } = new();
     public CompareTab Compare { get; private set; } = new();
 
     /// <summary>
@@ -47,6 +48,7 @@ public sealed class UiState
         DatapointCache = null;
         WidgetSetCache = null;
         Files = new FilesTab();
+        Objects = new ObjectsTab();
         Compare = new CompareTab();
     }
 
@@ -160,6 +162,16 @@ public sealed class UiState
         public string Namespace { get; set; } = FilesPresenter.AllNamespaces;
         public HashSet<BackupFileInfo> Marked { get; set; } = new();
         public BackupFileInfo? Selected { get; set; }
+    }
+
+    public sealed class ObjectsTab
+    {
+        public string Pattern { get; set; } = "";
+        public string Type { get; set; } = "Alle";
+        public bool IncludeChildren { get; set; }
+        public bool AllowGuarded { get; set; }
+        public HashSet<string> Checked { get; } = new(StringComparer.Ordinal);
+        public IobObject? Selected { get; set; }
     }
 
     public sealed class CompareTab

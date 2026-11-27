@@ -23,6 +23,31 @@ public static class ChangelogContent
     /// <summary>Neueste Version zuerst.</summary>
     public static IReadOnlyList<ChangelogEntry> Entries { get; } = new ChangelogEntry[]
     {
+        new("1.35.0", "27.11.2026", new[]
+        {
+            "Neuer Tab „Objekte\": Objekte aus dem Backup zurückholen — etwa versehentlich " +
+            "gelöschte echarts-Vorlagen. Suchen nach ID-Muster (echarts.0.*) und Typ, Zeilen " +
+            "anhaken, auf Wunsch mit allen Unterobjekten, und als Datei speichern oder in die " +
+            "Zwischenablage kopieren. Die Datei liest der Admin unter Objekte → Expertenmodus → " +
+            "„Objekte hochladen\" ein; jedes Objekt steht darin genau so wie im Backup.",
+
+            "Im Vergleich: „Verschwundene als Import-JSON exportieren\" schreibt alle Objekte, " +
+            "die im neueren Backup fehlen, aus dem älteren in eine solche Datei.",
+
+            "Vor jedem Export nennt ein Dialog, was man wissen muss: Der Import überschreibt " +
+            "Objekte gleicher ID, Werte werden nicht wiederhergestellt, und Adapter-Instanzen " +
+            "spielt man über Backitup zurück, nicht so. Objekte mit Zugangsdaten sowie Adapter-, " +
+            "Instanz- und Host-Objekte werden standardmäßig zurückgehalten und lassen sich nur " +
+            "bewusst freischalten. Werte aus den States kommen nie in die Datei.",
+
+            "Das Werkzeug schreibt weiterhin nichts in ein ioBroker-System — es erzeugt nur die " +
+            "Datei, die man selbst importiert.",
+
+            "Eine objects.jsonl in einem unbekannten Zeilenformat (etwa mit den Feldern „k\" und " +
+            "„v\" statt eines Objekts mit _id) wird jetzt mit einer klaren Meldung abgewiesen, " +
+            "statt als leere Anlage zu erscheinen."
+        }),
+
         new("1.34.0", "27.11.2026", new[]
         {
             "Neu im Tab „Skripte\": die Spalte „Shadow-Zugangsdaten\". Steckt man in einen " +

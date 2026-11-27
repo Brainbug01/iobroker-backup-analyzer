@@ -132,6 +132,9 @@
                 </span>
                 <span class="dehnen"></span>
                 <button class="knopf" @onclick="ObjekteAlsCsv">Als CSV exportieren</button>
+                @* Der Wiederherstellungsfall: was im neueren Backup fehlt, aus dem älteren holen. *@
+                <button class="knopf" title="@ObjectsPresenter.CompareExportHint"
+                        @onclick="VerschwundeneExportierenAsync">@ObjectsPresenter.CompareExportLabel</button>
             </div>
 
             <div class="nebeneinander">
@@ -425,6 +428,13 @@
     private async Task SkripteAlsCsv() =>
         await Io.SaveCsvAsync("vergleich-skripte.csv", ComparePresenter.ScriptCsvColumns,
                               Skripte.Select(ComparePresenter.Row).ToList());
+
+    private async Task VerschwundeneExportierenAsync()
+    {
+        if (S.Comparison is not { } v) return;
+        await ObjektExport.AusfuehrenAsync(Io, Dialoge, v.Before, ObjectsPresenter.RemovedSelection(v),
+                                           ObjectsPresenter.RemovedFileName(v), zwischenablage: false);
+    }
 
     private async Task ObjekteAlsCsv()
     {

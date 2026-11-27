@@ -5003,6 +5003,189 @@ if (File.Exists(full))
                       $"{fullData.Scripts.Count(s => s.ShadowCredentials.Count > 0)} Skripten");
 }
 
+// --- Objekt-Export für „Objekte hochladen" ---
+// Format am echten Admin bestätigt: {"<id>": Objekt mit _id, Felder unverändert}. Alle
+// Objekte hier sind erfunden.
+Console.WriteLine("\n=== Objekt-Export ===");
+
+var objExportDir = Path.Combine(Path.GetTempPath(), "iob-verify-objektexport");
+if (Directory.Exists(objExportDir)) Directory.Delete(objExportDir, true);
+Directory.CreateDirectory(Path.Combine(objExportDir, "backup"));
+
+var chartAlt = "{\"_id\":\"echarts.0.Heizung\",\"type\":\"chart\",\"common\":{\"name\":\"Heizung alt\"},\"native\":{\"data\":{\"l\":[{\"id\":\"0_userdata.0.Temp\"}]}}}";
+var chartNeu = "{\"common\":{\"name\":\"Heizung – Übersicht\",\"desc\":\"Größe °C\"},\"type\":\"chart\",\"_id\":\"echarts.0.Heizung\",\"native\":{\"data\":{\"l\":[{\"id\":\"0_userdata.0.Temp\",\"aggregate\":\"minmax\"}],\"zoom\":true}},\"acl\":{\"object\":1636,\"owner\":\"system.user.admin\"},\"from\":\"system.adapter.admin.0\",\"user\":\"system.user.admin\",\"ts\":1719044449427}";
+var objektZeilen = new[]
+{
+    AdapterZeile("admin", "7.7.22"),
+    chartAlt,
+    "{\"_id\":\"echarts.0.Strom\",\"type\":\"chart\",\"common\":{\"name\":\"Strom\"},\"native\":{\"data\":{\"l\":[{\"id\":\"0_userdata.0.Watt\"}]}}}",
+    "{\"_id\":\"echarts.0\",\"type\":\"meta\",\"common\":{\"name\":\"echarts\"},\"native\":{}}",
+    "{\"_id\":\"0_userdata.0.Heizung\",\"type\":\"folder\",\"common\":{\"name\":\"Heizung\"},\"native\":{}}",
+    "{\"_id\":\"0_userdata.0.Heizung.Soll\",\"type\":\"state\",\"common\":{\"name\":\"Soll\",\"type\":\"number\",\"role\":\"level\",\"states\":[\"aus\"],\"min\":5},\"native\":{}}",
+    "{\"_id\":\"0_userdata.0.HeizungAlt\",\"type\":\"state\",\"common\":{\"name\":\"Alt\",\"type\":\"number\"},\"native\":{}}",
+    "{\"_id\":\"system.adapter.kamera.0\",\"type\":\"instance\",\"common\":{\"name\":\"kamera\",\"version\":\"1.0.0\"},\"native\":{\"host\":\"192.0.2.10\"}}",
+    "{\"_id\":\"system.user.admin\",\"type\":\"user\",\"common\":{\"name\":\"admin\",\"password\":\"pbkdf2$beispiel\"},\"native\":{}}",
+    "{\"_id\":\"kamera.0.Zugang\",\"type\":\"device\",\"common\":{\"name\":\"Zugang\"},\"native\":{\"geraete\":[{\"name\":\"Tor\",\"password\":\"Beispiel123\"}]}}",
+    "{\"_id\":\"kamera.0.Leer\",\"type\":\"device\",\"common\":{\"name\":\"Leer\"},\"native\":{\"password\":\"\",\"sortKey\":\"\"}}",
+    chartNeu
+};
+File.WriteAllText(Path.Combine(objExportDir, "backup", "objects.jsonl"), string.Join("\n", objektZeilen) + "\n");
+File.WriteAllText(Path.Combine(objExportDir, "backup", "states.jsonl"),
+    "{\"id\":\"0_userdata.0.Heizung.Soll\",\"state\":{\"val\":\"WERT-AUS-STATES\",\"ack\":true,\"ts\":1,\"lc\":1}}\n");
+var exportTar = Path.Combine(objExportDir, "iobroker_2026_11_26-03_00_00_backupiobroker.tar.gz");
+CreateTarGz(Path.Combine(objExportDir, "backup"), exportTar);
+var exportDaten = BackupLoader.Load(exportTar);
+
+Check("Der Lader merkt sich die Objektquelle",
+      exportDaten.ObjectsEntry?.EndsWith("backup/objects.jsonl", StringComparison.Ordinal) == true);
+
+var echarts = ObjectsPresenter.Filter(exportDaten.Objects, "echarts.0.*", null);
+Check("Muster echarts.0.* trifft die Charts, nicht den Namensraum",
+      echarts.Select(o => o.Id).Distinct().SequenceEqual(new[] { "echarts.0.Heizung", "echarts.0.Strom" }));
+Check("Ohne Stern zaehlt der ID-Anfang, ohne Gross/Klein",
+      ObjectsPresenter.Filter(exportDaten.Objects, "0_USERDATA.0.heizung", null).Count == 3);
+Check("Typfilter chart",
+      ObjectsPresenter.Filter(exportDaten.Objects, "", "chart").All(o => o.Type == "chart"));
+Check("Typliste beginnt mit Alle und enthaelt chart",
+      ObjectsPresenter.TypeLabels(exportDaten) is ["Alle", ..] && ObjectsPresenter.TypeLabels(exportDaten).Contains("chart"));
+
+var objSel = ObjectsPresenter.Resolve(exportDaten, new[] { "echarts.0.Heizung", "echarts.0.Strom" }, false, false);
+var export = ObjectExporter.Build(exportDaten, objSel.Export);
+using (var exportDoc = JsonDocument.Parse(export.Json))
+{
+    var wurzel = exportDoc.RootElement;
+    Check("Export ist ein Objekt {id: Objekt}",
+          wurzel.ValueKind == JsonValueKind.Object && wurzel.EnumerateObject().Count() == 2);
+    Check("Jedes Objekt traegt _id gleich dem Schluessel",
+          wurzel.EnumerateObject().All(p => p.Value.GetProperty("_id").GetString() == p.Name));
+    Check("Bei doppelter _id gilt der letzte Eintrag",
+          wurzel.GetProperty("echarts.0.Heizung").GetProperty("common").GetProperty("name").GetString()
+              == "Heizung – Übersicht");
+    using var quelle = JsonDocument.Parse(chartNeu);
+    Check("Objekt kommt unveraendert an (Felder, Zahlen, acl, ts)",
+          System.Text.Json.Nodes.JsonNode.DeepEquals(
+              System.Text.Json.Nodes.JsonNode.Parse(wurzel.GetProperty("echarts.0.Heizung").GetRawText()),
+              System.Text.Json.Nodes.JsonNode.Parse(chartNeu)));
+    Check("Array mit einem Element bleibt ein Array",
+          wurzel.GetProperty("echarts.0.Heizung").GetProperty("native").GetProperty("data")
+                .GetProperty("l").ValueKind == JsonValueKind.Array);
+}
+Check("Umlaute stehen im Klartext, nicht als \\u-Folge",
+      export.Json.Contains("Übersicht") && export.Json.Contains("°C") && !export.Json.Contains("\\u00"));
+Check("Eingerueckt", export.Json.Contains("\n  \""));
+Check("Kein Wert aus states.jsonl im Export", !export.Json.Contains("WERT-AUS-STATES"));
+
+var mitKindern = ObjectsPresenter.Resolve(exportDaten, new[] { "0_userdata.0.Heizung" }, true, false);
+Check("Unterobjekte: Ordner bringt Soll mit, aber nicht HeizungAlt",
+      mitKindern.Export.SequenceEqual(new[] { "0_userdata.0.Heizung", "0_userdata.0.Heizung.Soll" })
+      && mitKindern.Children == 1);
+var sollExport = ObjectExporter.Build(exportDaten, new[] { "0_userdata.0.Heizung.Soll" });
+Check("Ein-Element-Array in common.states bleibt Array",
+      JsonDocument.Parse(sollExport.Json).RootElement.GetProperty("0_userdata.0.Heizung.Soll")
+                  .GetProperty("common").GetProperty("states").ValueKind == JsonValueKind.Array);
+
+var heikel = ObjectsPresenter.Resolve(exportDaten,
+    new[] { "system.adapter.kamera.0", "system.user.admin", "kamera.0.Zugang", "kamera.0.Leer", "echarts.0.Strom" }, false, false);
+Check("Instanz, Benutzer und native.password werden zurueckgehalten",
+      heikel.Guarded.SequenceEqual(new[] { "kamera.0.Zugang", "system.adapter.kamera.0", "system.user.admin" }));
+Check("Leeres Passwortfeld haelt nicht zurueck", heikel.Export.Contains("kamera.0.Leer"));
+Check("Mit Freischaltung gehen sie mit",
+      ObjectsPresenter.Resolve(exportDaten, heikel.Guarded, false, true).Export.Count == 3);
+Check("Der Grund steht in der Zeile",
+      ObjectsPresenter.Row(exportDaten.Objects.First(o => o.Id == "kamera.0.Zugang"))[3].Contains("native"));
+Check("Kein Passwort gelangt in die Zeile",
+      exportDaten.Objects.All(o => ObjectsPresenter.Row(o).All(z => !z.Contains("Beispiel123"))));
+
+var bestaetigung = ObjectsPresenter.ConfirmText(heikel);
+Check("Dialog nennt Ueberschreiben, fehlende Werte und Instanzen",
+      bestaetigung.Contains("überschreibt") && bestaetigung.Contains("keine Werte")
+      && bestaetigung.Contains("Adapter-Instanzen") && bestaetigung.Contains("3 zurückgehalten"));
+
+Check("Dateiname mit Backupdatum und Muster",
+      ObjectExporter.FileName(exportDaten, "echarts.0.*") == "objekte_2026-11-26_0300_echarts.0.json");
+Check("Dateiname ohne Muster", ObjectExporter.FileName(exportDaten, " * ") == "objekte_2026-11-26_0300_auswahl.json");
+
+// Schreiben: UTF-8 ohne BOM, keine Nebendatei, Backup bleibt unangetastet.
+var zielDatei = Path.Combine(objExportDir, "export.json");
+ObjectExporter.WriteFile(export.Json, zielDatei, exportTar);
+var zielBytes = File.ReadAllBytes(zielDatei);
+Check("Datei ohne BOM", zielBytes.Length > 3 && !(zielBytes[0] == 0xEF && zielBytes[1] == 0xBB));
+Check("Keine .teil-Datei bleibt liegen", !File.Exists(zielDatei + ".teil"));
+var tarVorher = File.ReadAllBytes(exportTar);
+var schutz = false;
+try { ObjectExporter.WriteFile(export.Json, exportTar, exportTar); }
+catch (InvalidOperationException) { schutz = true; }
+Check("Ziel = Backup wird abgewiesen, Backup bleibt unveraendert",
+      schutz && File.ReadAllBytes(exportTar).SequenceEqual(tarVorher));
+
+// Vergleich: verschwundene Objekte aus dem älteren Backup.
+Directory.CreateDirectory(Path.Combine(objExportDir, "neu", "backup"));
+File.WriteAllText(Path.Combine(objExportDir, "neu", "backup", "objects.jsonl"),
+    string.Join("\n", objektZeilen.Where(z => !z.Contains("\"echarts.0.Heizung\"") && !z.Contains("system.adapter.kamera.0"))) + "\n");
+File.WriteAllText(Path.Combine(objExportDir, "neu", "backup", "states.jsonl"), "");
+var neuTar = Path.Combine(objExportDir, "iobroker_2026_11_27-03_00_00_backupiobroker.tar.gz");
+CreateTarGz(Path.Combine(objExportDir, "neu", "backup"), neuTar);
+var vergleichExport = BackupComparer.Compare(BackupLoader.Load(neuTar), exportDaten);
+var verschwunden = ObjectsPresenter.RemovedSelection(vergleichExport);
+Check("Verschwundene: Chart aus dem aelteren Backup, Instanz zurueckgehalten",
+      verschwunden.Export.SequenceEqual(new[] { "echarts.0.Heizung" })
+      && verschwunden.Guarded.SequenceEqual(new[] { "system.adapter.kamera.0" }));
+Check("Verschwundene: Dateiname traegt das Datum des aelteren Backups",
+      ObjectsPresenter.RemovedFileName(vergleichExport) == "objekte_2026-11-26_0300_verschwunden.json");
+Check("Verschwundene: Export liest das aeltere Backup",
+      ObjectExporter.Build(vergleichExport.Before, verschwunden.Export).Count == 1);
+
+// backup.json, beide Formen, als lose Datei — dort steht _id teils nur im Schlüssel.
+var formA = Path.Combine(objExportDir, "backup.json");
+File.WriteAllText(formA, "{\"echarts.0.Strom\":{\"type\":\"chart\",\"common\":{\"name\":\"Strom\"},\"native\":{\"l\":[1]}}," +
+                         "\"system.adapter.x.0\":{\"type\":\"instance\",\"common\":{\"name\":\"x\"},\"native\":{}}}");
+var formADaten = BackupLoader.Load(formA);
+var formAExport = ObjectExporter.Build(formADaten, new[] { "echarts.0.Strom" });
+var formAObjekt = JsonDocument.Parse(formAExport.Json).RootElement.GetProperty("echarts.0.Strom");
+Check("backup.json Form A: lose Datei als Quelle", formADaten.ObjectsEntry is null && formAExport.Count == 1);
+Check("backup.json Form A: fehlendes _id wird ergaenzt",
+      formAObjekt.GetProperty("_id").GetString() == "echarts.0.Strom"
+      && formAObjekt.GetProperty("native").GetProperty("l").ValueKind == JsonValueKind.Array);
+
+var formB = Path.Combine(objExportDir, "formb", "backup");
+Directory.CreateDirectory(formB);
+File.WriteAllText(Path.Combine(formB, "backup.json"),
+    "{\"objects\":{\"echarts.0.Strom\":{\"_id\":\"echarts.0.Strom\",\"type\":\"chart\",\"common\":{\"name\":\"Strom B\"},\"native\":{}}," +
+    "\"system.adapter.x.0\":{\"type\":\"instance\",\"common\":{\"name\":\"x\"},\"native\":{}}}}");
+var formBTar = Path.Combine(objExportDir, "iobroker_2026_11_25-03_00_00_backupiobroker.tar.gz");
+CreateTarGz(formB, formBTar);
+var formBDaten = BackupLoader.Load(formBTar);
+Check("backup.json Form B im Archiv",
+      formBDaten.ObjectsEntry?.EndsWith("backup.json", StringComparison.Ordinal) == true
+      && JsonDocument.Parse(ObjectExporter.Build(formBDaten, new[] { "echarts.0.Strom" }).Json)
+                     .RootElement.GetProperty("echarts.0.Strom").GetProperty("common")
+                     .GetProperty("name").GetString() == "Strom B");
+
+Check("Nicht vorhandene ID wird als fehlend gemeldet",
+      ObjectExporter.Build(exportDaten, new[] { "gibt.es.nicht" }).Missing is ["gibt.es.nicht"]);
+
+// Unbekanntes Zeilenformat: abweisen statt raten.
+var kvDatei = Path.Combine(objExportDir, "objects.jsonl");
+File.WriteAllText(kvDatei, "{\"k\":\"echarts.0.Strom\",\"v\":{\"type\":\"chart\"}}\n{\"k\":\"echarts.0.Heizung\"}\n");
+string? kvMeldung = null;
+try { BackupLoader.Load(kvDatei); }
+catch (NotABackupException ex) { kvMeldung = ex.Message; }
+Check("k/v-Format wird mit klarer Meldung abgewiesen",
+      kvMeldung is not null && kvMeldung.Contains("\"k\" und \"v\"") && kvMeldung.Contains("nicht ausgewertet"));
+
+Directory.Delete(objExportDir, true);
+
+// An der echten Anlage: Rundlauf für alle Charts — jedes exportierte Objekt muss der
+// Zeile im Backup gleichen. Nur Zahlen ausgeben, keine IDs.
+if (File.Exists(full))
+{
+    var echteCharts = fullData.Objects.Where(o => o.Type == "chart").Select(o => o.Id).ToList();
+    var echtExport = ObjectExporter.Build(fullData, echteCharts);
+    Check("Referenzanlage: alle Charts gefunden", echtExport.Count == echteCharts.Distinct().Count()
+                                                    && echtExport.Missing.Count == 0);
+    Console.WriteLine($"  Referenzanlage: {echtExport.Count} Charts exportiert, {echtExport.Json.Length:N0} Zeichen");
+}
+
 // ---------------------------------------------------------------- Ergebnis
 
 Console.WriteLine();

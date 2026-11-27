@@ -1,0 +1,49 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="IobBackupAnalyzer.Avalonia.Views.ObjectsView">
+
+  <Grid Margin="8" RowDefinitions="Auto,Auto,*">
+
+    <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,*" Margin="0,0,0,6">
+      <TextBlock Grid.Column="0" Text="ID-Muster:" VerticalAlignment="Center" Margin="0,0,8,0" />
+      <TextBox Name="Pattern" Grid.Column="1" Width="300" Watermark="z. B. echarts.0.*" />
+      <TextBlock Grid.Column="2" Text="Typ:" VerticalAlignment="Center" Margin="14,0,8,0" />
+      <ComboBox Name="TypeFilter" Grid.Column="3" Width="160" />
+      <CheckBox Name="IncludeChildren" Grid.Column="4" Margin="14,0,0,0" VerticalAlignment="Center" />
+      <CheckBox Name="AllowGuarded" Grid.Column="5" Margin="14,0,0,0" VerticalAlignment="Center" />
+    </Grid>
+
+    <Grid Grid.Row="1" ColumnDefinitions="*,Auto,Auto,Auto,Auto" Margin="0,0,0,8">
+      <TextBlock Name="Count" Grid.Column="0" VerticalAlignment="Center" Opacity="0.75" />
+      <Button Name="CheckAll"  Grid.Column="1" Content="Alle Treffer anhaken" Margin="0,0,8,0" />
+      <Button Name="Uncheck"   Grid.Column="2" Content="Haken entfernen" Margin="0,0,8,0" />
+      <Button Name="Clipboard" Grid.Column="3" Content="In Zwischenablage" Margin="0,0,8,0" />
+      <Button Name="Export"    Grid.Column="4" Content="Als Import-JSON speichern …" />
+    </Grid>
+
+    <Grid Grid.Row="2">
+      <DataGrid Name="Rows" GridLinesVisibility="All"
+                CanUserSortColumns="True" CanUserResizeColumns="True"
+                SelectionMode="Extended" AutoGenerateColumns="False">
+        <DataGrid.Styles>
+          <!-- Zurückgehalten: Zugangsdaten oder Adapter/Instanz. -->
+          <Style Selector="DataGridRow.gedaempft">
+            <Setter Property="Opacity" Value="0.55" />
+          </Style>
+        </DataGrid.Styles>
+        <DataGrid.Columns>
+          <DataGridCheckBoxColumn Header="" Binding="{Binding IsChecked}" Width="40" />
+          <DataGridTextColumn Header="ID"             Binding="{Binding Id}"     Width="520" IsReadOnly="True" />
+          <DataGridTextColumn Header="Typ"            Binding="{Binding Type}"   Width="110" IsReadOnly="True" />
+          <DataGridTextColumn Header="Name"           Binding="{Binding Name}"   Width="300" IsReadOnly="True" />
+          <DataGridTextColumn Header="Zurückgehalten" Binding="{Binding Reason}" Width="280" IsReadOnly="True" />
+        </DataGrid.Columns>
+      </DataGrid>
+
+      <TextBlock Name="PlaceholderText" TextAlignment="Center" TextWrapping="Wrap"
+                 HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.75"
+                 Text="Kein Backup geladen." />
+    </Grid>
+
+  </Grid>
+</UserControl>

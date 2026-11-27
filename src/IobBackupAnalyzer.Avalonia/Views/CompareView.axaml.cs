@@ -97,6 +97,17 @@ public partial class CompareView : UserControl
         this.FindControl<Button>("CsvObjects")!.Click += async (_, _) => await ExportAsync(
             "vergleich-objekte.csv", ComparePresenter.ObjectCsvColumns,
             _cmp is null ? null : ComparePresenter.ObjectCsvRows(_cmp));
+
+        // Der Wiederherstellungsfall: was im neueren Backup fehlt, aus dem älteren holen.
+        var restore = this.FindControl<Button>("RestoreRemoved")!;
+        restore.Content = ObjectsPresenter.CompareExportLabel;
+        ToolTip.SetTip(restore, ObjectsPresenter.CompareExportHint);
+        restore.Click += async (_, _) =>
+        {
+            if (_cmp is null) return;
+            await ObjectsView.ExportSelectionAsync(this, _cmp.Before, ObjectsPresenter.RemovedSelection(_cmp),
+                                                   ObjectsPresenter.RemovedFileName(_cmp), toClipboard: false);
+        };
         this.FindControl<Button>("CsvViews")!.Click += async (_, _) => await ExportAsync(
             "vergleich-views.csv", ComparePresenter.ViewCsvColumns,
             _cmp is null ? null

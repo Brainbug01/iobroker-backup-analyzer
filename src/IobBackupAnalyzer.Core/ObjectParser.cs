@@ -351,6 +351,7 @@ internal static class ObjectParser
             HistoryBackup = historyBackup,
             CredentialFields = credentialFields,
             EnableSecrets = enableSecrets,
+            NativeHasSecrets = ObjectExportGuard.HasSecrets(el),
             EnumMembers = enumMembers,
             RestartSchedule = restartSchedule,
             LogLevel = logLevel,

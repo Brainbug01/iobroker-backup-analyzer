@@ -26,6 +26,7 @@ public partial class MainWindow : Window
     private readonly LoggingView _logging;
     private readonly AliasView _aliases;
     private readonly FilesView _files;
+    private readonly ObjectsView _objects;
 
     private readonly Button _btnRecent;
 
@@ -68,6 +69,7 @@ public partial class MainWindow : Window
         _logging = this.FindControl<LoggingView>("Logging")!;
         _aliases = this.FindControl<AliasView>("Aliases")!;
         _files = this.FindControl<FilesView>("Files")!;
+        _objects = this.FindControl<ObjectsView>("Objects")!;
         this.FindControl<ContentControl>("ChangelogHost")!.Content = new HelpView(ChangelogContent.Blocks);
 
         _btnRecent = this.FindControl<Button>("BtnRecent")!;
@@ -271,6 +273,7 @@ public partial class MainWindow : Window
         Schritt("Logging", () => _logging.SetData(data));
         Schritt("Aliasse", () => _aliases.SetData(data));
         Schritt("Dateien", () => _files.SetData(data));
+        Schritt("Objekte", () => _objects.SetData(data));
         log?.Step("Alle Ansichten aufgebaut");
     }
 

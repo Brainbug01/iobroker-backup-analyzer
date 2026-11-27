@@ -1,0 +1,106 @@
+@inherits TabBase
+
+@*
+    Objekte aus dem Backup als Datei für „Objekte hochladen" im Admin exportieren — etwa
+    versehentlich gelöschte echarts-Vorlagen. Suche, Auswahl und Texte kommen aus
+    ObjectsPresenter, die Datei aus ObjectExporter — dieselben wie in den Desktop-Fassungen.
+*@
+
+@if (Daten is null)
+{
+    <Platzhalter Text="@PlatzhalterText("")" />
+}
+else
+{
+    <div class="reiter-inhalt">
+
+        <div class="kopfbereich">
+            <div class="leiste">
+                <label for="obj-muster" title="@ObjectsPresenter.PatternHint">ID-Muster:</label>
+                <input id="obj-muster" class="feld breit" placeholder="z. B. echarts.0.*"
+                       title="@ObjectsPresenter.PatternHint"
+                       value="@S.Pattern" @oninput="e => S.Pattern = e.Value?.ToString() ?? string.Empty" />
+
+                <label for="obj-typ">Typ:</label>
+                <select id="obj-typ" class="feld" @onchange="e => S.Type = e.Value?.ToString() ?? string.Empty">
+                    @foreach (var t in ObjectsPresenter.TypeLabels(Daten))
+                    {
+                        <option value="@t" selected="@(S.Type == t)">@t</option>
+                    }
+                </select>
+
+                <label class="haken" title="@ObjectsPresenter.IncludeChildrenHint">
+                    <input type="checkbox" checked="@S.IncludeChildren"
+                           @onchange="e => S.IncludeChildren = (bool?)e.Value == true" />
+                    @ObjectsPresenter.IncludeChildrenLabel
+                </label>
+
+                <label class="haken" title="@ObjectsPresenter.AllowGuardedHint">
+                    <input type="checkbox" checked="@S.AllowGuarded" @onchange="ZurueckgehalteneAsync" />
+                    @ObjectsPresenter.AllowGuardedLabel
+                </label>
+            </div>
+
+            <div class="leiste">
+                <span class="zaehler">@ObjectsPresenter.CountText(Gefiltert.Count, Daten.Objects.Count, S.Checked.Count)</span>
+                <span class="dehnen"></span>
+                <button class="knopf" @onclick="AlleAnhaken">Alle Treffer anhaken</button>
+                <button class="knopf" @onclick="() => S.Checked.Clear()">Haken entfernen</button>
+                <button class="knopf" @onclick="() => ExportierenAsync(true)">In Zwischenablage</button>
+                <button class="knopf" @onclick="() => ExportierenAsync(false)">Als Import-JSON speichern</button>
+            </div>
+        </div>
+
+        <div class="tabellenbereich">
+            <DataTable TItem="IobObject" Items="Gefiltert" Columns="Spalten"
+                       Emphasis="ObjectsPresenter.Emphasis"
+                       Checked="o => S.Checked.Contains(o.Id)" OnCheckToggled="Umschalten"
+                       Selected="S.Selected" SelectedChanged="o => S.Selected = o" />
+        </div>
+
+    </div>
+}
+
+@code {
+    private UiState.ObjectsTab S => Bedienung.Objects;
+
+    private List<IobObject> Gefiltert =>
+        Daten is null
+            ? new List<IobObject>()
+            : ObjectsPresenter.Filter(Daten.Objects, S.Pattern, S.Type);
+
+    private static readonly TableColumn<IobObject>[] Spalten =
+    {
+        new() { Header = "ID",             Width = 520, Text = o => o.Id },
+        new() { Header = "Typ",            Width = 110, Text = o => o.Type },
+        new() { Header = "Name",           Width = 300, Text = o => o.Name },
+        new() { Header = "Zurückgehalten", Width = 280, Text = o => ObjectExportGuard.Reason(o) ?? "" }
+    };
+
+    private void Umschalten(IobObject o)
+    {
+        if (!S.Checked.Add(o.Id)) S.Checked.Remove(o.Id);
+    }
+
+    private void AlleAnhaken()
+    {
+        foreach (var o in Gefiltert) S.Checked.Add(o.Id);
+    }
+
+    private async Task ZurueckgehalteneAsync(ChangeEventArgs e)
+    {
+        var an = (bool?)e.Value == true;
+        if (an && !await Dialoge.ConfirmAsync("Zurückgehaltene zulassen", ObjectsPresenter.AllowGuardedWarning))
+            an = false;
+        S.AllowGuarded = an;
+        StateHasChanged();
+    }
+
+    private async Task ExportierenAsync(bool zwischenablage)
+    {
+        if (Daten is null) return;
+        var auswahl = ObjectsPresenter.Resolve(Daten, S.Checked, S.IncludeChildren, S.AllowGuarded);
+        await ObjektExport.AusfuehrenAsync(Io, Dialoge, Daten, auswahl,
+                                           ObjectExporter.FileName(Daten, S.Pattern), zwischenablage);
+    }
+}

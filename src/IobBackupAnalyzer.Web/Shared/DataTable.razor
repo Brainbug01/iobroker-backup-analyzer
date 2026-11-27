@@ -32,6 +32,10 @@
     <table class="tabelle" style="min-width:@(GesamtBreite)px">
         <thead>
             <tr>
+                @if (Checked is not null)
+                {
+                    <th style="width:@(HakenBreite)px"></th>
+                }
                 @for (var i = 0; i < Columns.Count; i++)
                 {
                     var index = i;
@@ -57,6 +61,14 @@
                 <tr class="@ZeilenKlasse(zeile)"
                     @onclick="e => WaehlenAsync(zeile, e)"
                     @ondblclick="() => OnRowDoubleClick.InvokeAsync(zeile)">
+                    @if (Checked is not null)
+                    {
+                        @* Der Haken schaltet nur sich selbst um, nicht die Zeilenauswahl. *@
+                        <td class="haken-zelle" @onclick:stopPropagation="true">
+                            <input type="checkbox" checked="@Checked(zeile)"
+                                   @onchange="() => OnCheckToggled.InvokeAsync(zeile)" />
+                        </td>
+                    }
                     @for (var s = 0; s < Columns.Count; s++)
                     {
                         var spaltenIndex = s;
@@ -179,7 +191,16 @@
     /// </summary>
     private ICollection<TItem> _sichtbar = Array.Empty<TItem>();
 
-    private int GesamtBreite => Columns.Sum(s => s.Width);
+    private int GesamtBreite => Columns.Sum(s => s.Width) + (Checked is null ? 0 : HakenBreite);
+
+    private const int HakenBreite = 34;
+
+    /// <summary>
+    /// Haken je Zeile — gebraucht von „Objekte", wo man Objekte für den Export auswählt.
+    /// Ohne diesen Parameter gibt es keine Hakenspalte. Der Zustand gehört dem Aufrufer.
+    /// </summary>
+    [Parameter] public Func<TItem, bool>? Checked { get; set; }
+    [Parameter] public EventCallback<TItem> OnCheckToggled { get; set; }
 
     /// <summary>
     /// Ob hinter der letzten Spalte eine leere Fläche steht. Nur nötig, wenn die letzte
