@@ -408,6 +408,7 @@ public sealed class MainForm : Form
         _data = data;
 
         ApplyData(data);
+        _objects.PresetForScreenshots("*echarts*");
 
         var kind = data.Kind == BackupKind.Full ? "Voll-Backup" : "Skript-Backup";
         _lblFile.Text = $"{Path.GetFileName(path)}   ·   {kind}   ·   " +

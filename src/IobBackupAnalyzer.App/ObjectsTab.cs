@@ -137,6 +137,20 @@ public sealed class ObjectsTab : UserControl
         ApplyFilter();
     }
 
+    /// <summary>
+    /// Nur für den Bildmodus (<c>--screenshots</c>): setzt ein Suchmuster und hakt alle
+    /// Treffer an, die nicht zurückgehalten werden. So zeigt das Bild den eigentlichen
+    /// Ablauf — Muster, Haken, ausgegraute Sperren — statt einer ungefilterten Liste.
+    /// </summary>
+    internal void PresetForScreenshots(string pattern)
+    {
+        _pattern.Text = pattern;
+        foreach (var o in _filtered)
+            if (ObjectExportGuard.Reason(o) is null) _checked.Add(o.Id);
+        FillList();
+        UpdateCount();
+    }
+
     private void ApplyFilter()
     {
         if (_data is null) return;

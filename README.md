@@ -109,6 +109,7 @@ sie auch der Blockly-Editor führt.
 
 Weitere Tabs als Bild: [Backup-Prüfung](docs/bilder/windows/02-backup-pruefung.png) ·
 [Dateien](docs/bilder/windows/10-dateien.png) ·
+[Objekte](docs/bilder/windows/12-objekte.png) ·
 [Vergleich](docs/bilder/windows/11-vergleich.png)
 
 ### Plattformübergreifende Fassung
@@ -821,6 +822,8 @@ Werkzeug selbst schreibt nichts in ein ioBroker-System.
   einschließen"** kommen zu einem Ordner oder Gerät alle Objekte darunter mit.
 - **Exportieren** als Datei (`objekte_<Backupdatum>_<Muster>.json`) oder in die
   Zwischenablage.
+
+![Objekte](docs/bilder/windows/12-objekte.png)
 
 **Format.** Ein JSON-Objekt `{"<id>": <Objekt>, …}`, jedes Objekt mit `_id` und allen
 Feldern **unverändert aus dem Backup**, UTF-8 ohne BOM, eingerückt. So wurde es am echten
